@@ -67,5 +67,3 @@ consideration, by making local exceptions.
 The main runtime dependency is the
 [OpenSpiel](https://pypi.org/project/open-spiel/) game simulation
 framework.
-
-()

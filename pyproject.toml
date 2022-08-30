@@ -1,15 +1,55 @@
+# Poetry and other core configuration
 [tool.poetry]
 name = "threat-hunting-games"
 version = "0.1.0"
 description = ""
 authors = ["Phil Groce <pgroce@cert.org>"]
+packages = [
+         {include = "threathunt"}
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"
+open-spiel = "^1.2"
 
 [tool.poetry.dev-dependencies]
-pytest = "^5.2"
+pytest = "^7.1.2"
+pylint = "^2.14.4"
+pylint-pytest = "^1.1.2"
+jedi = "^0.18.1"
+mypy = "^0.961"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+# If the package installs any executables, list the script package and
+# entry point here.
+# [tool.poetry.scripts]
+# foo = "threathunt.scripts.foo:run_main"
+
+
+# Tool configurations
+
+# Black: https://pypi.org/project/black/
+[tool.black]
+line-length=88
+
+# Pylint: https://pypi.org/project/pylint/
+[tool.pylint.main]
+load-plugins = ["pylint_pytest"]
+
+[tool.pylint.format]
+max-line-length = 88
+
+
+# pytest: https://docs.pytest.org/en/7.1.x/
+[tool.pytest.ini_options]
+log_cli = false
+log_cli_level = "DEBUG"
+
+
+# mypy: https://mypy.readthedocs.io/
+
+# No special config here, but to add, see:
+# https://mypy.readthedocs.io/en/stable/config_file.html#using-a-pyproject-toml-file

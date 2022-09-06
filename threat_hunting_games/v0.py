@@ -6,6 +6,7 @@ Model of version 0 of the threat hunt statechain game.
 
 from typing import NamedTuple
 from enum import IntEnum
+from logging import debug
 import pyspiel  # type: ignore
 import numpy as np
 
@@ -20,6 +21,27 @@ class Actions(IntEnum):
     WAIT = 1
     ADVANCE = 2
     DETECT = 3
+
+
+# Arguments to pyspiel.GameType:
+#
+# (short_name: str,
+#  long_name: str,
+#  dynamics: open_spiel::GameType::Dynamics,
+#  chance_mode: open_spiel::GameType::ChanceMode,
+#  information: open_spiel::GameType::Information,
+#  utility: open_spiel::GameType::Utility,
+#  reward_model: open_spiel::GameType::RewardModel,
+#  max_num_players: int,
+#  min_num_players: int,
+#  provides_information_state_string: bool,
+#  provides_information_state_tensor: bool,
+#  provides_observation_string: bool,
+#  provides_observation_tensor: bool,
+#  parameter_specification: Dict[str,
+#                                GameParameter] = {},
+#  default_loadable: bool = True,
+#  provides_factored_observation_string: bool = False)
 
 
 _GAME_TYPE = pyspiel.GameType(
@@ -37,11 +59,11 @@ _GAME_TYPE = pyspiel.GameType(
     min_num_players=2,
     provides_information_state_string=False,
     provides_information_state_tensor=False,
-    provides_observation_string=False,
-    provides_observation_tensor=False,
+    provides_observation_string=True,
+    provides_observation_tensor=True,
+    # parameter_specification={},
+    default_loadable=True,
     provides_factored_observation_string=False,
-    # We can worry about parameters later
-    parameter_specification={},
 )
 
 
@@ -53,12 +75,24 @@ def make_game_info(num_turns):
     # Max utility is for A to always advance while D defends. A spends
     # 1 to get 2, for a net utility of 1 each turn. Hence:
     max_utility = num_turns
+
+    # Arguments to pyspiel.GameInfo:
+    # (num_distinct_actions: int,
+    #  max_chance_outcomes: int,
+    #  num_players: int,
+    #  min_utility: float,
+    #  max_utility: float,
+    #  utility_sum: float = 0,
+    #  max_game_length: int)
+
+    debug("Making GameInfo")
+
     return pyspiel.GameInfo(
         num_distinct_actions=3,
         max_chance_outcomes=0,
         num_players=2,
-        min_utility=min_utility,
-        max_utility=max_utility,
+        min_utility=float(min_utility),
+        max_utility=float(max_utility),
         utility_sum=0.0,
         max_game_length=num_turns,
     )
@@ -305,11 +339,12 @@ class OmniscientObserver:
 class V0Game(pyspiel.Game):
     """Game"""
 
-    def __init__(self, game_type: pyspiel.GameType, game_info: pyspiel.GameType):
+    def __init__(self, game_info: pyspiel.GameInfo):
         """Constructor"""
-        super().__init__(game_type, game_info)
-        self.game_type = game_type
+        debug("HELLO")
+        self.game_type = _GAME_TYPE
         self.game_info = game_info
+        super().__init__(self.game_type, self.game_info)
 
     def new_initial_state(self):
         """Return a new GameState object"""

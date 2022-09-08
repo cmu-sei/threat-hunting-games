@@ -4,9 +4,9 @@ Model of version 0 of the threat hunt statechain game.
 
 # pylint: disable=c-extension-no-member missing-class-docstring missing-function-docstring
 
-from typing import NamedTuple
+from typing import NamedTuple, Mapping, Any, List
 from enum import IntEnum
-from logging import debug
+from logging import debug  # pylint: disable=unused-import
 import pyspiel  # type: ignore
 import numpy as np
 
@@ -17,10 +17,9 @@ class Players(IntEnum):
 
 
 class Actions(IntEnum):
-    NULL = 0  # open_spiel should never(??) use this value
-    WAIT = 1
-    ADVANCE = 2
-    DETECT = 3
+    WAIT = 0
+    ADVANCE = 1
+    DETECT = 2
 
 
 # Arguments to pyspiel.GameType:
@@ -61,9 +60,9 @@ _GAME_TYPE = pyspiel.GameType(
     provides_information_state_tensor=False,
     provides_observation_string=True,
     provides_observation_tensor=True,
-    # parameter_specification={},
     default_loadable=True,
     provides_factored_observation_string=False,
+    parameter_specification={"num_turns": 2},
 )
 
 
@@ -84,8 +83,6 @@ def make_game_info(num_turns):
     #  max_utility: float,
     #  utility_sum: float = 0,
     #  max_game_length: int)
-
-    debug("Making GameInfo")
 
     return pyspiel.GameInfo(
         num_distinct_actions=3,
@@ -216,7 +213,11 @@ class V0GameState(pyspiel.State):
         categories.)
         """
         # Asserted as invariant in sample games:
-        # assert player >= 0
+        if self._game_over:
+            return []
+
+        assert player >= 0
+        debug(f"legal actions for player {player}")
         match player:
             case Players.ATTACKER:
                 return [Actions.WAIT, Actions.ADVANCE]
@@ -240,7 +241,7 @@ class V0GameState(pyspiel.State):
         # called.
         raise NotImplementedError()
 
-    def _apply_actions(self, actions):
+    def _apply_actions(self, actions: List[int]):
         """
         Apply actions of all players in simultaneous-move games.
 
@@ -339,12 +340,17 @@ class OmniscientObserver:
 class V0Game(pyspiel.Game):
     """Game"""
 
-    def __init__(self, game_info: pyspiel.GameInfo):
-        """Constructor"""
-        debug("HELLO")
+    def __init__(self, params: Mapping[str, Any]):
+        """
+        Constructor.
+
+        Minimum requirement for the constructor is that it can be
+        called with a single argument of the parameters for this game
+        instance.
+        """
         self.game_type = _GAME_TYPE
-        self.game_info = game_info
-        super().__init__(self.game_type, self.game_info)
+        self.game_info = make_game_info(params["num_turns"])
+        super().__init__(self.game_type, self.game_info, params)
 
     def new_initial_state(self):
         """Return a new GameState object"""

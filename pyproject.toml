@@ -40,6 +40,7 @@ line-length=88
 # Pylint: https://pypi.org/project/pylint/
 [tool.pylint.main]
 load-plugins = ["pylint_pytest"]
+extension-pkg-allow-list=["pyspiel"]
 
 [tool.pylint.format]
 max-line-length = 88

@@ -12,8 +12,10 @@ import numpy as np
 
 
 class Players(IntEnum):
-    ATTACKER = 1
-    DEFENDER = 2
+    # the values of these Player enums are used as 0-based indices later
+    # -- also hence IntEnum
+    ATTACKER = 0
+    DEFENDER = 1
 
 
 class Actions(IntEnum):

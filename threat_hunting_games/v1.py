@@ -21,7 +21,9 @@ class Players(IntEnum):
 class Actions(IntEnum):
     WAIT = 0
     ADVANCE = 1
-    DETECT = 2
+    ADVANCE_STEALTH = 2
+    DETECT = 3
+    DETECT_STEALTH = 4
 
 
 # Arguments to pyspiel.GameType:
@@ -46,8 +48,8 @@ class Actions(IntEnum):
 
 
 _GAME_TYPE = pyspiel.GameType(
-    short_name="chain_game_v0",
-    long_name="Chain game version 0",
+    short_name="chain_game_v1",
+    long_name="Chain game version 1",
     dynamics=pyspiel.GameType.Dynamics.SIMULTANEOUS,
     chance_mode=pyspiel.GameType.ChanceMode.DETERMINISTIC,
     information=pyspiel.GameType.Information.PERFECT_INFORMATION,
@@ -87,7 +89,7 @@ def make_game_info(num_turns):
     #  max_game_length: int)
 
     return pyspiel.GameInfo(
-        num_distinct_actions=3,
+        num_distinct_actions=5,
         max_chance_outcomes=0,
         num_players=2,
         min_utility=float(min_utility),
@@ -103,18 +105,27 @@ class AttackerState(NamedTuple):
     state_pos: int
     utility: int
 
-    def advance(self, detected: bool) -> "AttackerState":
+    def advance(self, action, detected: bool) -> "AttackerState":
         # This can be done more concisely, but to make the logic clear:
 
-        # Advancing costs 1, whether it succeeds or not
-        new_utility = self.utility - 1
+        match action:
+            case Actions.ADVANCE:
+                # Advancing costs 1, whether it succeeds or not
+                new_utility = self.utility - 1
+            case Actions.ADVANCE_STEALTH:
+                # Stealth Advancing costs 2, whether it succeeds or not
+                new_utility = self.utility - 2
+            case Actions.WAIT:
+                pass
+            case _:
+                raise ValueError("Invalid attack action: %s" % action)
 
         new_state = self.state_pos
 
         if not detected:
             # If successful, the attacker advances to a new state and
             # gets 2 utility
-            new_utility = self.utility + 2
+            new_utility = self.utility + 3
             # (Assuming an infinite-length, uniform-value state chain,
             # which is silly but simple.)
             new_state = self.state_pos + 1
@@ -126,9 +137,18 @@ class AttackerState(NamedTuple):
 class DefenderState(NamedTuple):
     utility: int
 
-    def detect(self) -> "DefenderState":
-        # Detecting costs 1
-        new_utility = self.utility - 1
+    def detect(self, action) -> "DefenderState":
+        match action:
+            case Actions.DETECT:
+                # Detecting costs 1
+                new_utility = self.utility - 1
+            case Actions.DETECT_STEALTH:
+                # Stealth detection costs 2
+                new_utility = self.utility - 2
+            case Actions.WAIT:
+                pass
+            case _:
+                raise ValueError("Invalid defender action: %s" % action)
 
         # Note: A detect action may stop an advance action, but that
         # doesn't change any Defender state.
@@ -222,9 +242,9 @@ class V0GameState(pyspiel.State):
         debug(f"legal actions for player {player}")
         match player:
             case Players.ATTACKER:
-                return [Actions.WAIT, Actions.ADVANCE]
+                return [Actions.WAIT, Actions.ADVANCE, Actions.ADVANCE_STEALTH]
             case Players.DEFENDER:
-                return [Actions.WAIT, Actions.DETECT]
+                return [Actions.WAIT, Actions.DETECT, Actions.DETECT_STEALTH]
             case _:
                 # TODO: Maybe raise error here?
                 return []
@@ -263,10 +283,21 @@ class V0GameState(pyspiel.State):
         attacker_action = actions[Players.ATTACKER]
         defender_action = actions[Players.DEFENDER]
 
-        if defender_action == Actions.DETECT:
-            self._defender = self._defender.detect()
-        if attacker_action == Actions.ADVANCE:
-            self._attacker = self._attacker.advance(defender_action == Actions.DETECT)
+        if defender_action in (Actions.DETECT, Actions.DETECT_STEALTH):
+            self._defender = self._defender.detect(defender_action)
+        else:
+            pass
+
+        match attacker_action:
+            case Actions.ADVANCE:
+                self._attacker = self._attacker.advance(
+                    attacker_action,
+                    defender_action in (Actions.DETECT, Actions.DETECT_STEALTH))
+            case Actions.ADVANCE_STEALTH:
+                self._attacker = self._attacker.advance(
+                    attacker_action, defender_action == Actions.DETECT_STEALTH)
+            case _:
+                pass
 
         # Note: Actions.WAIT is a no-op
 
@@ -283,11 +314,12 @@ class V0GameState(pyspiel.State):
     def _action_to_string(self, player, action):
         """Convert an action to a string representation, presumably
         for logging."""
-        # need clarification on this None player
         #player = [None, "Attacker", "Defender"][player]
-        #action = [None, "WAIT", "ADVANCE", "DEFEND"][action]
+        #action = [None, "WAIT", "ADVANCE", "ADVANCE_STEALTH",
+        #          "DEFEND", "DEFEND_STEALTH"][action]
         player = ["Attacker", "Defender"][player]
-        action = ["WAIT", "ADVANCE", "DEFEND"][action]
+        action = ["WAIT", "ADVANCE", "ADVANCE_STEALTH",
+                  "DEFEND", "DEFEND_STEALTH"][action]
         return f"{player}: {action}"
 
     def is_terminal(self):

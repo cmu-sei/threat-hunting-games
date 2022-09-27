@@ -46,7 +46,6 @@ class Actions(IntEnum):
 #  default_loadable: bool = True,
 #  provides_factored_observation_string: bool = False)
 
-
 _GAME_TYPE = pyspiel.GameType(
     short_name="chain_game_v1",
     long_name="Chain game version 1",
@@ -76,7 +75,8 @@ def make_game_info(num_turns):
     # minimum utility is for D, and it's -2 * num_turns
     min_utility = -2 * num_turns
     # Max utility is for A to always advance while D defends. A spends
-    # 1 to get 2, for a net utility of 1 each turn. Hence:
+    # 1 to get 2 (or 2 to get 3 for stealth), for a net utility of 1
+    # each turn. Hence:
     max_utility = num_turns
 
     # Arguments to pyspiel.GameInfo:
@@ -158,11 +158,12 @@ class DefenderState(NamedTuple):
 
 
 # pylint: disable=too-few-public-methods
-class V0GameState(pyspiel.State):
+class V1GameState(pyspiel.State):
     """Game state, and also action resolution for some reason."""
 
     def __init__(self, game, game_info):
         super().__init__(game)
+        print("V1GameState here!", type(self))
         self._num_turns = game_info.max_game_length
         self._curr_turn = 0
         self._attacker = AttackerState(0, 0)
@@ -177,6 +178,9 @@ class V0GameState(pyspiel.State):
         # Used by convention in the sample games to indicate that the
         # game should terminate.
         self._game_over = False
+
+        #print("STATE DIR:", dir(self))
+        print("STATE ISN:", self.is_simultaneous_node())
 
         # If this were a stochastic game, _is_chance would used in
         # _apply_action (maybe elsewhere?) by convention, to determine
@@ -346,13 +350,14 @@ class OmniscientObserver:
         self.tensor = np.zeros((3,), int)
 
     def set_from(
-        self, state: V0GameState, player: int
+        self, state: V1GameState, player: int
     ):  # pylint: disable=unused-argument
         """
         Update the observer state to reflect `state` from the POV
         of `player`.
 
-        This is an omniscient observation, so the info will be the same for all players.
+        This is an omniscient observation, so the info will be the same
+        for all players.
         """
         # Tensor values: attacker position, attacker utility, defender utility
         self.tensor[0] = state.attacker_state.state_pos
@@ -374,7 +379,7 @@ class OmniscientObserver:
         )
 
 
-class V0Game(pyspiel.Game):
+class V1Game(pyspiel.Game):
     """Game"""
 
     def __init__(self, params: Mapping[str, Any]):
@@ -391,11 +396,12 @@ class V0Game(pyspiel.Game):
 
     def new_initial_state(self):
         """Return a new GameState object"""
-        return V0GameState(self, self.game_info)
+        return V1GameState(self, self.game_info)
 
     def make_py_observer(self, iig_obs_type=None, params=None):
         """
-        Create an observer object of type `iig_obs_type`, configured using `params`.
+        Create an observer object of type `iig_obs_type`, configured
+        using `params`.
 
         In this simple example, only one type of Observer exists, and
         it isn't configurable, so both input arguments are ignored.
@@ -405,4 +411,4 @@ class V0Game(pyspiel.Game):
                 return OmniscientObserver(params)
 
 
-pyspiel.register_game(_GAME_TYPE, V0Game)
+pyspiel.register_game(_GAME_TYPE, V1Game)

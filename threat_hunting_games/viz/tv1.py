@@ -19,7 +19,8 @@ from absl import flags
 from absl import logging
 
 import pyspiel
-from open_spiel.python.visualizations import treeviz
+#from open_spiel.python.visualizations import treeviz
+import treeviz
 
 # importing registers the game
 import v1

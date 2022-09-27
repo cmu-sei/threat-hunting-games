@@ -163,7 +163,6 @@ class V1GameState(pyspiel.State):
 
     def __init__(self, game, game_info):
         super().__init__(game)
-        print("V1GameState here!", type(self))
         self._num_turns = game_info.max_game_length
         self._curr_turn = 0
         self._attacker = AttackerState(0, 0)
@@ -178,9 +177,6 @@ class V1GameState(pyspiel.State):
         # Used by convention in the sample games to indicate that the
         # game should terminate.
         self._game_over = False
-
-        #print("STATE DIR:", dir(self))
-        print("STATE ISN:", self.is_simultaneous_node())
 
         # If this were a stochastic game, _is_chance would used in
         # _apply_action (maybe elsewhere?) by convention, to determine

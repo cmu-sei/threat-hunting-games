@@ -9,13 +9,16 @@ from typing import NoReturn
 
 import pytest
 import pyspiel  # type: ignore
+from open_spiel.python.algorithms.get_all_states import get_all_states
 
 from threat_hunting_games import v1
 
+game_name = "chain_game_v1"
+turns = 2
 
 @pytest.fixture
 def game():
-    return pyspiel.load_game("chain_game_v1", {"num_turns": 2})
+    return pyspiel.load_game(game_name, {"num_turns": turns})
 
 
 def play_a_turn(state, strategy):
@@ -56,3 +59,17 @@ def test_game_finishes(game):
     play_a_turn(state, random_strategy)
     # After turn 2 (should be over)
     assert state.is_terminal() is True
+
+def test_allstate():
+    game = pyspiel.load_game(game_name, {"num_turns": turns})
+    initial_state = game.new_initial_state()
+    attack_actions = initial_state.legal_actions(v1.Players.ATTACKER)
+    defend_actions = initial_state.legal_actions(v1.Players.DEFENDER)
+    branches_per_node = len(attack_actions) * len(defend_actions)
+    expected_nodes = (branches_per_node**(turns+1)-1)/(branches_per_node - 1)
+    depth_limit = turns
+    include_terminals = True
+    include_chance_states = False
+    sim_nodes = get_all_states(game, depth_limit,
+            include_terminals, include_chance_states)
+    assert len(sim_nodes) == expected_nodes

@@ -14,13 +14,16 @@
 
 """Game tree visualization example."""
 
+import os, sys
+
 from absl import app
 from absl import flags
 from absl import logging
 
 import pyspiel
-#from open_spiel.python.visualizations import treeviz
-import treeviz
+from open_spiel.python.visualizations import treeviz
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 # importing registers the game
 import v1

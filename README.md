@@ -41,6 +41,11 @@ When you have your virtualenv active, `poetry install`{.verbatim} in the
 top-level directory should download the dependencies from pypi and
 install them.
 
+## TensorFlow
+
+Some utilities that use the OpenSpiel algorithms require [TensorFlow](https://www.tensorflow.org/install/pip)
+
+
 ## Additional build dependencies
 
 To keep code quality high and catch mistakes early, this project uses

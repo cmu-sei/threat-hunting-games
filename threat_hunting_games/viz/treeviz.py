@@ -56,14 +56,14 @@ def main(argv):
   del argv
 
   #game = pyspiel.load_game(FLAGS.game)
-  game = pyspiel.load_game(game_mod.game_name)
+  game = pyspiel.load_game(FLAGS.game_name)
   game_type = game.get_type()
 
   if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
     logging.warn("%s is not turn-based. Trying to reload game as turn-based.",
-                 game_mod.game_name)
+                 FLAGS.game_name)
     #game = pyspiel.load_game_as_turn_based(FLAGS.game)
-    game = pyspiel.load_game_as_turn_based(game_mod.game_name)
+    game = pyspiel.load_game_as_turn_based(FLAGS.game_name)
     game_type = game.get_type()
 
   if game_type.dynamics != pyspiel.GameType.Dynamics.SEQUENTIAL:

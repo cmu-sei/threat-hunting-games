@@ -45,6 +45,9 @@ class Utility(NamedTuple):
     reward:  int # utility attack success reward
     penalty: int # utility defend failure penalty
 
+# these action_utils dicts could be strung together in a turn-based
+# chain, or put in a dict with turn number as key (for sparse changes)
+# in order to have varying utilities as the game progresses
 _action_utils = {
     Actions.WAIT: Utility(0, 0, 0, 0),
     Actions.ADVANCE: Utility(1, 1, 3, 3),

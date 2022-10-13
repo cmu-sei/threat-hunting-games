@@ -1,3 +1,5 @@
+#!/bin/env python3
+#
 # Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +28,7 @@ from open_spiel.python.visualizations import treeviz
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 # importing registers the game
-import v0
+import v0 as game_mod
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string("game", "kuhn_poker", "Name of the game")
@@ -53,17 +55,15 @@ def _zero_sum_node_decorator(state):
 def main(argv):
   del argv
 
-  game_name = "chain_game_v0"
-
   #game = pyspiel.load_game(FLAGS.game)
-  game = pyspiel.load_game(game_name)
+  game = pyspiel.load_game(game_mod.game_name)
   game_type = game.get_type()
 
   if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
     logging.warn("%s is not turn-based. Trying to reload game as turn-based.",
-                 game_name)
+                 game_mod.game_name)
     #game = pyspiel.load_game_as_turn_based(FLAGS.game)
-    game = pyspiel.load_game_as_turn_based(game_name)
+    game = pyspiel.load_game_as_turn_based(game_mod.game_name)
     game_type = game.get_type()
 
   if game_type.dynamics != pyspiel.GameType.Dynamics.SEQUENTIAL:

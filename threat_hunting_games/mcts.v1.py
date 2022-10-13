@@ -1,3 +1,5 @@
+#!/bin/env python3
+#
 # Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +13,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# sisk - compare edits with open_spiel/open_spiel/python/examples/mcts.py
 
 """MCTS example."""
 
@@ -30,7 +34,7 @@ from open_spiel.python.bots import human
 from open_spiel.python.bots import uniform_random
 import pyspiel
 
-import v1
+import v1 as game_mod
 
 _KNOWN_PLAYERS = [
     # A generic Monte Carlo Tree Search agent.
@@ -51,7 +55,7 @@ _KNOWN_PLAYERS = [
     "az"
 ]
 
-flags.DEFINE_string("game", v1.game_name, "Name of the game.")
+flags.DEFINE_string("game", game_mod.game_name, "Name of the game.")
 flags.DEFINE_enum("player1", "mcts", _KNOWN_PLAYERS, "Who controls attacking player.")
 flags.DEFINE_enum("player2", "random", _KNOWN_PLAYERS, "Who controls defending player.")
 flags.DEFINE_string("gtp_path", None, "Where to find a binary for gtp.")
@@ -197,9 +201,9 @@ def main(argv):
   game_type = game.get_type()
   if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
     print("%s is not turn-based. Trying to reload game as turn-based.",
-                 v1.game_name)
+                 game_mod.game_name)
     #game = pyspiel.load_game_as_turn_based(FLAGS.game)
-    game = pyspiel.load_game_as_turn_based(v1.game_name,
+    game = pyspiel.load_game_as_turn_based(game_mod.game_name,
             {"num_turns": FLAGS.num_turns})
     game_type = game.get_type()
   if game_type.dynamics != pyspiel.GameType.Dynamics.SEQUENTIAL:
@@ -207,8 +211,8 @@ def main(argv):
         game_type.dynamics))
 
   bots = [
-      _init_bot(FLAGS.player1, game, v1.Players.ATTACKER),
-      _init_bot(FLAGS.player2, game, v1.Players.DEFENDER),
+      _init_bot(FLAGS.player1, game, game_mod.Players.ATTACKER),
+      _init_bot(FLAGS.player2, game, game_mod.Players.DEFENDER),
   ]
   histories = collections.defaultdict(int)
   overall_returns = [0, 0]

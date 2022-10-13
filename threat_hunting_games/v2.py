@@ -186,7 +186,7 @@ class AttackerState(NamedTuple):
         new_action_vec = self.action_vec + (action,)
         new_detected_vec = self.detected_vec + (detected,)
 
-        if not is_detected(action, defend_action):
+        if not detected:
             # If successful, the attacker advances to a new state and
             # gets 2 utility
             new_utility += utils.reward

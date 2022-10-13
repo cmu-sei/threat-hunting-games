@@ -28,10 +28,10 @@ from open_spiel.python.visualizations import treeviz
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 # importing registers the game
-import v1 as game_mod
+import v2 as game_mod
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string("game", "kuhn_poker", "Name of the game")
+flags.DEFINE_string("game", game_mod.game_name, "Name of the game")
 flags.DEFINE_string("out", "/tmp/gametree.png", "Name of output file, e.g., "
                     "[*.png|*.pdf].")
 flags.DEFINE_enum("prog", "dot", ["dot", "neato", "circo"], "Graphviz layout.")

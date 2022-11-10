@@ -27,6 +27,10 @@ class Players(IntEnum):
 # etc). Figuring out the bit math as number of actions grows doesn't
 # seem scalable. Plus an integer IV limits the number of turns in a game
 # if you want perfect recall in the IV
+#
+# Also I ran into difficulties trying to put attack/defend actions in
+# their own IntEnums (0, 1, 2 value for each). Pyspiel will blow up if
+# the action values are not indeed distinct.
 
 class Actions(IntEnum):
     WAIT = 0
@@ -34,6 +38,7 @@ class Actions(IntEnum):
     ADVANCE_CAMO = 2
     DETECT_WEAK = 3
     DETECT_STRONG = 4
+
 class Utility(NamedTuple):
     cost:    int # utility cost
     reward:  int # action success reward
@@ -65,6 +70,24 @@ _defend_actions = (
 _max_cost = max(x.cost for x in _utils.values())
 _max_penalty = max(x.penalty for x in _utils.values())
 _max_reward = max(x.reward for x in _utils.values())
+
+# just an idea rather than all the if/then logic
+_detect_table = np.array([
+    # if this was a proper game matrix, these would be utility pairs;
+    # columns are defend, rows are attack:
+    #   -1 = no-op
+    #    0 = breached
+    #    1 = detect
+    [ -1, -1, -1 ],
+    [ -1,  1,  1 ],
+    [ -1,  0,  1 ],
+])
+
+_action_idx = {}
+for i, action in enumerate(_attack_actions):
+    _action_idx[action] = i
+for i, action in enumerate(_defend_actions):
+    _action_idx[action] = i
 
 # Arguments to pyspiel.GameType:
 #
@@ -349,26 +372,39 @@ class V2GameState(pyspiel.State):
         self._attack_vec[self._curr_turn - 1] = attacker_action
         self._defend_vec[self._curr_turn - 1] = defender_action
 
-        # sisk - matrix_game has me thinking on this -- maybe a numpy array
-        # lookup with attack/defend values normalized to 0 from the
-        # IntEnum values; I ran into difficulties trying to put
-        # attack/defend actions in their own IntEnums (0, 1, 2 value for
-        # each). Pyspiel will blow up if the action values are not
-        # indeed distinct.
-        detected = False
-        breached = False
-        if attacker_action: # not WAIT
-            if defender_action: # not WAIT
-                if defender_action is Actions.DETECT_STRONG:
-                    detected = True
-                elif attacker_action is Actions.ADVANCE_NOISY:
-                    detected = True
-                breached = not detected
-            else:
-                breached = True
+        def _resolve_with_logic():
+            # I can see this getting complicated as the number of
+            # available actions grows
+            detected = False
+            breached = False
+            if attacker_action: # not WAIT
+                if defender_action: # not WAIT
+                    if defender_action is Actions.DETECT_STRONG:
+                        detected = True
+                    elif attacker_action is Actions.ADVANCE_NOISY:
+                        detected = True
+                    breached = not detected
+                else:
+                    breached = True
+            return detected, breached
+
+        def _resolve_with_lookup():
+            detected = False
+            breached = False
+            result = _detect_table[
+                _action_idx[defender_action],
+                _action_idx[attacker_action]]
+            if result > 0:
+                detected = True
+            elif not result:
+                breached = False
+            return detected, breached
+
+        detected, breached = _resolve_with_lookup()
 
         # WAIT still needs to be passed in since there might be
-        # consequences
+        # consequences; these methods are what handle the metting out of
+        # utilities
         self._attacker = \
                 self.attacker_state.advance(attacker_action, detected)
         self._defender = \

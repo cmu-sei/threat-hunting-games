@@ -1,5 +1,5 @@
 """
-Model of version 0 of the threat hunt statechain game.
+Model of version 1 of the threat hunt statechain game.
 """
 
 # pylint: disable=c-extension-no-member missing-class-docstring missing-function-docstring

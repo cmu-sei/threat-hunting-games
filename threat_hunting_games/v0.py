@@ -58,8 +58,8 @@ _GAME_TYPE = pyspiel.GameType(
     # Note again: num_players doesn't count Chance
     max_num_players=2,
     min_num_players=2,
-    provides_information_state_string=False,
-    provides_information_state_tensor=False,
+    provides_information_state_string=True,
+    provides_information_state_tensor=True,
     provides_observation_string=True,
     provides_observation_tensor=True,
     default_loadable=True,

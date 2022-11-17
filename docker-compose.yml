@@ -1,0 +1,8 @@
+version: '3.9'
+services:
+    threat-hunting-game:
+      image: threat-hunting-games:latest
+      build:
+        context: .
+      container_name: threat-hunting-game
+      tty: true

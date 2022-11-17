@@ -5,3 +5,6 @@
 
 # vim detritus
 **/*.swp
+
+# For pycharm IDE users
+.idea

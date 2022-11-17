@@ -1,1 +1,0 @@
-./app/virtualenv/bin/python3.10 ./app/virtualenv/lib/python3.10/site-packages/pytest tests

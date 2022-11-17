@@ -4,6 +4,15 @@ hunting.
 
 # Toolchain
 
+## Docker Container
+In order to spin up a [Docker](https://www.docker.com/) container you can run the following commands:
+
+**VPN Build**:
+`./build_docker_container.sh vpn-build`
+
+**Non VPN Build**:
+`./build_docker_container.sh non-vpn-build`
+
 ## Pyenv and pyenv-virtualenv (optional, encouraged)
 
 The Python version being targeted is 3.10.\*. This is not a carefully

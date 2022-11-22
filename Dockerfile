@@ -1,4 +1,4 @@
-FROM python:3.10.8-slim-bullseye as base-image
+FROM python:3.10.8-slim-bullseye as base-threat-hunting-games
 ENV PYVERSION ${pyversion:-3.10.8}
 ENV PIP_DEFAULT_TIMEOUT=100 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -25,18 +25,9 @@ WORKDIR $CLANG_PATH
 
 # Getting required packages
 RUN apt-get -yqq update && \
-    apt-get -yqq install xz-utils curl cmake protobuf-compiler && \
+    apt-get -yqq install --no-install-recommends curl protobuf-compiler gnupg2 wget ca-certificates \
+    apt-transport-https autoconf automake cmake dpkg-dev file make patch libc6-dev && \
     apt-get clean
-
-RUN apt-get install -qqy --no-install-recommends gnupg2 wget ca-certificates apt-transport-https  \
-    autoconf automake cmake dpkg-dev file make patch libc6-dev
-
-RUN wget -nv -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
-
-RUN echo "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-15 main" > /etc/apt/sources.list.d/llvm.list;   \
-    apt-get -qq update &&  apt-get install -qqy -t llvm-toolchain-bullseye-15 clang-15 clang-tidy-15 clang-format-15 lld-15 &&   \
-    for f in /usr/lib/llvm-15/bin/*; do ln -sf "$f" /usr/bin; done &&   \
-    rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -v -p $PYSETUP_PATH
 WORKDIR $PYSETUP_PATH
@@ -49,21 +40,33 @@ COPY poetry.lock pyproject.toml ./
 
 RUN $VENV_PATH/bin/pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org poetry==$POETRY_VERSION
 
+RUN $VENV_PATH/bin/pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org certifi
 # Copy over code base files
 RUN mkdir /app
 COPY . /app
 
 # Certificate work
-FROM base-image as vpn-build
+FROM base-threat-hunting-games as vpn-build
 RUN curl -ks 'http://aia.sei.cmu.edu/ZscalerRootCertificate-2048-SHA256.crt' -o '/usr/local/share/ca-certificates/ZscalerRootCertificate-2048-SHA256.crt'
 ENV SSL_CERT_FILE='/usr/local/share/ca-certificates/ZscalerRootCertificate-2048-SHA256.crt'
+ENV REQUESTS_CA_BUNDLE='/usr/local/share/ca-certificates/ZscalerRootCertificate-2048-SHA256.crt'
 RUN update-ca-certificates --fresh
-RUN poetry config certificates.threat-hunting-games.cert /usr/local/share/ca-certificates/ZscalerRootCertificate-2048-SHA256.crt
-RUN poetry config certificates.threat-hunting-games.client-cert /usr/local/share/ca-certificates/ZscalerRootCertificate-2048-SHA256.crt
+RUN poetry config certificates.foo.cert /usr/local/share/ca-certificates/ZscalerRootCertificate-2048-SHA256.crt
+RUN wget -nv -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+
+RUN echo "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-15 main" > /etc/apt/sources.list.d/llvm.list;   \
+    apt-get -qq update &&  apt-get install -qqy -t llvm-toolchain-bullseye-15 clang-15 clang-tidy-15 clang-format-15 lld-15 &&   \
+    for f in /usr/lib/llvm-15/bin/*; do ln -sf "$f" /usr/bin; done &&   \
+    rm -rf /var/lib/apt/lists/*
 RUN poetry install --no-interaction --no-ansi
 
+FROM base-threat-hunting-games as non-vpn-build
+RUN wget -nv -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
 
-FROM base-image as non-vpn-build
+RUN echo "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-15 main" > /etc/apt/sources.list.d/llvm.list;   \
+    apt-get -qq update &&  apt-get install -qqy -t llvm-toolchain-bullseye-15 clang-15 clang-tidy-15 clang-format-15 lld-15 &&   \
+    for f in /usr/lib/llvm-15/bin/*; do ln -sf "$f" /usr/bin; done &&   \
+    rm -rf /var/lib/apt/lists/*
 RUN poetry install --no-interaction --no-ansi
 
 

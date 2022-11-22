@@ -181,7 +181,7 @@ class AttackerState(NamedTuple):
 
     def advance(self, action: Actions, detected: bool) -> "AttackerState":
 
-        print("ATTACK old_utility:", self.utility)
+        #print("ATTACK old_utility:", self.utility)
 
         utils = _utils[action]
 
@@ -196,7 +196,7 @@ class AttackerState(NamedTuple):
             # which is silly but simple.)
             new_state += 1
 
-        print("ATTACK new_utility:", new_utility)
+        #print("ATTACK new_utility:", new_utility)
 
         # pylint: disable=no-member
         return self._replace(
@@ -210,7 +210,7 @@ class DefenderState(NamedTuple):
 
     def detect(self, action: Actions, breached: bool) -> "DefenderState":
 
-        print("DEFEND old_utility:", self.utility)
+        #print("DEFEND old_utility:", self.utility)
 
         utils = _utils[action]
 
@@ -219,7 +219,7 @@ class DefenderState(NamedTuple):
         if breached:
             new_utility -= utils.penalty
 
-        print("DEFEND new_utility:", new_utility)
+        #print("DEFEND new_utility:", new_utility)
 
         # pylint: disable=no-member
         return self._replace(
@@ -366,11 +366,15 @@ class V2GameState(pyspiel.State):
         # (Not sure why it's handled that way.)
         # self._is_chance = True
 
+        #print("apply_actions, curr turn:", self._curr_turn)
+
         attacker_action = actions[Players.ATTACKER]
         defender_action = actions[Players.DEFENDER]
 
-        self._attack_vec[self._curr_turn - 1] = attacker_action
-        self._defend_vec[self._curr_turn - 1] = defender_action
+        self._attack_vec[self._curr_turn] = attacker_action
+        self._defend_vec[self._curr_turn] = defender_action
+        #print(f"attack_vec({self._curr_turn}):", self._attack_vec)
+        #print(f"defend_vec:({self._curr_turn})", self._defend_vec)
 
         def _resolve_with_logic():
             # I can see this getting complicated as the number of

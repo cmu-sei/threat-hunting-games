@@ -33,7 +33,8 @@ from absl import app
 from absl import flags
 from absl import logging
 
-from open_spiel.python.algorithms import generate_playthrough
+#from open_spiel.python.algorithms import generate_playthrough
+import generate_playthrough
 
 import v2 as mod
 #import v2_matrix as mod

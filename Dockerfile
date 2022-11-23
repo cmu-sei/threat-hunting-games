@@ -44,6 +44,7 @@ RUN $VENV_PATH/bin/pip install --trusted-host pypi.org --trusted-host files.pyth
 # Copy over code base files
 RUN mkdir /app
 COPY . /app
+WORKDIR /app
 
 # Certificate work
 FROM base-threat-hunting-games as vpn-build

@@ -57,11 +57,13 @@ def _manually_create_game():
       ["Wait",           "Advance_Noisy",    "Advance_Camo"],
       ["Wait",           "Detect_Weak",      "Detect_Strong"],
         # Attacker
-        # WAIT vs...     # AN vs...          # AC vs...
-      [ [0+0, 0+0, 0+0], [-1+3, -1+0, -1+0], [-2+3, -2+3, -2+0] ],
-        # Defender
-        # WAIT vs...     # DW vs...          # DS vs...
-      [ [0-0, 0-3, 0-3], [-1-0, -1-0, -1-3], [-2-0, -2-0, -2-0] ],
+        # W vs...           AN vs...            AC vs...
+        # W     DW   DS      W     DW    DS      W     DW,   DS 
+      [ [ 0+0,  0+0, 0+0], [-1+3, -1+0, -1+0], [-2+3, -2+3, -2+0] ],
+        # Defender (still row major order, i.e. attacker's POV)
+        # W vs...           AN vs...            AC vs...
+        # W    DW   DS      W     DW    DS      W     DW    DS 
+      [ [ 0-0, 0-1, 0-2], [ 0-3, -1-0, -1-0], [ 0-3, -1-3, -2-0] ],
   ]
   game = pyspiel.MatrixGame(
       game_type,

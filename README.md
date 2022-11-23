@@ -50,10 +50,18 @@ When you have your virtualenv active, `poetry install`{.verbatim} in the
 top-level directory should download the dependencies from pypi and
 install them.
 
-## TensorFlow
+## Other Packages
 
-Some utilities that use the OpenSpiel algorithms require [TensorFlow](https://www.tensorflow.org/install/pip)
+Some of the examples and algorithms use the following python modules:
 
+  * [TensorFlow](https://www.tensorflow.org/install/pip)
+  * [pandas](https://pandas.pydata.org/)
+  * [CVXOPT](https://cvxopt.org/)
+
+Some of the examples involving Nash-equilibria require the following
+system packages:
+
+  * [lrsnash](https://manpages.ubuntu.com/manpages/jammy/man1/lrsnash.1.html) (`apt install lrsnash`)
 
 ## Additional build dependencies
 

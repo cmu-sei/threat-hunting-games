@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# sisk - compare edits with open_spiel/open_spiel/python/examples/mcts.py
-
 """MCTS example."""
 
 import collections
@@ -34,7 +32,7 @@ from open_spiel.python.bots import human
 from open_spiel.python.bots import uniform_random
 import pyspiel
 
-import v2 as game_mod
+from threat_hunting_games.gameload import game_name
 
 _KNOWN_PLAYERS = [
     # A generic Monte Carlo Tree Search agent.
@@ -55,9 +53,9 @@ _KNOWN_PLAYERS = [
     "az"
 ]
 
-flags.DEFINE_string("game", game_mod.game_name, "Name of the game.")
-flags.DEFINE_enum("player1", "mcts", _KNOWN_PLAYERS, "Who controls attacking player.")
-flags.DEFINE_enum("player2", "random", _KNOWN_PLAYERS, "Who controls defending player.")
+flags.DEFINE_string("game", game_name, "Name of the game.")
+flags.DEFINE_enum("player1", "mcts", _KNOWN_PLAYERS, "Who controls player 1.")
+flags.DEFINE_enum("player2", "random", _KNOWN_PLAYERS, "Who controls player 2.")
 flags.DEFINE_string("gtp_path", None, "Where to find a binary for gtp.")
 flags.DEFINE_multi_string("gtp_cmd", [], "GTP commands to run at init.")
 flags.DEFINE_string("az_path", None,
@@ -66,7 +64,6 @@ flags.DEFINE_integer("uct_c", 2, "UCT's exploration constant.")
 flags.DEFINE_integer("rollout_count", 1, "How many rollouts to do.")
 flags.DEFINE_integer("max_simulations", 1000, "How many simulations to run.")
 flags.DEFINE_integer("num_games", 1, "How many games to play.")
-flags.DEFINE_integer("num_turns", 2, "How many turns to play per game.")
 flags.DEFINE_integer("seed", None, "Seed for the random number generator.")
 flags.DEFINE_bool("random_first", False, "Play the first move randomly.")
 flags.DEFINE_bool("solve", True, "Whether to use MCTS-Solver.")
@@ -192,27 +189,19 @@ def _play_game(game, bots, initial_actions):
 
 
 def main(argv):
-  print("LOADING GAME with num_turns: %s" % FLAGS.num_turns)
-  game = pyspiel.load_game(FLAGS.game, {"num_turns": FLAGS.num_turns})
-  print("GAME PARAMS:", game.get_parameters())
-  if game.num_players() > 2:
-    sys.exit("This game requires more players than the example can handle.")
+  game = pyspiel.load_game(FLAGS.game)
 
   game_type = game.get_type()
   if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
-    print("%s is not turn-based. Trying to reload game as turn-based.",
-                 FLAGS.game)
-    #game = pyspiel.load_game_as_turn_based(FLAGS.game)
-    game = pyspiel.load_game_as_turn_based(FLAGS.game,
-            {"num_turns": FLAGS.num_turns})
+    print(f"Converting {game_name} from simultaneous to turn-based")
+    game = pyspiel.load_game_as_turn_based(game_name)
     game_type = game.get_type()
-  if game_type.dynamics != pyspiel.GameType.Dynamics.SEQUENTIAL:
-    raise ValueError("Game must be sequential, not {}".format(
-        game_type.dynamics))
 
+  if game.num_players() > 2:
+    sys.exit("This game requires more players than the example can handle.")
   bots = [
-      _init_bot(FLAGS.player1, game, game_mod.Players.ATTACKER),
-      _init_bot(FLAGS.player2, game, game_mod.Players.DEFENDER),
+      _init_bot(FLAGS.player1, game, 0),
+      _init_bot(FLAGS.player2, game, 1),
   ]
   histories = collections.defaultdict(int)
   overall_returns = [0, 0]

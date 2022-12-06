@@ -26,12 +26,12 @@ import numpy as np
 import pyspiel
 from open_spiel.python.utils import file_utils
 
-import v2 as mod
+from threat_hunting_games.gameload import current_game
 
 def _manually_create_game():
   """Creates the game manually from the spiel building blocks."""
   game_type = pyspiel.GameType(
-      short_name=mod.game_name,
+      short_name=current_game.game_name,
       long_name="Chain game version 2 matrix example",
       dynamics=pyspiel.GameType.Dynamics.SIMULTANEOUS,
       chance_mode=pyspiel.GameType.ChanceMode.DETERMINISTIC,
@@ -40,8 +40,8 @@ def _manually_create_game():
       #utility=pyspiel.GameType.Utility.ZERO_SUM,
       utility=pyspiel.GameType.Utility.GENERAL_SUM,
       reward_model=pyspiel.GameType.RewardModel.TERMINAL,
-      max_num_players=len(mod.Players),
-      min_num_players=len(mod.Players),
+      max_num_players=len(current_game.Players),
+      min_num_players=len(current_game.Players),
       #provides_information_state_string=True,
       #provides_information_state_tensor=True,
       #provides_observation_string=False,
@@ -57,11 +57,13 @@ def _manually_create_game():
       ["Wait",           "Advance_Noisy",    "Advance_Camo"],
       ["Wait",           "Detect_Weak",      "Detect_Strong"],
         # Attacker
-        # WAIT vs...     # AN vs...          # AC vs...
-      [ [0+0, 0+0, 0+0], [-1+3, -1+0, -1+0], [-2+3, -2+3, -2+0] ],
-        # Defender
-        # WAIT vs...     # DW vs...          # DS vs...
-      [ [0-0, 0-3, 0-3], [-1-0, -1-0, -1-3], [-2-0, -2-0, -2-0] ],
+        # W vs...           AN vs...            AC vs...
+        # W     DW   DS      W     DW    DS      W     DW,   DS 
+      [ [ 0+0,  0+0, 0+0], [-1+3, -1+0, -1+0], [-2+3, -2+3, -2+0] ],
+        # Defender (still row major order, i.e. attacker's POV)
+        # W vs...           AN vs...            AC vs...
+        # W    DW   DS      W     DW    DS      W     DW    DS 
+      [ [ 0-0, 0-1, 0-2], [ 0-3, -1-0, -1-0], [ 0-3, -1-3, -2-0] ],
   ]
   game = pyspiel.MatrixGame(
       game_type,
@@ -121,10 +123,10 @@ def main(_):
 
   # Quick test: inspect top-left utility values:
   print("Values for joint action ({},{}) is {},{}".format(
-      game.row_action_name(mod.Actions.WAIT),
-      game.col_action_name(mod.Actions.WAIT),
-      game.player_utility(mod.Players.ATTACKER, 0, 0),
-      game.player_utility(mod.Players.DEFENDER, 0, 0)))
+      game.row_action_name(current_game.Actions.WAIT),
+      game.col_action_name(current_game.Actions.WAIT),
+      game.player_utility(current_game.Players.ATTACKER, 0, 0),
+      game.player_utility(current_game.Players.DEFENDER, 0, 0)))
 
   state = game.new_initial_state()
 

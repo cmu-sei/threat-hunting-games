@@ -34,15 +34,16 @@ from absl import flags
 from absl import logging
 
 #from open_spiel.python.algorithms import generate_playthrough
-import generate_playthrough
+# using a slightly modified generate_playthrough.py one for debugging
+from threat_hunting_games.algorithms import generate_playthrough
 
-import v2 as mod
+from threat_hunting_games.gameload import game_name
 #import v2_matrix as mod
 
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string(
-    "game", mod.game_name, "Name of the game, with optional parameters, e.g. "
+    "game", game_name, "Name of the game, with optional parameters, e.g. "
     "'kuhn_poker' or 'go(komi=4.5,board_size=19)'.")
 flags.DEFINE_string("output_file", None, "Where to write the data to.")
 flags.DEFINE_list("actions", None,

@@ -53,13 +53,13 @@ from open_spiel.python.algorithms import matrix_nash
 from open_spiel.python.egt import utils
 import pyspiel
 
-import v2 as mod
+from threat_hunting_games.gameload import game_name
 #import iterated_prisoners_dilemma
 
 FLAGS = flags.FLAGS
 
 #flags.DEFINE_string("game", "first_sealed_auction(max_value=6)",
-flags.DEFINE_string("game", mod.game_name,
+flags.DEFINE_string("game", game_name,
                     "Game (short name plus optional parameters).")
 flags.DEFINE_float("tol", 1e-7, "Tolerance for determining dominance.")
 flags.DEFINE_enum(
@@ -79,6 +79,7 @@ flags.DEFINE_integer(
 def main(_):
   game = pyspiel.load_game(FLAGS.game)
   game_type = game.get_type()
+  game_name = game_type.short_name
   print("loaded game")
 
   # this conversion is not in the original example; the algorithm barfs
@@ -86,7 +87,8 @@ def main(_):
   # _legal_actions(player). This way the algorithm works, yet to be
   # determined if it's working *correctly*
   if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
-      game = pyspiel.load_game_as_turn_based(game.game_type.short_name)
+      print(f"Converting {game_name} from simultaneous to turn-based")
+      game = pyspiel.load_game_as_turn_based(game_name)
       game_type = game.get_type()
 
   # convert game to matrix form if it isn't already a matrix game

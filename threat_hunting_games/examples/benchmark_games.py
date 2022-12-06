@@ -28,7 +28,7 @@ from open_spiel.python import games  # pylint: disable=unused-import
 from open_spiel.python.mfg import games as mfg_games  # pylint: disable=unused-import
 import pyspiel
 
-import v2 as mod
+from threat_hunting_games.gameload import game_name
 
 FLAGS = flags.FLAGS
 
@@ -114,7 +114,7 @@ def main(_):
   else:
     games_list = FLAGS.games.split(";")
 
-  games_list = [mod.game_name]
+  games_list = [game_name]
 
   logging.info("Running benchmark for %s games.", len(games_list))
   logging.info("This will take approximately %d seconds.",

@@ -42,9 +42,10 @@ RUN $VENV_PATH/bin/pip install --trusted-host pypi.org --trusted-host files.pyth
 
 RUN $VENV_PATH/bin/pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org certifi
 # Copy over code base files
-RUN mkdir /app
-COPY . /app
-WORKDIR /app
+RUN mkdir /src
+COPY tests /src/tests
+COPY threat_hunting_games /src/threat_hunting_games
+
 
 # Certificate work
 FROM base-threat-hunting-games as vpn-build
@@ -61,6 +62,7 @@ RUN echo "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-15 main" > /
     rm -rf /var/lib/apt/lists/*
 RUN poetry install --no-interaction --no-ansi
 
+
 FROM base-threat-hunting-games as non-vpn-build
 RUN wget -nv -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
 
@@ -69,6 +71,7 @@ RUN echo "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-15 main" > /
     for f in /usr/lib/llvm-15/bin/*; do ln -sf "$f" /usr/bin; done &&   \
     rm -rf /var/lib/apt/lists/*
 RUN poetry install --no-interaction --no-ansi
+
 
 
 # Run tests

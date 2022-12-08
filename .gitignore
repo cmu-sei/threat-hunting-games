@@ -12,3 +12,7 @@
 .pytest_cache
 # For the virtual environment
 venv
+# For Data files from spinning up the containers
+Environment_Data
+# Basic MACOS removal
+.DS_Store

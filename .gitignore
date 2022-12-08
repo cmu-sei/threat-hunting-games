@@ -13,6 +13,7 @@
 # For the virtual environment
 venv
 # For Data files from spinning up the containers
-Environment_Data
+Environment_Data/*
+!Environment_Data/.keep
 # Basic MACOS removal
 .DS_Store

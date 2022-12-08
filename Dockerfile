@@ -37,7 +37,7 @@ RUN python -m venv $VENV_PATH
 
 # Copy over the code base
 COPY poetry.lock pyproject.toml ./
-RUN $VENV_PATH/bin/pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org poetry==$POETRY_VERSION certifi
+RUN $VENV_PATH/bin/pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org poetry==$POETRY_VERSION certifi requests
 # Copy over code base files
 RUN mkdir /src
 COPY tests /src/tests

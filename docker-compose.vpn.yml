@@ -5,7 +5,12 @@ networks:
 services:
     threat-hunting-game:
       image: threat-hunting-game:vpn
-      container_name: threat-hunting-game
+      container_name: threat-hunting-game-vpn
+      ports:
+        - '5433:5433'
+      networks:
+        - ghosts-network
+      tty: true
 
     postgres:
       image: postgres

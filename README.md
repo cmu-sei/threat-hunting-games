@@ -4,14 +4,21 @@ hunting.
 
 # Toolchain
 
-## Docker Container
-In order to spin up a [Docker](https://www.docker.com/) container you can run the following commands:
+## Docker Container Environment 
+### Build threat-hunting-games and stand up environment
+*This will build the threat-hunting-games container*
+- **VPN Build**:
+`/bin/sh /build_docker_container.sh vpn`
+ - **Non-VPN Build**:
+`/bin/sh /build_docker_container.sh non-vpn`
 
-**VPN Build**:
-`./build_docker_container.sh vpn`
+### Stand up the environment
+- **VPN Environment**:
+`docker compose up --file docker-compose.vpn.yml`
+ - **Non-VPN Environment**:
+`docker compose up --file docker-compose.yml`
 
-**Non VPN Build**:
-`./build_docker_container.sh non-vpn`
+*For any of the commands above you can use the `-d` flag to run the environment in detached mode*
 
 ## Pyenv and pyenv-virtualenv (optional, encouraged)
 

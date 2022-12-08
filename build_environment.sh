@@ -12,12 +12,12 @@ fi
 echo "Composing Containers....."
 if [ "$2" = "-d" ]
 then
-  if [ "$1" = "vpn-build" ]
+  if [ "$1" = "vpn" ]
   then
     docker compose up --file docker-compose.vpn.yml -d
     docker ps
   else
-    docker compose -d --file docker-compose.yml up
+    docker compose -d --file docker-compose.vpn.yml up
   fi
 else
   if [ "$2" = "-d" ]

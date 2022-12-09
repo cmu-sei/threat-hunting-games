@@ -4,6 +4,9 @@ networks:
     driver: bridge
 services:
     threat-hunting-game:
+      build:
+        context: .
+        target: vpn
       image: threat-hunting-game:vpn
       container_name: threat-hunting-game-vpn
       ports:
@@ -63,3 +66,17 @@ services:
         - ./Environment_Data/g_data:/var/lib/grafana
         - ../../configuration/grafana/datasources:/etc/grafana/provisioning/datasources
         - ../../configuration/grafana/dashboards:/etc/grafana/provisioning/dashboards
+
+    ghosts-spectre:
+      build:
+        context: GHOSTS-SPECTRE/src/
+        target:
+      image: ghosts-spectre:latest
+      container_name: ghosts-spectre
+      ports:
+        - '5002:8080'
+      networks:
+        - ghosts-network
+      restart: always
+      volumes:
+        - ./Environment_Data/_data:/app/config

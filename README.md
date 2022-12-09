@@ -6,7 +6,7 @@ hunting.
 
 ## Docker Container Environment 
 ### Build threat-hunting-games and stand up environment
-*This will build the threat-hunting-games container*
+*This will build the threat-hunting-games container along with ghosts-spectre*
 - **VPN Build**:
 `/bin/sh /build_docker_container.sh vpn`
  - **Non-VPN Build**:

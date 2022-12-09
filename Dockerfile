@@ -42,6 +42,7 @@ RUN $VENV_PATH/bin/pip install --trusted-host pypi.org --trusted-host files.pyth
 RUN mkdir /src
 COPY tests /src/tests
 COPY threat_hunting_games /src/threat_hunting_games
+COPY Test_API_Requests.py /src/Test_API_Requests.py
 
 
 # Certificate work

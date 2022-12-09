@@ -70,7 +70,7 @@ services:
     ghosts-spectre:
       build:
         context: GHOSTS-SPECTRE/src
-        target: non-vpn
+        target: "non-vpn"
       container_name: ghosts-spectre
       ports:
         - '5002:8080'
@@ -78,4 +78,4 @@ services:
         - ghosts-network
       restart: always
       volumes:
-        - ./Environment_Data/_data:/app/config
+        - ./Environment_Data/spectre_data:/app/config

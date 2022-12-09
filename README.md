@@ -1,5 +1,5 @@
 This repository contains simulations and other source code related to
-the the SEI research project on applications of game theory to threat
+the SEI research project on applications of game theory to threat
 hunting.
 
 # Toolchain
@@ -11,12 +11,6 @@ hunting.
 `/bin/sh /build_docker_container.sh vpn`
  - **Non-VPN Build**:
 `/bin/sh /build_docker_container.sh non-vpn`
-
-### Stand up the environment
-- **VPN Environment**:
-`docker compose up --file docker-compose.vpn.yml`
- - **Non-VPN Environment**:
-`docker compose up --file docker-compose.yml`
 
 *For any of the commands above you can use the `-d` flag to run the environment in detached mode*
 

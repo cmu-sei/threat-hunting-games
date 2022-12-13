@@ -79,8 +79,8 @@ _detect_table = np.array([
     #    0 = breached
     #    1 = detect
     [ -1, -1, -1 ],
-    [ -1,  1,  1 ],
-    [ -1,  0,  1 ],
+    [  0,  1,  1 ],
+    [  0,  0,  1 ],
 ])
 
 _action_idx = {}
@@ -401,7 +401,7 @@ class V2GameState(pyspiel.State):
             if result > 0:
                 detected = True
             elif not result:
-                breached = False
+                breached = True
             return detected, breached
 
         detected, breached = _resolve_with_lookup()

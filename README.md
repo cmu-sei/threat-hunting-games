@@ -12,8 +12,9 @@ hunting.
  - **Non-VPN Build**:
 `/bin/sh /build_docker_container.sh non-vpn`
 
-*For any of the commands above you can use the `-d` flag to run the environment in detached mode*
-
+*For any of the commands above you can use the `-d` flag to run the environment in detached mode* \
+*If any of the containers seem to be throwing errors with their databases use the `--reset` flag (at the end of the command) to 
+reset the databases*
 ## Pyenv and pyenv-virtualenv (optional, encouraged)
 
 The Python version being targeted is 3.10.\*. This is not a carefully

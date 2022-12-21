@@ -23,8 +23,8 @@ services:
         POSTGRES_USER: ghosts
         POSTGRES_PASSWORD: scotty@1
       volumes:
-        - ./Environment_Data/db_data:/var/lib/postgresql/data
-        - ./Environment_Data/spectre_data:/tmp
+        - ./GHOSTS_Environment/Environment_Data/db_data:/var/lib/postgresql/data
+        - ./GHOSTS_Environment/Environment_Data/spectre_data:/tmp
       logging:
         options:
           max-size: '100m'
@@ -63,13 +63,13 @@ services:
         - ghosts-network
       restart: always
       volumes:
-        - ./Environment_Data/g_data:/var/lib/grafana
+        - ./GHOSTS_Environment/Environment_Data/g_data:/var/lib/grafana
         - ../../configuration/grafana/datasources:/etc/grafana/provisioning/datasources
         - ../../configuration/grafana/dashboards:/etc/grafana/provisioning/dashboards
 
     ghosts-spectre:
       build:
-        context: GHOSTS-SPECTRE/src
+        context: GHOSTS_Environment/GHOSTS-SPECTRE/src
         target: "non-vpn"
       container_name: ghosts-spectre
       ports:
@@ -78,4 +78,4 @@ services:
         - ghosts-network
       restart: always
       volumes:
-        - ./Environment_Data/spectre_data:/app/config
+        - ./GHOSTS_Environment/Environment_Data/spectre_data:/app/config

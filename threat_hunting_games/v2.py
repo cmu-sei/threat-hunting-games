@@ -75,12 +75,15 @@ _max_reward = max(x.reward for x in _utils.values())
 _detect_table = np.array([
     # if this was a proper game matrix, these would be utility pairs;
     # columns are defend, rows are attack:
-    #   -1 = no-op
-    #    0 = breached
-    #    1 = detect
-    [ -1, -1, -1 ],
-    [ -1,  1,  1 ],
-    [ -1,  0,  1 ],
+    #
+    # -1 = no-op
+    #  0 = breached
+    #  1 = detect
+    #
+    # DW  DW  DS
+    [ -1, -1, -1 ], # AW
+    [  0,  1,  1 ], # AN
+    [  0,  0,  1 ], # AC
 ])
 
 _action_idx = {}
@@ -401,7 +404,7 @@ class V2GameState(pyspiel.State):
             if result > 0:
                 detected = True
             elif not result:
-                breached = False
+                breached = True
             return detected, breached
 
         detected, breached = _resolve_with_lookup()

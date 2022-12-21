@@ -8,10 +8,10 @@ hunting.
 In order to spin up a [Docker](https://www.docker.com/) container you can run the following commands:
 
 **VPN Build**:
-`./build_docker_container.sh vpn-build`
+`./build_docker_container.sh vpn`
 
 **Non VPN Build**:
-`./build_docker_container.sh non-vpn-build`
+`./build_docker_container.sh non-vpn`
 
 ## Pyenv and pyenv-virtualenv (optional, encouraged)
 

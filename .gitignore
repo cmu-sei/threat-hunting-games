@@ -12,3 +12,5 @@
 .pytest_cache
 # For the virtual environment
 venv
+
+.DS_Store

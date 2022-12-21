@@ -5,7 +5,7 @@ networks:
 services:
     threat-hunting-game:
       build:
-        context: .
+        context: ..
         target: non-vpn
       image: threat-hunting-game:non-vpn
       container_name: threat-hunting-game-vpn
@@ -69,7 +69,7 @@ services:
 
     ghosts-spectre:
       build:
-        context: GHOSTS_Environment/GHOSTS-SPECTRE/src
+        context: ../GHOSTS_Environment/GHOSTS-SPECTRE/src
         target: "non-vpn"
       container_name: ghosts-spectre
       ports:

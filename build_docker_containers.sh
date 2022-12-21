@@ -8,19 +8,19 @@ if [ "$1" = "vpn" ]
 then
   if [ "$3" = "-d" ]
   then
-    docker compose --file docker-compose.vpn.yml -d
+    docker compose --file Docker_Container/docker-compose.vpn.yml up -d
     docker ps
   else
-    docker compose --file docker-compose.vpn.yml
+    docker compose --file Docker_Container/docker-compose.vpn.yml up
   fi
 elif [ "$1" = "non-vpn" ]
 then
   if [ "$3" = "-d" ]
   then
-    docker compose --file docker-compose.yml -d
+    docker compose --file Docker_Container/docker-compose.yml up -d
     docker ps
   else
-    docker compose --file docker-compose.yml
+    docker compose --file Docker_Container/docker-compose.yml up
   fi
 else
   echo "Please provide argument after script call: ['vpn', 'non-vpn']"

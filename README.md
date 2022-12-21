@@ -8,9 +8,9 @@ hunting.
 ### Build threat-hunting-games and stand up environment
 *This will build the threat-hunting-games container along with ghosts-spectre*
 - **VPN Build**:
-`/bin/sh /build_docker_container.sh vpn`
+`/bin/sh /build_docker_containers.sh vpn`
  - **Non-VPN Build**:
-`/bin/sh /build_docker_container.sh non-vpn`
+`/bin/sh /build_docker_containers.sh non-vpn`
 
 *For any of the commands above you can use the `-d` flag to run the environment in detached mode* \
 *If any of the containers seem to be throwing errors with their databases use the `--reset` flag (at the end of the command) to 

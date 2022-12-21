@@ -5,3 +5,12 @@
 
 # vim detritus
 **/*.swp
+
+# For pycharm IDE users
+.idea
+# For pytest previous tests cache
+.pytest_cache
+# For the virtual environment
+venv
+
+.DS_Store

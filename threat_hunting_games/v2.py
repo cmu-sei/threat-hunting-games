@@ -113,7 +113,6 @@ for i, action in enumerate(_defend_actions):
 #  provides_factored_observation_string: bool = False)
 
 game_name = "chain_game_v2"
-
 game_turns = 2
 
 _GAME_TYPE = pyspiel.GameType(
@@ -141,7 +140,7 @@ _GAME_TYPE = pyspiel.GameType(
     #
     # tuples, lists, and others don't work
     parameter_specification={
-        "num_turns": 2,
+        "num_turns": game_turns,
     }
 )
 

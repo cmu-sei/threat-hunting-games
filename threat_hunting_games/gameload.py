@@ -9,7 +9,7 @@ except ImportError:
     import v2
     import v2_seq
 
-#current_game = v2
-current_game = v2_seq
+current_game = v2
+#current_game = v2_seq
 
 game_name = current_game.game_name

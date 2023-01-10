@@ -44,10 +44,6 @@ def main(unused_argv):
   logging.info("Loading %s", FLAGS.game_name)
   game = pyspiel.load_game(FLAGS.game_name)
 
-  node = game.new_initial_state()
-  print("node:", type(node))
-  print("information state tensor:", node.information_state_tensor(0))
-
   game_type = game.get_type()
   if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
       print(f"Converting {game_name} from simultaneous to turn-based")

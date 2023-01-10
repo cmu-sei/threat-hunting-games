@@ -97,8 +97,6 @@ def main(_):
     num_rows, num_cols = game.num_rows(), game.num_cols()
     print("converted to matrix form with shape (%d, %d)" % (num_rows, num_cols))
 
-  print(f"solver: {FLAGS.solver} mode: {FLAGS.mode}")
-
   # use iterated dominance to reduce the space unless the solver is LP (fast)
   if FLAGS.solver != "linear":
     if FLAGS.mode == "all":

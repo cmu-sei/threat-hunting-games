@@ -1,0 +1,9 @@
+version: '3.9'
+services:
+    threat-hunting-game:
+      image: threat-hunting-games:vpn
+      build:
+        context: .
+        target: "vpn"
+      container_name: threat-hunting-game
+      tty: true

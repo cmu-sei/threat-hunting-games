@@ -24,9 +24,12 @@ from absl import app
 from absl import flags
 import numpy as np
 
-from open_spiel.python import rl_environment
+#from open_spiel.python import rl_environment
+import rl_environment
 from open_spiel.python import rl_tools
 from open_spiel.python.algorithms import tabular_qlearner
+
+import pyspiel
 
 from threat_hunting_games.gameload import game_name
 
@@ -76,7 +79,16 @@ def create_epsilon_schedule(sched_str):
 
 
 def main(_):
-  env = rl_environment.Environment(FLAGS.game)
+
+  game = pyspiel.load_game(FLAGS.game)
+  game_type = game.get_type()
+  if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
+    print(f"Converting {FLAGS.game} from simultaneous to turn-based")
+    game = pyspiel.load_game_as_turn_based(FLAGS.game)
+    game_type = game.get_type()
+
+  #env = rl_environment.Environment(FLAGS.game)
+  env = rl_environment.Environment(game)
   num_players = env.num_players
   num_actions = env.action_spec()["num_actions"]
 

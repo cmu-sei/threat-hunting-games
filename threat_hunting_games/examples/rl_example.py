@@ -23,6 +23,8 @@ import numpy as np
 
 from open_spiel.python import rl_environment
 
+import pyspiel
+
 from threat_hunting_games.gameload import game_name
 
 FLAGS = flags.FLAGS
@@ -55,11 +57,21 @@ def print_iteration(time_step, actions, player_id):
 def turn_based_example(unused_arg):
   """Example usage of the RL environment for turn-based games."""
   # `rl_main_loop.py` contains more details and simultaneous move examples.
-  logging.info("Registered games: %s", rl_environment.registered_games())
+  #logging.info("Registered games: %s", rl_environment.registered_games())
   logging.info("Creating game %s", FLAGS.game)
 
   env_configs = {"players": FLAGS.num_players} if FLAGS.num_players else {}
-  env = rl_environment.Environment(FLAGS.game, **env_configs)
+
+  #env = rl_environment.Environment(FLAGS.game, **env_configs)
+
+  game = pyspiel.load_game(FLAGS.game)
+  game_type = game.get_type()
+  if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
+    print(f"Converting {game_name} from simultaneous to turn-based")
+    game = pyspiel.load_game_as_turn_based(game_name)
+    game_type = game.get_type()
+
+  env = rl_environment.Environment(game, **env_configs)
 
   logging.info("Env specs: %s", env.observation_spec())
   logging.info("Action specs: %s", env.action_spec())

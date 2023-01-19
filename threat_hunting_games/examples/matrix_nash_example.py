@@ -114,6 +114,7 @@ def main(_):
 
   # game is now finalized
   num_rows, num_cols = game.num_rows(), game.num_cols()
+  print(f"rows: {num_rows} cols: {num_cols}")
   row_actions = [game.row_action_name(row) for row in range(num_rows)]
   col_actions = [game.col_action_name(col) for col in range(num_cols)]
   row_payoffs, col_payoffs = utils.game_payoffs_array(game)
@@ -155,6 +156,7 @@ def main(_):
     print(action)
   print("--")
   if num_rows == 1 or num_cols == 1:
+    print("degenerate row/col: 1/1")
     equilibria = itertools.product(np.eye(num_rows), np.eye(num_cols))
   elif FLAGS.solver == "linear":
     if FLAGS.mode != "one" or (row_payoffs + col_payoffs).max() > (

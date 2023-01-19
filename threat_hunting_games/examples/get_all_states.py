@@ -38,10 +38,10 @@ flags.DEFINE_bool("include_chance_states", True, "Include chance states?")
 
 def main(_):
   games_list = pyspiel.registered_games()
-  print("Registered games:")
-  for game in games_list:
-    print(" ", game.short_name)
-  print()
+  #print("Registered games:")
+  #for game in games_list:
+  #  print(" ", game.short_name)
+  #print()
 
   print("Creating game:", FLAGS.game)
   params = {}
@@ -58,7 +58,6 @@ def main(_):
   for state in all_states:
     print(state)
     count += 1
-
   print()
   print("Total: {} states.".format(count))
 

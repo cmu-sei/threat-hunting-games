@@ -231,7 +231,6 @@ def playthrough_lines(game_string, alsologtostdout=False, action_sequence=None,
   try:
     observation_params = pyspiel.game_parameters_from_string(
         observation_params_string) if observation_params_string else None
-    print("create default_observation")
     default_observation = make_observation(
         game,
         imperfect_information_observation_type=None,
@@ -245,7 +244,6 @@ def playthrough_lines(game_string, alsologtostdout=False, action_sequence=None,
   # if game_type.information in (pyspiel.IMPERFECT_INFORMATION,
   #                              pyspiel.ONE_SHOT):
   try:
-    print("create infostate_observation")
     infostate_observation = make_observation(
         game, pyspiel.IIGObservationType(perfect_recall=True))
   except (RuntimeError, ValueError) as e:
@@ -261,7 +259,6 @@ def playthrough_lines(game_string, alsologtostdout=False, action_sequence=None,
   # observations are always empty.
   if game_type.information == pyspiel.GameType.Information.IMPERFECT_INFORMATION:
     try:
-      print("create public_observation")
       public_observation = make_observation(
           game,
           pyspiel.IIGObservationType(
@@ -272,7 +269,6 @@ def playthrough_lines(game_string, alsologtostdout=False, action_sequence=None,
       print("oops making public_obs:", e)
       pass
     try:
-      print("create private_observation")
       private_observation = make_observation(
           game,
           pyspiel.IIGObservationType(

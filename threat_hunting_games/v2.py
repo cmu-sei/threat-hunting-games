@@ -181,6 +181,7 @@ class AttackerState(NamedTuple):
 
     state_pos: int
     utility: int
+    last_reward: int
 
     def advance(self, action: Actions, detected: bool) -> "AttackerState":
 
@@ -199,17 +200,21 @@ class AttackerState(NamedTuple):
             # which is silly but simple.)
             new_state += 1
 
+        reward = new_utility - self.utility
+
         #print("ATTACK new_utility:", new_utility)
 
         # pylint: disable=no-member
         return self._replace(
             state_pos=new_state,
             utility=new_utility,
+            last_reward=reward,
         )
 
 
 class DefenderState(NamedTuple):
     utility: int
+    last_reward: int
 
     def detect(self, action: Actions, breached: bool) -> "DefenderState":
 
@@ -222,11 +227,14 @@ class DefenderState(NamedTuple):
         if breached:
             new_utility -= utils.penalty
 
+        reward = new_utility - self.utility
+
         #print("DEFEND new_utility:", new_utility)
 
         # pylint: disable=no-member
         return self._replace(
             utility=new_utility,
+            last_reward=reward
         )
 
 
@@ -238,8 +246,8 @@ class V2GameState(pyspiel.State):
         super().__init__(game)
         self._num_turns = game_info.max_game_length
         self._curr_turn = 0
-        self._attacker = AttackerState(0, 0)
-        self._defender = DefenderState(0)
+        self._attacker = AttackerState(0, 0, 0)
+        self._defender = DefenderState(0, 0)
 
         # Phil was talking about tracking the IV down in the Observer,
         # which is certainly possible...will seek clarification -- some
@@ -439,9 +447,12 @@ class V2GameState(pyspiel.State):
         """Return True if the game is over."""
         return self._game_over
 
-    def returns(self):
+    def rewards(self):
         """Total reward for each player over the course of the game so
         far."""
+        return [self._attacker.last_reward, self._defender.last_reward]
+
+    def returns(self):
         return [self._attacker.utility, self._defender.utility]
 
     def __str__(self):

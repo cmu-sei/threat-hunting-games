@@ -112,12 +112,12 @@ for i, action in enumerate(_defend_actions):
 #  default_loadable: bool = True,
 #  provides_factored_observation_string: bool = False)
 
-game_name = "chain_game_v2_tensormod"
+game_name = "chain_game_tensormod_v2"
 game_turns = 2
 
 _GAME_TYPE = pyspiel.GameType(
     short_name=game_name,
-    long_name="Chain game version 2 tensormod",
+    long_name="Chain game tensormod version 2",
     dynamics=pyspiel.GameType.Dynamics.SIMULTANEOUS,
     chance_mode=pyspiel.GameType.ChanceMode.DETERMINISTIC,
     information=pyspiel.GameType.Information.PERFECT_INFORMATION,

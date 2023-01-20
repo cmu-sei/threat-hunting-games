@@ -22,12 +22,19 @@ def _deserialize(item):
     return value
 
 def parse_playthrough(text):
+    """
+    Parses the output of a single playthrough such as the output from
+    running examples/playthrough.py
+    """
+
     bout = {}
     cur_state = cur_actions = cur_actions_str = None
     for line in (x.strip() for x in text.split("\n")):
         if not line:
             continue
         if m := re.search(r"game:\s+(.*)", line):
+            # ok, we don't parse the stuff for Game and GameType,
+            # instead we just load the game and get it from there
             bout["name"] = m.group(1)
             game = pyspiel.load_game(bout["name"])
             for attr in [
@@ -85,6 +92,7 @@ def parse_playthrough(text):
                 gt[attr] = value
         if not bout["name"]:
             continue
+        # now the real parsing starts
         if m := re.search(r"Apply\s+joint\s+action\s+(.*)", line):
             cur_actions_str = _deserialize(m.group(1))
             next

@@ -4,6 +4,10 @@ import pyspiel
 from open_spiel.python.algorithms.get_all_states import get_all_states
 
 def get_leaf_states(game, depth_limit=None):
+    """
+    Parse the output of all possible states but only keep the leaf
+    (terminal) nodes.
+    """
     if isinstance(game, str):
         game = pyspiel.load_game(game)
     if depth_limit is None:

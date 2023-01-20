@@ -66,10 +66,12 @@ def main(unused_argv):
   else:
     if not FLAGS.game:
       raise ValueError("Must specify game")
+    # sisk - note: this does not work; playthrough() expects a list of
+    # tuples, each tuple representing the player and action, so:
+    # [(p1, action_x), (p2, action_y), ...]
     actions = FLAGS.actions
     if actions is not None:
       actions = [int(x) for x in actions]
-    print("actions:", actions)
     text = generate_playthrough.playthrough(
         FLAGS.game, actions, alsologtostdout=FLAGS.alsologtostdout)
     if FLAGS.output_file:

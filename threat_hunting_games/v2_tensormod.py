@@ -112,13 +112,13 @@ for i, action in enumerate(_defend_actions):
 #  default_loadable: bool = True,
 #  provides_factored_observation_string: bool = False)
 
-game_name = "chain_game_v2_seq"
+game_name = "chain_game_v2_tensormod"
 game_turns = 2
 
 _GAME_TYPE = pyspiel.GameType(
     short_name=game_name,
-    long_name="Chain game version 2 Sequential",
-    dynamics=pyspiel.GameType.Dynamics.SEQUENTIAL,
+    long_name="Chain game version 2 tensormod",
+    dynamics=pyspiel.GameType.Dynamics.SIMULTANEOUS,
     chance_mode=pyspiel.GameType.ChanceMode.DETERMINISTIC,
     information=pyspiel.GameType.Information.PERFECT_INFORMATION,
     utility=pyspiel.GameType.Utility.GENERAL_SUM,
@@ -181,33 +181,17 @@ class AttackerState(NamedTuple):
     state_pos: int
     utility: int
     last_reward: int
-    last_action: Actions
 
-    def advance(self, action: Actions) -> "AttackerState":
+    def advance(self, action: Actions, detected: bool) -> "AttackerState":
 
         #print("ATTACK old_utility:", self.utility)
 
         utils = _utils[action]
 
         new_utility = self.utility - utils.cost
-        new_last_action = action
-
-        return self._replace(
-            utility=new_utility,
-            last_action=new_last_action,
-        )
-
-    def resolve(self, detected: bool) -> "AttackerState":
-
-        if self.last_action is None:
-            raise ValueError("no prior action")
-
-        utils = _utils[self.last_action]
-
-        new_utility = self.utility
         new_state = self.state_pos
 
-        if (self.last_action is not Actions.WAIT) and not detected:
+        if action and not detected:
             # If successful, the attacker advances to a new state and
             # gets 2 utility
             new_utility += utils.reward
@@ -215,25 +199,23 @@ class AttackerState(NamedTuple):
             # which is silly but simple.)
             new_state += 1
 
-        #print("ATTACK new_utility:", new_utility)
-
         reward = new_utility - self.utility
+
+        #print("ATTACK new_utility:", new_utility)
 
         # pylint: disable=no-member
         return self._replace(
             state_pos=new_state,
             utility=new_utility,
             last_reward=reward,
-            last_action=None,
         )
 
 
 class DefenderState(NamedTuple):
     utility: int
     last_reward: int
-    last_action: Actions
 
-    def detect(self, action: Actions) -> "DefenderState":
+    def detect(self, action: Actions, breached: bool) -> "DefenderState":
 
         #print("DEFEND old_utility:", self.utility)
 
@@ -241,31 +223,17 @@ class DefenderState(NamedTuple):
 
         new_utility = self.utility - utils.cost
 
-        #print("DEFEND new_utility:", new_utility)
-
-        # pylint: disable=no-member
-        return self._replace(
-            utility=new_utility,
-            last_action=action,
-        )
-
-    def resolve(self, breached: bool) -> "DefenderState":
-
-        if self.last_action is None:
-            raise ValueError("no prior action")
-
-        utils = _utils[self.last_action]
-        new_utility = self.utility
-
         if breached:
             new_utility -= utils.penalty
 
         reward = new_utility - self.utility
 
+        #print("DEFEND new_utility:", new_utility)
+
+        # pylint: disable=no-member
         return self._replace(
             utility=new_utility,
-            reward=reward,
-            last_action=None,
+            last_reward=reward
         )
 
 
@@ -277,9 +245,8 @@ class V2GameState(pyspiel.State):
         super().__init__(game)
         self._num_turns = game_info.max_game_length
         self._curr_turn = 0
-        self._attacker = AttackerState(0, 0, 0, None)
-        self._defender = DefenderState(0, 0, None)
-        self._current_player = Players.ATTACKER
+        self._attacker = AttackerState(0, 0, 0)
+        self._defender = DefenderState(0, 0)
 
         # Phil was talking about tracking the IV down in the Observer,
         # which is certainly possible...will seek clarification -- some
@@ -336,8 +303,7 @@ class V2GameState(pyspiel.State):
         """
         if self._game_over:
             return pyspiel.PlayerId.TERMINAL
-        else:
-            return self._current_player
+        return pyspiel.PlayerId.SIMULTANEOUS
 
     # Despite the leading underscore, these methods are part of the
     # public API. See the definition of PyState in
@@ -379,6 +345,20 @@ class V2GameState(pyspiel.State):
             case _:
                 raise ValueError(f"undefined player: {player}")
 
+    def _apply_action(self, action):
+        """
+        Apply the actions of a single player in sequential-move
+        games. In all stochastic games, _apply_action is called to
+        resolve the actions of the chance player. Not used here, but
+        shown for reference.
+        """
+        # Asserted as invariant in sample games:
+        # assert self._is_chance and not self._game_over
+
+        # We're a simultaneous-move game, so this should never be
+        # called.
+        raise NotImplementedError()
+
     def _apply_actions(self, actions: List[int]):
         """
         Apply actions of all players in simultaneous-move games.
@@ -390,45 +370,19 @@ class V2GameState(pyspiel.State):
         # Asserted as invariant in sample games:
         # assert not self._is_chance and not self._game_over
 
-        # We're a sequential-move game, so this should never be
-        # called.
-
         # If this were a stochastic game, we'd want to set
         # self._is_chance here because the next step in the game
         # processing is to call _apply_action for the chance player.
         # (Not sure why it's handled that way.)
         # self._is_chance = True
 
-        print("apply_actions, curr turn:", self._curr_turn)
-        raise NotImplementedError()
+        #print("apply_actions, curr turn:", self._curr_turn)
 
-    def _apply_action(self, action):
-        """
-        Apply the actions of a single player in sequential-move
-        games. In all stochastic games, _apply_action is called to
-        resolve the actions of the chance player. Not used here, but
-        shown for reference.
-        """
+        attacker_action = actions[Players.ATTACKER]
+        defender_action = actions[Players.DEFENDER]
 
-        #print(f"apply_action, {self.current_player()} turn: {self._curr_turn}")
-
-        # Asserted as invariant in sample games:
-        # assert self._is_chance and not self._game_over
-
-        if self._current_player is Players.ATTACKER:
-            self._attacker = self._attacker.advance(action)
-            self._attack_vec[self._curr_turn] = action
-            self._current_player = Players.DEFENDER
-            return
-
-        assert(self._current_player is Players.DEFENDER)
-
-        self._defender = self._defender.detect(action)
-        self._defend_vec[self._curr_turn] = action
-
-        attacker_action = self._attacker.last_action
-        defender_action = self._defender.last_action
-
+        self._attack_vec[self._curr_turn] = attacker_action
+        self._defend_vec[self._curr_turn] = defender_action
         #print(f"attack_vec({self._curr_turn}):", self._attack_vec)
         #print(f"defend_vec:({self._curr_turn})", self._defend_vec)
 
@@ -465,17 +419,10 @@ class V2GameState(pyspiel.State):
         # WAIT still needs to be passed in since there might be
         # consequences; these methods are what handle the metting out of
         # utilities
-
-        #print("RESOLVE:", self._curr_turn, "detected:", detected, "breached:", breached)
-
-        print("CUR:", self._current_player, self._curr_turn, [self._attacker.last_action, self._defender.last_action, detected, breached])
-
         self._attacker = \
-                self._attacker.resolve(detected)
+                self.attacker_state.advance(attacker_action, detected)
         self._defender = \
-                self._defender.resolve(breached)
-
-        self._current_player = Players.ATTACKER
+                self.defender_state.detect(defender_action, breached)
 
         # Are we done?
         self._curr_turn += 1
@@ -519,18 +466,6 @@ class V2GameState(pyspiel.State):
         return ', '.join(
             f"({x.player}, {x.action})" for x in self.full_history())
 
-    #def information_state_tensor(self, pid=0):
-    #    if pid == Players.ATTACKER:
-    #        return self._attack_vec
-    #    elif pid == Players.DEFENDER:
-    #        return self._defend_vec
-    #    else:
-    #        raise ValueError("invalid player:", pid)
-
-    #def observation_tensor(self, pid=0):
-    #    return self.information_state_tensor(pid)
-
-
     ### The folowing methods are custom and not part of the API
 
     def legal_attack_actions(self):
@@ -539,7 +474,7 @@ class V2GameState(pyspiel.State):
         #   - IV (attack_vec)
         #   - current turn (position in the vector)
         #   - we could track utility history also
-        #
+        # 
         # If we want to make determinations based on future action
         # chains, probabilities, etc, we need to build a wrapper around
         # this game that explores the tree -- we probably need a
@@ -579,13 +514,15 @@ class OmniscientObserver:
         #print("OBS PARAMS:", params)
         #num_turns = params["num_turns"]
 
-        # include turn 0
+        # include turn 0?
         num_turns = game_turns + 1
 
         turn_map_size = num_turns * len(Actions)
         util_size = num_turns
         player_size = turn_map_size + util_size
-        total_size = 2 * player_size
+        # include attacker_pos
+        attacker_pos_size = num_turns
+        total_size = defender_size + attacker_size + attacker_pos_size
         self.tensor = np.zeros(total_size, int)
 
         self.dict = {}
@@ -594,11 +531,16 @@ class OmniscientObserver:
         action_shape = (len(Players), num_turns, len(Actions))
         self.dict["action"] = \
             self.tensor[idx:idx+action_size].reshape(action_shape)
+        print("ACTION:", self.dict["action"])
         idx += action_size
         utility_size = len(Players) * num_turns
         utility_shape = (len(Players), num_turns)
         self.dict["utility"] = \
             self.tensor[idx:idx+utility_size].reshape(utility_shape)
+        print("UTILITY:", self.dict["action"])
+        idx += utility_size
+        self.dict["pos"] = self.tensor[idx:]
+        print("POS:", self.dict["pos"])
 
         #print("NEW TENSOR")
         #self.tensor = np.zeros((3,), int)
@@ -620,7 +562,7 @@ class OmniscientObserver:
         This is an omniscient observation, so the info will be the same
         for all players.
         """
-        #print("set_from() here, turn/player:", state._curr_turn, player)
+        print("set_from() here, turn/player:", state._curr_turn, player)
         # Tensor values: attacker position, attacker utility, defender utility
         #self.tensor[0] = state.attacker_state.state_pos
         #self.tensor[1] = state.attacker_state.utility
@@ -629,15 +571,14 @@ class OmniscientObserver:
         if player == Players.ATTACKER:
             inner_state = state.attacker_state
             action = state._attack_vec[-1]
-            #print("attack action:", action)
+            print("attack action:", action)
         elif player == Players.DEFENDER:
             inner_state = state.defender_state
             action = state._defend_vec[-1]
-            #print("defend action:", action)
+            print("defend action:", action)
         self.dict["action"][player, state._curr_turn, action] = action
         self.dict["utility"][player, state._curr_turn] = inner_state.utility
-        print("ACTION:", self.dict["action"])
-        print("UTILITY:", self.dict["action"])
+        self.dict["pos"][state._curr_turn] = state.attacker.pos
         print(f"SET ACTION ({player}):", self.dict["action"][player])
         print(f"SET UTILITY ({player}):", self.dict["utility"][player])
 
@@ -651,11 +592,13 @@ class OmniscientObserver:
         # highlighting work better in Emacs. :)
         turn = state._curr_turn
         utility = self.dict["utility"]
+        pos = self.dict["pos"]
+
         return (
             #f"Attacker position: {self.tensor[0]} | "
             #f"Attacker Utility: {self.tensor[1]} | "
             #f"Defender Utility: {self.tensor[2]}"
-            f"Attacker position: {turn} | "
+            f"Attacker position: {pos[turn]} | "
             f"Attacker Utility: {utility[Players.ATTACKER][turn]} | "
             f"Defender Utility: {utility[Players.DEFENDER][turn]}"
         )
@@ -681,18 +624,17 @@ class V2Game(pyspiel.Game):
         return V2GameState(self, self.game_info)
 
     def make_py_observer(self, iig_obs_type=None, params=None):
-        return OmniscientObserver(params)
-
-    def _make_py_observer(self, iig_obs_type=None, params=None):
         """
         Create an observer object of type `iig_obs_type`, configured
         using `params`.
+
+        In this simple example, only one type of Observer exists, and
+        it isn't configurable, so both input arguments are ignored.
         """
-        if ((iig_obs_type is None) or
-                (iig_obs_type.public_info and not iig_obs_type.perfect_recall)):
-            return OmniscientObserver(params)
-        else:
-            return IIGObserverForPublicInfoGame(iig_obs_type, params)
+        #print("MAKE OBS:", params)
+        match iig_obs_type:
+            case _:
+                return OmniscientObserver(params)
 
 
 pyspiel.register_game(_GAME_TYPE, V2Game)

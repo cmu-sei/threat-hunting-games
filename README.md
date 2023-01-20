@@ -4,7 +4,7 @@ hunting.
 
 # Toolchain
 
-## Docker Container Environment 
+## Docker Container Environment (Best Option)
 ### Build threat-hunting-games and stand up environment
 *This will build the threat-hunting-games container along with ghosts-spectre*
 - **VPN Build**:

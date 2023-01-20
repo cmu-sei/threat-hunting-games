@@ -5,8 +5,9 @@ networks:
 services:
     threat-hunting-game:
       build:
-        context: ..
+        context: ../
         target: "vpn"
+        dockerfile: Docker_Container/Dockerfile
       image: threat-hunting-game:vpn
       container_name: threat-hunting-game-vpn
       ports:
@@ -14,6 +15,8 @@ services:
       networks:
         - ghosts-network
       tty: true
+      volumes:
+        - ../Docker_Container/Logs:/var/log/threat-hunting-games
 
     postgres:
       image: postgres
@@ -73,9 +76,10 @@ services:
         target: "vpn"
       container_name: ghosts-spectre
       ports:
-        - '5002:8080'
+        - '5002:5002'
       networks:
         - ghosts-network
       restart: always
       volumes:
         - ../GHOSTS_Environment/Environment_Data/spectre_data:/app/config
+      command: tail -F anything

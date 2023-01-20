@@ -1,4 +1,6 @@
 **/__pycache__/
+**/.mypycache/
+**/.pytest_cache/
 /.python-version
 
 **/tmp/

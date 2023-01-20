@@ -4,8 +4,8 @@ import os, sys, json
 
 import pyspiel
 
-from parsers import parse_playthrough
-from states import get_leaf_states
+from tools.parsers import parse_playthrough
+from tools.states import get_leaf_states
 
 from algorithms import generate_playthrough
 from gameload import game_name

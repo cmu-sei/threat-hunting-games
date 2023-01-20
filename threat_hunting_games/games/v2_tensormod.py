@@ -460,11 +460,11 @@ class V2GameState(pyspiel.State):
 
     ### some overrides that make playthrough history strings look better
 
-    def history_str(self):
-        # in spiel.h this still uses history(), only there for
-        # backwards-compatibility reasons, which only returns actions
-        return ', '.join(
-            f"({x.player}, {x.action})" for x in self.full_history())
+    #def history_str(self):
+    #    # in spiel.h this still uses history(), only there for
+    #    # backwards-compatibility reasons, which only returns actions
+    #    return ', '.join(
+    #        f"({x.player}, {x.action})" for x in self.full_history())
 
     ### The folowing methods are custom and not part of the API
 

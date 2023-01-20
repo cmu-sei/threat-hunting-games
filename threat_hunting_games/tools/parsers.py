@@ -47,11 +47,19 @@ def parse_playthrough(text):
                     'observation_tensor_size',
                     'max_game_length',
                     ]:
-                value = getattr(game, attr)()
                 try:
-                    json.dumps(value)
-                except TypeError:
-                    value = str(value)
+                    value = getattr(game, attr)()
+                    try:
+                        json.dumps(value)
+                    except TypeError:
+                        value = str(value)
+                except pyspiel.SpielError as e:
+                    # accessing some attribute methods will trigger an
+                    # exception if the attribute does not apply to the
+                    # game (e.g. UtilitySum value for general-sum or
+                    # identical utility games. OpenSpiel still dumps the
+                    # error to stderr however.
+                    continue
                 bout[attr] = value
             bout["to_string"] = str(game)
             game_type = game.get_type()

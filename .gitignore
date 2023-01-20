@@ -1,6 +1,4 @@
 **/__pycache__/
-**/.mypycache/
-**/.pytest_cache/
 /.python-version
 
 **/tmp/
@@ -12,6 +10,8 @@
 .idea
 # For pytest previous tests cache
 .pytest_cache
+# Another cache
+**/.mypy_cache/
 # For the virtual environment
 venv
 

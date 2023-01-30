@@ -77,7 +77,7 @@ def confirm_connection():
 
 
 # Get a list of the machine groups as well as the machines in them
-def get_machine_groups():
+def list_machine_groups():
     try:
         test_data = get(url='http://ghosts-api:5000/api/machinegroups')
         print(f'List of Machine Groups: {test_data.content}')
@@ -89,7 +89,7 @@ def get_machine_groups():
 
 
 # Get a list of the machines that are in the environment currently
-def get_machines():
+def list_machines():
     try:
         test_data = get(url='http://ghosts-api:5000/api/machines')
         print(f'List of Machines: {test_data.content}')
@@ -105,7 +105,8 @@ if __name__ == '__main__':
     machines = []
     confirm_connection()
     machine_groups.append(create_machinegroup('Test_Machine_Group'))
-    get_machine_groups()
+    list_machine_groups()
+    list_machines()
 
 
 

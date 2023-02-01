@@ -30,7 +30,13 @@ for Linux as described
 [here](https://bgasparotto.com/install-pyenv-ubuntu-debian), or via the
 [method described at the project
 Github](https://github.com/pyenv/pyenv#basic-github-checkout)), the
-correct Python version can be
+correct Python version can be installed (example version):
+
+  $ pyenv install 3.10.6
+  $ pyenv virtualenv 3.10.6 th-3.10.6
+
+The virtualenv target version name is arbitrary. Make sure the lines for
+pyenv and virtualenv are placed in ~/.bashrc.
 
 Poetry also has tools for selecting environments for the project, which
 you may prefer to use. These directions will mostly assume
@@ -57,8 +63,18 @@ install them.
 Some of the examples and algorithms use the following python modules:
 
   * [TensorFlow](https://www.tensorflow.org/install/pip)
+  * [PyTorch](https://pytorch.org/)
+  * [JAX](https://github.com/google/jax)
   * [pandas](https://pandas.pydata.org/)
   * [CVXOPT](https://cvxopt.org/)
+
+  $ pip install tensorflow
+  $ pip install torch
+  $ pip install jax
+  $ pip install pandas
+  $ pip install cvxopt
+
+note: pytorch should have CUDA libraries included;  enabling Nvidia support for tensor flow might involve [more steps](https://www.nvidia.com/en-sg/data-center/gpu-accelerated-applications/tensorflow/)
 
 Some of the examples involving Nash-equilibria require the following
 system packages:

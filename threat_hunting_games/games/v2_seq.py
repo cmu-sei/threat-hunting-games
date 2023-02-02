@@ -12,9 +12,7 @@ from logging import debug  # pylint: disable=unused-import
 import pyspiel  # type: ignore
 import numpy as np
 
-from .arena_v2 import ThunderDome
-
-arena = ThunderDome()
+from . import arena_v2 as arena
 
 # note: I tried representing the IV as an integer and playing around
 # with various values for the action types (splitting out
@@ -63,8 +61,8 @@ _GAME_TYPE = pyspiel.GameType(
     # Markov decision processes. (See spiel.h)
     reward_model=pyspiel.GameType.RewardModel.TERMINAL,
     # Note again: num_players doesn't count Chance
-    max_num_players=len(arena.players),
-    min_num_players=len(arena.players),
+    max_num_players=len(arena.Players),
+    min_num_players=len(arena.Players),
     provides_information_state_string=True,
     provides_information_state_tensor=True,
     provides_observation_string=True,
@@ -86,11 +84,11 @@ def make_game_info(num_turns):
     # The most expensive strategy is for D to always wait while A
     # always advances. An advance is worth 2 to A and -2 to D, so the
     # minimum utility is for D, and it's -2 * num_turns
-    min_utility = -(arena.max_cost + arena.max_penalty) * num_turns
+    min_utility = -(arena.max_cost() + arena.max_penalty()) * num_turns
     # Max utility is for A to always advance while D defends. A spends
     # 1 to get 2 (or 2 to get 3 for stealth), for a net utility of 1
     # each turn. Hence:
-    max_utility = arena.max_reward * num_turns
+    max_utility = arena.max_reward() * num_turns
 
     # Arguments to pyspiel.GameInfo:
     # (num_distinct_actions: int,
@@ -118,9 +116,9 @@ class AttackerState(NamedTuple):
     state_pos: int
     utility: int
     last_reward: int
-    last_action: arena.actions
+    last_action: arena.Actions
 
-    def advance(self, action: arena.actions) -> "AttackerState":
+    def advance(self, action: arena.Actions) -> "AttackerState":
 
         #print("ATTACK old_utility:", self.utility)
 
@@ -144,7 +142,7 @@ class AttackerState(NamedTuple):
         new_utility = self.utility
         new_state = self.state_pos
 
-        if (self.last_action is not arena.actions.WAIT) and not detected:
+        if (self.last_action is not arena.Actions.WAIT) and not detected:
             # If successful, the attacker advances to a new state and
             # gets 2 utility
             new_utility += utils.reward
@@ -168,9 +166,9 @@ class AttackerState(NamedTuple):
 class DefenderState(NamedTuple):
     utility: int
     last_reward: int
-    last_action: arena.actions
+    last_action: arena.Actions
 
-    def detect(self, action: arena.actions) -> "DefenderState":
+    def detect(self, action: arena.Actions) -> "DefenderState":
 
         #print("DEFEND old_utility:", self.utility)
 
@@ -216,7 +214,7 @@ class V2GameState(pyspiel.State):
         self._curr_turn = 0
         self._attacker = AttackerState(0, 0, 0, None)
         self._defender = DefenderState(0, 0, None)
-        self._current_player = arena.players.ATTACKER
+        self._current_player = arena.Players.ATTACKER
 
         # Phil was talking about tracking the IV down in the Observer,
         # which is certainly possible...will seek clarification -- some
@@ -305,10 +303,10 @@ class V2GameState(pyspiel.State):
         assert player >= 0
         debug(f"legal actions for player {player}")
         match player:
-            case arena.players.ATTACKER:
-                return arena.attack_actions
-            case arena.players.DEFENDER:
-                return arena.defend_actions
+            case arena.Players.ATTACKER:
+                return arena.Attack_Actions
+            case arena.Players.DEFENDER:
+                return arena.Defend_Actions
             case _:
                 raise ValueError(f"undefined player: {player}")
 
@@ -348,13 +346,13 @@ class V2GameState(pyspiel.State):
         # Asserted as invariant in sample games:
         # assert self._is_chance and not self._game_over
 
-        if self._current_player is arena.players.ATTACKER:
+        if self._current_player is arena.Players.ATTACKER:
             self._attacker = self._attacker.advance(action)
             self._attack_vec[self._curr_turn] = action
-            self._current_player = arena.players.DEFENDER
+            self._current_player = arena.Players.DEFENDER
             return
 
-        assert(self._current_player is arena.players.DEFENDER)
+        assert(self._current_player is arena.Players.DEFENDER)
 
         self._defender = self._defender.detect(action)
         self._defend_vec[self._curr_turn] = action
@@ -372,9 +370,9 @@ class V2GameState(pyspiel.State):
             breached = False
             if attacker_action: # not WAIT
                 if defender_action: # not WAIT
-                    if defender_action is arena.actions.DETECT_STRONG:
+                    if defender_action is arena.Actions.DETECT_STRONG:
                         detected = True
-                    elif attacker_action is arena.actions.ADVANCE_NOISY:
+                    elif attacker_action is arena.Actions.ADVANCE_NOISY:
                         detected = True
                     breached = not detected
                 else:
@@ -407,7 +405,7 @@ class V2GameState(pyspiel.State):
         self._defender = \
                 self._defender.resolve(breached)
 
-        self._current_player = arena.players.ATTACKER
+        self._current_player = arena.Players.ATTACKER
 
         # Are we done?
         self._curr_turn += 1
@@ -422,10 +420,8 @@ class V2GameState(pyspiel.State):
     def _action_to_string(self, player, action):
         """Convert an action to a string representation, presumably
         for logging."""
-        player_str = ["Attacker", "Defender"][player]
-        action_str = ["WAIT", "ADVANCE_NOISY", "ADVANCE_CAMO",
-                      "DEFEND_WEAK", "DEFEND_STRONG"][action]
-        action_str = arena.actions(action).name
+        player_str = arena.player_to_string(player)
+        action_str = arena.action_to_string(action)
         return f"{player_str}: {action_str}"
 
     def is_terminal(self):
@@ -446,7 +442,7 @@ class V2GameState(pyspiel.State):
 
     ### The folowing methods are custom and not part of the API
 
-    def legal_attack_actions(self):
+    def legal_Attack_Actions(self):
         # Things we have to play with here for determining next actions:
         #
         #   - IV (attack_vec)
@@ -458,9 +454,9 @@ class V2GameState(pyspiel.State):
         # this game that explores the tree -- we probably need a
         # wrapper anyway.
 
-        return arena.attack_actions
+        return arena.Attack_Actions
 
-    def legal_defend_actions(self):
+    def legal_Defend_Actions(self):
         # Things we have to play with here for determining next action:
         #
         #   - defend_vec (I'm tracking it here, but we don't have to)
@@ -472,7 +468,7 @@ class V2GameState(pyspiel.State):
         # This logic will probably end up living into a wrapper(s) when
         # probabability distributions, etc, enter the picture.
 
-        return arena.defend_actions
+        return arena.Defend_Actions
 
 
 class OmniscientObserver:
@@ -495,7 +491,7 @@ class OmniscientObserver:
         # include turn 0
         num_turns = game_turns + 1
 
-        turn_map_size = num_turns * len(arena.actions)
+        turn_map_size = num_turns * len(arena.Actions)
         util_size = num_turns
         player_size = turn_map_size + util_size
         total_size = 2 * player_size
@@ -503,13 +499,13 @@ class OmniscientObserver:
 
         self.dict = {}
         idx = 0
-        action_size = len(arena.players) * num_turns * len(arena.actions)
-        action_shape = (len(arena.players), num_turns, len(arena.actions))
+        action_size = len(arena.Players) * num_turns * len(arena.Actions)
+        action_shape = (len(arena.Players), num_turns, len(arena.Actions))
         self.dict["action"] = \
             self.tensor[idx:idx+action_size].reshape(action_shape)
         idx += action_size
-        utility_size = len(arena.players) * num_turns
-        utility_shape = (len(arena.players), num_turns)
+        utility_size = len(arena.Players) * num_turns
+        utility_shape = (len(arena.Players), num_turns)
         self.dict["utility"] = \
             self.tensor[idx:idx+utility_size].reshape(utility_shape)
 
@@ -539,11 +535,11 @@ class OmniscientObserver:
         #self.tensor[1] = state.attacker_state.utility
         #self.tensor[2] = state.defender_state.utility
 
-        if player == arena.players.ATTACKER:
+        if player == arena.Players.ATTACKER:
             inner_state = state.attacker_state
             action = state._attack_vec[-1]
             #print("attack action:", action)
-        elif player == arena.players.DEFENDER:
+        elif player == arena.Players.DEFENDER:
             inner_state = state.defender_state
             action = state._defend_vec[-1]
             #print("defend action:", action)
@@ -569,8 +565,8 @@ class OmniscientObserver:
             #f"Attacker Utility: {self.tensor[1]} | "
             #f"Defender Utility: {self.tensor[2]}"
             f"Attacker position: {turn} | "
-            f"Attacker Utility: {utility[arena.players.ATTACKER][turn]} | "
-            f"Defender Utility: {utility[arena.players.DEFENDER][turn]}"
+            f"Attacker Utility: {utility[arena.Players.ATTACKER][turn]} | "
+            f"Defender Utility: {utility[arena.Players.DEFENDER][turn]}"
         )
 
 

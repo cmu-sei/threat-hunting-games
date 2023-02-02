@@ -12,9 +12,7 @@ from logging import debug  # pylint: disable=unused-import
 import pyspiel  # type: ignore
 import numpy as np
 
-from .arena_v2 import ThunderDome
-
-arena = ThunderDome()
+from . import arena_v2 as arena
 
 #_MATRIX = (
 #    # ( Attacker, Defender )
@@ -72,8 +70,8 @@ _GAME_TYPE = pyspiel.GameType(
     # Markov decision processes. (See spiel.h)
     reward_model=pyspiel.GameType.RewardModel.TERMINAL,
     # Note again: num_players doesn't count Chance
-    max_num_players=len(arena.players),
-    min_num_players=len(arena.players),
+    max_num_players=len(arena.Players),
+    min_num_players=len(arena.Players),
     provides_information_state_string=True,
     provides_information_state_tensor=True,
     # except observations are False in the example? Breaks here if so.

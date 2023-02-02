@@ -12,9 +12,7 @@ from logging import debug  # pylint: disable=unused-import
 import pyspiel  # type: ignore
 import numpy as np
 
-from .arena_v2 import ThunderDome
-
-arena = ThunderDome()
+from . import arena_v2 as arena
 
 # note: I tried representing the IV as an integer and playing around
 # with various values for the action types (splitting out
@@ -63,8 +61,8 @@ _GAME_TYPE = pyspiel.GameType(
     # Markov decision processes. (See spiel.h)
     reward_model=pyspiel.GameType.RewardModel.TERMINAL,
     # Note again: num_players doesn't count Chance
-    max_num_players=len(arena.players),
-    min_num_players=len(arena.players),
+    max_num_players=len(arena.Players),
+    min_num_players=len(arena.Players),
     provides_information_state_string=True,
     provides_information_state_tensor=True,
     provides_observation_string=True,
@@ -86,11 +84,11 @@ def make_game_info(num_turns):
     # The most expensive strategy is for D to always wait while A
     # always advances. An advance is worth 2 to A and -2 to D, so the
     # minimum utility is for D, and it's -2 * num_turns
-    min_utility = -(arena.max_cost + arena.max_penalty) * num_turns
+    min_utility = -(arena.max_cost() + arena.max_penalty()) * num_turns
     # Max utility is for A to always advance while D defends. A spends
     # 1 to get 2 (or 2 to get 3 for stealth), for a net utility of 1
     # each turn. Hence:
-    max_utility = arena.max_reward * num_turns
+    max_utility = arena.max_reward() * num_turns
 
     # Arguments to pyspiel.GameInfo:
     # (num_distinct_actions: int,
@@ -104,7 +102,7 @@ def make_game_info(num_turns):
     return pyspiel.GameInfo(
         num_distinct_actions=5,
         max_chance_outcomes=0,
-        num_players=len(arena.players),
+        num_players=len(arena.Players),
         min_utility=float(min_utility),
         max_utility=float(max_utility),
         utility_sum=0.0,
@@ -115,18 +113,18 @@ def make_game_info(num_turns):
 class AttackerState(NamedTuple):
     """foo"""
 
-    state_pos: int
+    pos: int
     utility: int
     last_reward: int
 
-    def advance(self, action: arena.actions, detected: bool) -> "AttackerState":
+    def advance(self, action: arena.Actions, detected: bool) -> "AttackerState":
 
         #print("ATTACK old_utility:", self.utility)
 
-        utils = _utils[action]
+        utils = arena.utilities[action]
 
         new_utility = self.utility - utils.cost
-        new_state = self.state_pos
+        new_state = self.pos
 
         if action and not detected:
             # If successful, the attacker advances to a new state and
@@ -142,7 +140,7 @@ class AttackerState(NamedTuple):
 
         # pylint: disable=no-member
         return self._replace(
-            state_pos=new_state,
+            pos=new_state,
             utility=new_utility,
             last_reward=reward,
         )
@@ -152,11 +150,11 @@ class DefenderState(NamedTuple):
     utility: int
     last_reward: int
 
-    def detect(self, action: arena.actions, breached: bool) -> "DefenderState":
+    def detect(self, action: arena.Actions, breached: bool) -> "DefenderState":
 
         #print("DEFEND old_utility:", self.utility)
 
-        utils = _utils[action]
+        utils = arena.utilities[action]
 
         new_utility = self.utility - utils.cost
 
@@ -271,10 +269,10 @@ class V2GameState(pyspiel.State):
         assert player >= 0
         debug(f"legal actions for player {player}")
         match player:
-            case arena.players.ATTACKER:
-                return arena.attack_actions
-            case arena.players.DEFENDER:
-                return arena.defend_actions
+            case arena.Players.ATTACKER:
+                return arena.Attack_Actions
+            case arena.Players.DEFENDER:
+                return arena.Defend_Actions
             case _:
                 raise ValueError(f"undefined player: {player}")
 
@@ -311,8 +309,8 @@ class V2GameState(pyspiel.State):
 
         #print("apply_actions, curr turn:", self._curr_turn)
 
-        attacker_action = actions[arena.players.ATTACKER]
-        defender_action = actions[arena.players.DEFENDER]
+        attacker_action = actions[arena.Players.ATTACKER]
+        defender_action = actions[arena.Players.DEFENDER]
 
         self._attack_vec[self._curr_turn] = attacker_action
         self._defend_vec[self._curr_turn] = defender_action
@@ -326,9 +324,9 @@ class V2GameState(pyspiel.State):
             breached = False
             if attacker_action: # not WAIT
                 if defender_action: # not WAIT
-                    if defender_action is arena.actions.DETECT_STRONG:
+                    if defender_action is arena.Actions.DETECT_STRONG:
                         detected = True
-                    elif attacker_action is arena.actions.ADVANCE_NOISY:
+                    elif attacker_action is arena.Actions.ADVANCE_NOISY:
                         detected = True
                     breached = not detected
                 else:
@@ -367,10 +365,8 @@ class V2GameState(pyspiel.State):
     def _action_to_string(self, player, action):
         """Convert an action to a string representation, presumably
         for logging."""
-        player_str = ["Attacker", "Defender"][player]
-        #action_str = ["WAIT", "ADVANCE_NOISY", "ADVANCE_CAMO",
-        #              "DEFEND_WEAK", "DEFEND_STRONG"][action]
-        action_str = arena.actions(action).name
+        player_str = arena.player_to_string(player)
+        action_str = arena.action_to_string(action)
         return f"{player_str}: {action_str}"
 
     def is_terminal(self):
@@ -387,11 +383,11 @@ class V2GameState(pyspiel.State):
 
     def __str__(self):
         """String for debugging. No particular semantics."""
-        return f"Attacker pos at Turn {self._curr_turn}: {self._attacker.state_pos}"
+        return f"Attacker pos at Turn {self._curr_turn}: {self._attacker.pos}"
 
     ### The folowing methods are custom and not part of the API
 
-    def legal_attack_actions(self):
+    def legal_Attack_Actions(self):
         # Things we have to play with here for determining next actions:
         #
         #   - IV (attack_vec)
@@ -403,9 +399,9 @@ class V2GameState(pyspiel.State):
         # this game that explores the tree -- we probably need a
         # wrapper anyway.
 
-        return arena.attack_actions
+        return arena.Attack_Actions
 
-    def legal_defend_actions(self):
+    def legal_Defend_Actions(self):
         # Things we have to play with here for determining next action:
         #
         #   - defend_vec (I'm tracking it here, but we don't have to)
@@ -417,7 +413,7 @@ class V2GameState(pyspiel.State):
         # This logic will probably end up living into a wrapper(s) when
         # probabability distributions, etc, enter the picture.
 
-        return arena.defend_actions
+        return arena.Defend_Actions
 
 
 class OmniscientObserver:
@@ -437,33 +433,30 @@ class OmniscientObserver:
         #print("OBS PARAMS:", params)
         #num_turns = params["num_turns"]
 
-        # include turn 0?
+        # include turn 0
         num_turns = game_turns + 1
 
-        turn_map_size = num_turns * len(arena.actions)
+        turn_map_size = num_turns * len(arena.Actions)
         util_size = num_turns
         player_size = turn_map_size + util_size
         # include attacker_pos
         attacker_pos_size = num_turns
-        total_size = defender_size + attacker_size + attacker_pos_size
+        total_size = (2 * player_size) + attacker_pos_size
         self.tensor = np.zeros(total_size, int)
 
         self.dict = {}
         idx = 0
-        action_size = len(arena.players) * num_turns * len(arena.actions)
-        action_shape = (len(arena.players), num_turns, len(arena.actions))
+        action_size = len(arena.Players) * num_turns * len(arena.Actions)
+        action_shape = (len(arena.Players), num_turns, len(arena.Actions))
         self.dict["action"] = \
             self.tensor[idx:idx+action_size].reshape(action_shape)
-        print("ACTION:", self.dict["action"])
         idx += action_size
-        utility_size = len(arena.players) * num_turns
-        utility_shape = (len(arena.players), num_turns)
+        utility_size = len(arena.Players) * num_turns
+        utility_shape = (len(arena.Players), num_turns)
         self.dict["utility"] = \
             self.tensor[idx:idx+utility_size].reshape(utility_shape)
-        print("UTILITY:", self.dict["action"])
         idx += utility_size
         self.dict["pos"] = self.tensor[idx:]
-        print("POS:", self.dict["pos"])
 
         #print("NEW TENSOR")
         #self.tensor = np.zeros((3,), int)
@@ -487,21 +480,21 @@ class OmniscientObserver:
         """
         print("set_from() here, turn/player:", state._curr_turn, player)
         # Tensor values: attacker position, attacker utility, defender utility
-        #self.tensor[0] = state.attacker_state.state_pos
+        #self.tensor[0] = state.attacker_state.pos
         #self.tensor[1] = state.attacker_state.utility
         #self.tensor[2] = state.defender_state.utility
 
-        if player == arena.players.ATTACKER:
+        if player == arena.Players.ATTACKER:
             inner_state = state.attacker_state
             action = state._attack_vec[-1]
             print("attack action:", action)
-        elif player == arena.players.DEFENDER:
+        elif player == arena.Players.DEFENDER:
             inner_state = state.defender_state
             action = state._defend_vec[-1]
             print("defend action:", action)
         self.dict["action"][player, state._curr_turn, action] = action
         self.dict["utility"][player, state._curr_turn] = inner_state.utility
-        self.dict["pos"][state._curr_turn] = state.attacker.pos
+        self.dict["pos"][state._curr_turn] = state.attacker_state.pos
         print(f"SET ACTION ({player}):", self.dict["action"][player])
         print(f"SET UTILITY ({player}):", self.dict["utility"][player])
 
@@ -522,8 +515,8 @@ class OmniscientObserver:
             #f"Attacker Utility: {self.tensor[1]} | "
             #f"Defender Utility: {self.tensor[2]}"
             f"Attacker position: {pos[turn]} | "
-            f"Attacker Utility: {utility[arena.players.ATTACKER][turn]} | "
-            f"Defender Utility: {utility[arena.players.DEFENDER][turn]}"
+            f"Attacker Utility: {utility[arena.Players.ATTACKER][turn]} | "
+            f"Defender Utility: {utility[arena.Players.DEFENDER][turn]}"
         )
 
 

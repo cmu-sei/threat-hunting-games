@@ -85,11 +85,11 @@ def make_game_info(num_turns):
     # The most expensive strategy is for D to always wait while A
     # always advances. An advance is worth 2 to A and -2 to D, so the
     # minimum utility is for D, and it's -2 * num_turns
-    min_utility = -(arena.max_cost() + arena.max_penalty()) * num_turns
+    min_utility = arena.min_utility() * num_turns
     # Max utility is for A to always advance while D defends. A spends
     # 1 to get 2 (or 2 to get 3 for stealth), for a net utility of 1
     # each turn. Hence:
-    max_utility = arena.max_reward() * num_turns
+    max_utility = arena.max_utility() * num_turns
 
     # Arguments to pyspiel.GameInfo:
     # (num_distinct_actions: int,

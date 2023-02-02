@@ -19,17 +19,17 @@ class Actions(IntEnum):
     DETECT_WEAK = 3
     DETECT_STRONG = 4
 
-Attack_Actions = (
+Attack_Actions = frozenset((
     Actions.WAIT,
     Actions.ADVANCE_NOISY,
     Actions.ADVANCE_CAMO,
-)
+))
 
-Defend_Actions = (
+Defend_Actions = frozenset((
     Actions.WAIT,
     Actions.DETECT_WEAK,
     Actions.DETECT_STRONG,
-)
+))
 
 def player_to_string(player):
     return Players(int(player)).name.title()
@@ -42,8 +42,9 @@ class Utility(NamedTuple):
     reward:  int # action success reward
     penalty: int # action failure penalty
 
-# these values can potentially be overridden for parameter exploration;
-# results depending on these utilities are expressed as functions
+# the following values for utilities can potentially be overridden for
+# parameter exploration; results depending on these utilities are
+# expressed as functions
 utilities = {
     Actions.WAIT:          Utility(0, 0, 3),
     Actions.ADVANCE_NOISY: Utility(1, 3, 0),
@@ -60,6 +61,12 @@ def max_penalty():
 
 def max_reward():
    return max(x.reward for x in utilities.values())
+
+def max_utility():
+    return max((x.reward - x.cost) for x in utilities.values())
+
+def min_utility():
+    return min((-x.cost - x.penalty) for x in utilities.values())
 
 # winner action as key, including no-ops (empty set)
 _win = {

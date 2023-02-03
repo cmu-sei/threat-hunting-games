@@ -1,4 +1,9 @@
 #!/bin/env python3
+#
+# Extract all of the leaf nodes from tools.states (via
+# algorithms.get_all_states) and feed them one by one through
+# algorithms.generate_playthrough. Parse the output and save each of
+# these playthroughs to JSON files.
 
 import os, sys, json
 

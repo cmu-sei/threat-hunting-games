@@ -6,9 +6,9 @@ services:
     threat-hunting-game:
       build:
         context: ..
-        target: non-vpn
+        dockerfile: Docker_Container/Dockerfile
       image: threat-hunting-game:non-vpn
-      container_name: threat-hunting-game-vpn
+      container_name: threat-hunting-game
       ports:
         - '5433:5433'
       networks:
@@ -16,15 +16,15 @@ services:
       restart: always
 
     postgres:
-      image: postgres
+      image: docker.cc.cert.org/threat-hunting-games/postgres:latest
       container_name: ghosts-postgres
       environment:
         POSTGRES_DB: ghosts
         POSTGRES_USER: ghosts
         POSTGRES_PASSWORD: scotty@1
       volumes:
-        - ./GHOSTS_Environment/Environment_Data/db_data:/var/lib/postgresql/data
-        - ./GHOSTS_Environment/Environment_Data/spectre_data:/tmp
+        - ./Environment_Data/db_data:/var/lib/postgresql/data
+        - ./Environment_Data/spectre_data:/tmp
       logging:
         options:
           max-size: '100m'
@@ -41,7 +41,7 @@ services:
       restart: always
 
     ghosts-api:
-      image: dustinupdyke/ghosts
+      image: docker.cc.cert.org/threat-hunting-games/ghosts
       container_name: ghosts-api
       depends_on:
         - postgres
@@ -52,7 +52,7 @@ services:
       restart: always
 
     grafana:
-      image: grafana/grafana
+      image: docker.cc.cert.org/threat-hunting-games/grafana:latest
       container_name: ghosts-grafana
       user: root
       depends_on:
@@ -63,14 +63,12 @@ services:
         - ghosts-network
       restart: always
       volumes:
-        - ./GHOSTS_Environment/Environment_Data/g_data:/var/lib/grafana
+        - ./Environment_Data/g_data:/var/lib/grafana
         - ../../configuration/grafana/datasources:/etc/grafana/provisioning/datasources
         - ../../configuration/grafana/dashboards:/etc/grafana/provisioning/dashboards
 
     ghosts-spectre:
-      build:
-        context: ../GHOSTS_Environment/GHOSTS-SPECTRE/src
-        target: "non-vpn"
+      image: docker.cc.cert.org/threat-hunting-games/ghosts-spectre
       container_name: ghosts-spectre
       ports:
         - '5002:8080'
@@ -78,4 +76,4 @@ services:
         - ghosts-network
       restart: always
       volumes:
-        - ./GHOSTS_Environment/Environment_Data/spectre_data:/app/config
+        - ./Environment_Data/spectre_data:/app/config

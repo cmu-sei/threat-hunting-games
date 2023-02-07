@@ -1,6 +1,7 @@
 #!/bin/bash
 # Check that the Docker Daemon is running
 systemctl start docker
+export COMPOSE_PROJECT_NAME=threat-hunting-games
 
 if [ "$2" = "--reset" ]
 then
@@ -9,9 +10,9 @@ then
 fi
 if [ "$3" = "-d" ]
 then
-  docker compose --file Docker_Container/docker-compose.yml up -d
+  docker compose --file Docker_Container/docker-compose.yml up --detatch --force-recreate
   docker ps
 else
-  docker compose --file Docker_Container/docker-compose.yml up
+  docker compose --file Docker_Container/docker-compose.yml up --force-recreate
 fi
 

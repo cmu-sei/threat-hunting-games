@@ -17,6 +17,7 @@ services:
 
     postgres:
       image: docker.cc.cert.org/threat-hunting-games/postgres:latest
+      platform: "linux/amd64"
       container_name: ghosts-postgres
       environment:
         POSTGRES_DB: ghosts
@@ -53,6 +54,7 @@ services:
 
     grafana:
       image: docker.cc.cert.org/threat-hunting-games/grafana:latest
+      platform: "linux/amd64"
       container_name: ghosts-grafana
       user: root
       depends_on:
@@ -64,8 +66,8 @@ services:
       restart: always
       volumes:
         - ./Environment_Data/g_data:/var/lib/grafana
-        - ../../configuration/grafana/datasources:/etc/grafana/provisioning/datasources
-        - ../../configuration/grafana/dashboards:/etc/grafana/provisioning/dashboards
+        - ./Environment_Data/datasources:/etc/grafana/provisioning/datasources
+        - ./Environment_Data/dashboards:/etc/grafana/provisioning/dashboards
 
     ghosts-spectre:
       image: docker.cc.cert.org/threat-hunting-games/ghosts-spectre

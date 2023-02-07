@@ -14,7 +14,8 @@
 venv
 # For Data files from spinning up the containers
 Environment_Data/*
-!Environment_Data/.keep
+!Environment_Data/dashboards
+!Environment_Data/datasources
 # Basic MACOS removal
 .DS_Store
 

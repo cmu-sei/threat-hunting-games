@@ -8,11 +8,11 @@ then
   rm GHOSTS_Environment/Environment_Data/*
   touch GHOSTS_Environment/Environment_Data/.keep
 fi
-if [ "$3" = "-d" ]
+if [ "$3" = "--verbose" ]
 then
-  docker compose --file Docker_Container/docker-compose.yml up --detatch --force-recreate
-  docker ps
-else
   docker compose --file Docker_Container/docker-compose.yml up --force-recreate
+else
+  docker compose --file Docker_Container/docker-compose.yml up --detach --force-recreate
+  docker ps
 fi
 

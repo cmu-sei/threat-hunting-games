@@ -7,13 +7,14 @@ services:
       build:
         context: ..
         dockerfile: Docker_Container/Dockerfile
-      image: threat-hunting-game:non-vpn
+      image: threat-hunting-game:torbert
       container_name: threat-hunting-game
       ports:
         - '5433:5433'
       networks:
         - ghosts-network
       restart: always
+      tty: true
 
     postgres:
       image: docker.cc.cert.org/threat-hunting-games/postgres:latest

@@ -1,18 +1,32 @@
-#!/bin/bash
-# Check that the Docker Daemon is running
-systemctl start docker
+#!/bin/sh
+RESET=0
+DETACH=0
 export COMPOSE_PROJECT_NAME=threat-hunting-games
+usage() {
+  echo "Usage: $0 [ -d Run in Detached Mode ] [ -r Reset the environment data in GHOSTS ] " 1>&2
+}
+while getopts "dr" arg; do
+  case $arg in
+    d) DETACH="1" ;;
+    r) RESET=1 ;;
+    *) echo 'error' >&2
+      exit 1
+  esac
+done
 
-if [ "$2" = "--reset" ]
+if [ $RESET -eq 1 ]
 then
-  rm GHOSTS_Environment/Environment_Data/*
-  touch GHOSTS_Environment/Environment_Data/.keep
+  echo "RESETTING ENVIRONMENT DATA..."
+  rm -rf Containers/Environment_Data/db_data
+  rm -rf Containers/Environment_Data/g_data
+  rm -rf Containers/Environment_Data/spectre_data
+echo "ALL ENVIRONMENT DATA RESET..."
+echo " "
 fi
-if [ "$3" = "--verbose" ]
+if [ $DETACH -eq 1 ]
 then
-  docker compose --file Docker_Container/docker-compose.yml up --force-recreate
-else
-  docker compose --file Docker_Container/docker-compose.yml up --detach --force-recreate
+  docker compose --file Containers/docker-compose.yml up -d --force-recreate
   docker ps
+else
+  docker compose --file Containers/docker-compose.yml up --force-recreate
 fi
-

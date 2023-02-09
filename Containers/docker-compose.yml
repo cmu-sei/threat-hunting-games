@@ -6,7 +6,7 @@ services:
     threat-hunting-game:
       build:
         context: ..
-        dockerfile: Docker_Container/Dockerfile
+        dockerfile: Containers/Dockerfile
       image: threat-hunting-game:torbert
       container_name: threat-hunting-game
       ports:
@@ -25,8 +25,8 @@ services:
         POSTGRES_USER: ghosts
         POSTGRES_PASSWORD: scotty@1
       volumes:
-        - ./Environment_Data/db_data:/var/lib/postgresql/data
-        - ./Environment_Data/spectre_data:/tmp
+        - ./Containers/Environment_Data/db_data:/var/lib/postgresql/data
+        - ./Containers/Environment_Data/spectre_data:/tmp
       logging:
         options:
           max-size: '100m'
@@ -66,9 +66,9 @@ services:
         - ghosts-network
       restart: always
       volumes:
-        - ./Environment_Data/g_data:/var/lib/grafana
-        - ./Environment_Data/datasources:/etc/grafana/provisioning/datasources
-        - ./Environment_Data/dashboards:/etc/grafana/provisioning/dashboards
+        - ./Containers/Environment_Data/g_data:/var/lib/grafana
+        - ./Containers/Environment_Data/datasources:/etc/grafana/provisioning/datasources
+        - ./Containers/Environment_Data/dashboards:/etc/grafana/provisioning/dashboards
 
     ghosts-spectre:
       image: docker.cc.cert.org/threat-hunting-games/ghosts-spectre
@@ -79,4 +79,5 @@ services:
         - ghosts-network
       restart: always
       volumes:
-        - ./Environment_Data/spectre_data:/app/config
+        - ./Containers/Environment_Data/spectre_data:/app/config
+      command: tail -F anything

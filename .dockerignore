@@ -1,6 +1,0 @@
-.*
-venv
-README.md
-build_docker_container.sh
-docker-compose.yml
-Dockerfile

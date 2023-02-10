@@ -1,9 +1,0 @@
-version: '3.9'
-services:
-    threat-hunting-game:
-      image: threat-hunting-games:non-vpn
-      build:
-        context: .
-        target: "non-vpn"
-      container_name: threat-hunting-game
-      tty: true

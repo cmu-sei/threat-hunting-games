@@ -14,5 +14,10 @@
 **/.mypy_cache/
 # For the virtual environment
 venv
-
+# For Data files from spinning up the containers
+Containers/Environment_Data/*
+!Containers/Environment_Data/dashboards
+!Containers/Environment_Data/datasources
+# Basic MACOS removal
 .DS_Store
+

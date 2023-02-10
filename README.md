@@ -1,19 +1,20 @@
 This repository contains simulations and other source code related to
-the the SEI research project on applications of game theory to threat
+the SEI research project on applications of game theory to threat
 hunting.
 
 # Toolchain
 
-## Docker Container
-In order to spin up a [Docker](https://www.docker.com/) container you can run the following commands:
+## Docker Container Environment (Encouraged)
+### Command to Build the Containers
+`/bin/sh /build_docker_containers.sh`
 
-**VPN Build**:
-`./build_docker_container.sh vpn`
+### Flags
+- **-d**: Run the environment in detached mode \
+- **-r**: Reset the databases of the GHOSTS, POSTGRES, and GHOSTS-SPECTRE containers \
+- **-v**: Configure the containers to run in the VPN configuration (SEI Zscaler)
 
-**Non VPN Build**:
-`./build_docker_container.sh non-vpn`
-
-## Pyenv and pyenv-virtualenv (optional, encouraged)
+## Local Environment
+### Pyenv and pyenv-virtualenv (optional)
 
 The Python version being targeted is 3.10.\*. This is not a carefully
 chosen version, except that some features landed in 3.10 that the
@@ -33,7 +34,7 @@ correct Python version can be
 Poetry also has tools for selecting environments for the project, which
 you may prefer to use. These directions will mostly assume
 
-## Poetry
+### Poetry
 
 All other dependencies are managed via
 [Poetry](https://python-poetry.org/). Poetry\'s main virtue is managing
@@ -50,7 +51,7 @@ When you have your virtualenv active, `poetry install`{.verbatim} in the
 top-level directory should download the dependencies from pypi and
 install them.
 
-## Other Packages
+### Other Packages
 
 Some of the examples and algorithms use the following python modules:
 
@@ -63,7 +64,7 @@ system packages:
 
   * [lrsnash](https://manpages.ubuntu.com/manpages/jammy/man1/lrsnash.1.html) (`apt install lrsnash`)
 
-## Additional build dependencies
+### Additional build dependencies
 
 To keep code quality high and catch mistakes early, this project uses
 several code analysis tools. Links are to the PyPI page unless noted;
@@ -84,7 +85,7 @@ Jedi is optional, but developers should run the rest and seek to make
 the code warning-clean, either by fixing problems or, after careful
 consideration, by making local exceptions.
 
-## openspiel
+### openspiel
 
 The main runtime dependency is the
 [OpenSpiel](https://pypi.org/project/open-spiel/) game simulation

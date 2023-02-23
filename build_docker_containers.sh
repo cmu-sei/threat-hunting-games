@@ -30,10 +30,10 @@ echo "BUILDING VPN VERSION OF CONTAINER..."
 then
   if [ $DETACH -eq 1 ]
   then
-    docker compose --file Containers/docker-compose.vpn.yml up -d --force--recreate
+    docker compose --file Containers/docker-compose.vpn.yml up -d --build
     docker ps
   else
-    docker compose --file Containers/docker-compose.vpn.yml up --force-recreate
+    docker compose --file Containers/docker-compose.vpn.yml up --build
   fi
 else
   if [ $DETACH -eq 1 ]

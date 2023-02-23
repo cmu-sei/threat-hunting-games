@@ -3,7 +3,7 @@ from requests import get, post
 from uuid import uuid4
 import logging
 
-logging.basicConfig(filename='Logs/api-calls.log',
+logging.basicConfig(filename='/var/log/threat-hunting-games/api-calls.log',
                     format='%(asctime)s %(filename)8s: [%(levelname)s] %(message)s',
                     datefmt='%Y-%m-%d %H:%M')
 logger = logging.getLogger(__name__)
@@ -14,6 +14,7 @@ logger.setLevel(logging.DEBUG)
 def create_machinegroup(name):
     req_status = ''
     machine_group_uuid = uuid4()
+    logger.debug(msg=f'UUID of {name}: {machine_group_uuid}')
     machinegroup_req = {
         "name": name,
         "groupMachines": [
@@ -57,10 +58,10 @@ def create_machine(name, fqdn, domain, host, resolved_host, host_ip, ip, curr_us
     try:
         req_status = post(url='http://ghosts-api:5000/api/machines', data=machine_json_req)
         logger.debug(msg=req_status)
-        print(req_status)
+        print(f"Creating MachineGroup Req Status {str(req_status)}")
     except Exception as e:
-        logger.error(msg=f'Unable to create machine {name}. {e}')
-        print(f'Unable to create machine {name}. {e}')
+        logger.error(msg=f'Unable to create machine {name}. {str(e)}')
+        print(f'Unable to create machine {name}. {str(e)}')
 
 
 # Function to confirm the connection of the threat-hunting-games container to the GHOSTS-API container
@@ -68,11 +69,11 @@ def confirm_connection():
     print('Confirming connection to GHOSTS_API....')
     try:
         test_data = get(url='http://ghosts-api:5000/api/home')
-        logger.debug(msg=f'Connection Confirmation: {test_data.content}')
-        print(f'Connection Confirmation: {test_data.content}')
+        logger.debug(msg=f'Connection Confirmation: {str(test_data.content)}')
+        print(f'Connection Confirmation: {str(test_data.content)}')
     except Exception as e:
-        logger.error(msg=f'GHOSTS-API is not currently responding, check the container status. | {e}')
-        print(f'GHOSTS-API is not currently responding, check the container status. | {e}')
+        logger.error(msg=f'GHOSTS-API is not currently responding, check the container status. | {str(e)}')
+        print(f'GHOSTS-API is not currently responding, check the container status. | {str(e)}')
         exit(1)
 
 
@@ -80,11 +81,11 @@ def confirm_connection():
 def list_machine_groups():
     try:
         test_data = get(url='http://ghosts-api:5000/api/machinegroups')
-        print(f'List of Machine Groups: {test_data.content}')
-        logger.debug(msg=f'List of Machine Groups: {test_data.content}')
+        print(f'List of Machine Groups: {str(test_data.content)}')
+        logger.debug(msg=f'List of Machine Groups: {str(test_data.content)}')
     except Exception as e:
-        print(f'GHOSTS-API is not currently responding, check the container status. | {e}')
-        logger.error(msg=f'GHOSTS-API is not currently responding, check the container status. | {e}')
+        print(f'GHOSTS-API is not currently responding, check the container status. | {str(e)}')
+        logger.error(msg=f'GHOSTS-API is not currently responding, check the container status. | {str(e)}')
         exit(1)
 
 
@@ -92,11 +93,11 @@ def list_machine_groups():
 def list_machines():
     try:
         test_data = get(url='http://ghosts-api:5000/api/machines')
-        print(f'List of Machines: {test_data.content}')
-        logger.debug(msg=f'List of Machines: {test_data.content}')
+        print(f'List of Machines: {str(test_data.content)}')
+        logger.debug(msg=f'List of Machines: {str(test_data.content)}')
     except Exception as e:
-        print(f'GHOSTS-API is not currently responding, check the container status. | {e}')
-        logger.error(msg=f'GHOSTS-API is not currently responding, check the container status. | {e}')
+        print(f'GHOSTS-API is not currently responding, check the container status. | {str(e)}')
+        logger.error(msg=f'GHOSTS-API is not currently responding, check the container status. | {str(e)}')
         exit(1)
 
 

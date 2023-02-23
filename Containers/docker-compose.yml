@@ -79,3 +79,21 @@ services:
       restart: always
       volumes:
         - ../Containers/Environment_Data/spectre_data:/app/config
+    mongo:
+      image: mongo
+      container_name: ghosts-mongo
+      ports:
+        - '32770:27017'
+      networks:
+        - ghosts-network
+      restart: always
+      volumes:
+        - ../Containers/Environment_Data/mongo_data:/data/db
+    ghosts-animator:
+      image: dustinupdyke/ghosts-animator:0.5.0
+      container_name: ghosts-animator
+      ports:
+        - '5003:5000'
+      networks:
+        - ghosts-network
+      restart: always

@@ -85,8 +85,8 @@ class Utility(NamedTuple):
 #              ... if S1_WRITE_EXE.reward is ZSUM, that's a loop exception
 #
 # See the winner/loser maps below for which actions are effective
-# against other actions. See the action_reward(),
-# action_damage(), defend_reward(), and defend_damage() functions below
+# against other actions. See the attack_reward(),
+# attack_damage(), defend_reward(), and defend_damage() functions below
 # to see the logic implemented -- and consequence() that uses those to
 # tally utility for any particular action vs action.
 
@@ -130,7 +130,7 @@ class TimeWait(NamedTuple):
     min: int
     max: int
 
-    def count(self) -> int:
+    def turns(self) -> int:
         return random.randint(self.min, self.max)
 
 # min/max wait actions preceeding the given action
@@ -150,6 +150,9 @@ TimeWaits = {
     Actions.FF_SEARCH:           TimeWait(1, 4),
     Actions.FF_SEARCH_STRONG:    TimeWait(2, 5),
 }
+
+def get_timewait(action):
+    return TimeWaits.get(action, TimeWait(0, 0))
 
 # Winner action as key; note that WAIT and IN_PROGRESS are essentially
 # no-ops in terms of win/lose due to the asynchronous nature of when
@@ -303,7 +306,7 @@ def action_cmp(action1: Actions, action2: Actions) -> bool:
         pass
     return result
 
-def action_reward(action: Actions):
+def attack_reward(action: Actions):
     utils = Utilities[action]
     return utils.reward
 
@@ -311,7 +314,7 @@ def attack_damage(action: Actions) -> int:
     utils = Utilities[action]
     damage = utils.damage
     if damage is ZSUM:
-        damage = action_reward(action)
+        damage = attack_reward(action)
     if damage is ZSUM:
         raise ValueError(
             f"attack damage {action} {utils} ZSUM loop")
@@ -353,7 +356,7 @@ def consequence(action1: Actions, action2: Actions) -> int:
 
     if action1 in Attack_Actions:
         print("\n consq attack reward")
-        reward = action_reward(action1)
+        reward = attack_reward(action1)
         print("\n consq defend damage")
         damage = defend_damage(action2, action1)
         print("\n")
@@ -397,7 +400,7 @@ def max_utility() -> int:
         max_win = 0
         for lose_action in Win.get(action, []):
             if lose_action in Defend_Actions:
-                win_reward = action_reward(action)
+                win_reward = attack_reward(action)
             else:
                 win_reward = defend_reward(action, lose_action)
             win_util = win_cost + win_reward

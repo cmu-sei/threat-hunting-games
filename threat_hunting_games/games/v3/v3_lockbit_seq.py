@@ -4,7 +4,7 @@ Model of version 2 of the threat hunt statechain game.
 
 # pylint: disable=c-extension-no-member missing-class-docstring missing-function-docstring
 
-import sys, random
+import sys
 
 from typing import NamedTuple, Mapping, Any, List
 from enum import IntEnum
@@ -116,8 +116,8 @@ class InProgress():
     actions to take before finalizing the effect of the given action.
     """
 
-    def __init__(self, action=None, turns=None):
-        self._action = action or None
+    def __init__(self, action=None, turns=0):
+        self._action = None
         self._turns = turns or 0
 
     @property
@@ -140,7 +140,7 @@ class InProgress():
         self._turns = 0
 
     def __str__(self):
-        return f"[ turn: {self._turns} action: {self._action} ]"
+        return f"[ turn: {self.turns} action: {self.action} ]"
 
 
 class AttackerState(NamedTuple):
@@ -195,9 +195,9 @@ class AttackerState(NamedTuple):
                 # reward; this reward can potentially be lessened or
                 # nullified later by defend action damage if this action
                 # is detected.
-                src_utils = arena.Utilities[self.progress.action]
-                new_utility += src_utils.reward
-                self.rewards[-1] += src_utils.reward
+                reward = arena.attack_reward(self.progress.action)
+                new_utility += reward
+                self.rewards[-1] += reward
                 new_pos += 1
                 self.progress.reset()
                 self.available_actions[:] = arena.Attack_Actions
@@ -210,8 +210,7 @@ class AttackerState(NamedTuple):
             # defender until the progress turns are complete.
             if self.progress.action:
                 raise ValueError(f"stale attacker action: {self.progress}")
-            turn_cnt = arena.TimeWaits.get(action, arena.TimeWait(0, 0))
-            turn_cnt = random.randint(turn_cnt.min, turn_cnt.max)
+            turn_cnt = arena.get_timewait(action).turns()
             self.progress.set(action, turn_cnt)
             self.available_actions[:] = [arena.Actions.IN_PROGRESS]
 
@@ -290,8 +289,7 @@ class DefenderState(NamedTuple):
             # complete.
             if self.progress.action:
                 raise ValueError(f"stale defender action: {self.progress}")
-            turn_cnt = arena.TimeWaits.get(action, arena.TimeWait(0, 0))
-            turn_cnt = random.randint(turn_cnt.min, turn_cnt.max)
+            turn_cnt = arena.get_timewait(action).turns()
             self.progress.set(action, turn_cnt)
             self.available_actions[:] = [arena.Actions.IN_PROGRESS]
 

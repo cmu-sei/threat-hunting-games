@@ -45,7 +45,7 @@ class Utility(NamedTuple):
 # the following values for utilities can potentially be overridden for
 # parameter exploration; results depending on these utilities are
 # expressed as functions
-utilities = {
+Utilities = {
     Actions.WAIT:          Utility(0, 0, 3),
     Actions.ADVANCE_NOISY: Utility(1, 3, 0),
     Actions.ADVANCE_CAMO:  Utility(2, 3, 0),
@@ -54,19 +54,19 @@ utilities = {
 }
 
 def max_cost():
-    return max(x.cost for x in utilities.values())
+    return max(x.cost for x in Utilities.values())
 
 def max_penalty():
-    return max(x.penalty for x in utilities.values())
+    return max(x.penalty for x in Utilities.values())
 
 def max_reward():
-   return max(x.reward for x in utilities.values())
+   return max(x.reward for x in Utilities.values())
 
 def max_utility():
-    return max((x.reward - x.cost) for x in utilities.values())
+    return max((x.reward - x.cost) for x in Utilities.values())
 
 def min_utility():
-    return min((-x.cost - x.penalty) for x in utilities.values())
+    return min((-x.cost - x.penalty) for x in Utilities.values())
 
 # winner action as key, including no-ops (empty set)
 _win = {
@@ -96,7 +96,7 @@ def action_cmp(action1, action2):
         return None # no-op
 
 def consequence(action1, action2):
-    utils = utilities[action1]
+    utils = Utilities[action1]
     match action_cmp(action1, action2):
         case True:
             util = utils.reward - utils.cost

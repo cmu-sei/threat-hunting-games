@@ -11,7 +11,7 @@ import pytest
 import pyspiel  # type: ignore
 from open_spiel.python.algorithms.get_all_states import get_all_states
 
-from threat_hunting_games import v0
+from threat_hunting_games.games.v0 import v0
 
 game_name = "chain_game_v0"
 turns = 2

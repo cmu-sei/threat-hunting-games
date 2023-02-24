@@ -154,13 +154,42 @@ TimeWaits = {
 def get_timewait(action):
     return TimeWaits.get(action, TimeWait(0, 0))
 
-# Winner action as key; note that WAIT and IN_PROGRESS are essentially
-# no-ops in terms of win/lose due to the asynchronous nature of when
-# advance/detect actions square off; if this were a simultaneous game
-# then the passive actions WAIT and IN_PROGRESS could be included with
-# empty set (they win aganst no actions), but that isn't necessary here.
-# For the active action keys below, the actions that are commented out
-# are the actions that the given action will lose to.
+ChanceFail = {
+    Actions.S0_VERIFY_PRIV:      0.15,
+    Actions.S0_VERIFY_PRIV_CAMO: 0.15,
+    Actions.S1_WRITE_EXE:        0.15,
+    Actions.S1_WRITE_EXE_CAMO:   0.15,
+    Actions.S2_ENCRYPT:          0.15,
+    Actions.S2_ENCRYPT_CAMO:     0.15,
+    Actions.PSGREP:              0.15,
+    Actions.PSGREP_STRONG:       0.15,
+    Actions.SMB_LOGS:            0.15,
+    Actions.SMB_LOGS_STRONG:     0.15,
+    Actions.FF_SEARCH:           0.15,
+    Actions.FF_SEARCH_STRONG:    0.15,
+}
+
+def get_chance_fail(action):
+    return ChanceFail.get(action, 0.0)
+
+def action_succeeded(action):
+    pct = get_chance_fail(action)
+    if pct:
+        result = random.random() > pct
+        if not result:
+            print("ACTION FAIL!", action)
+        return result
+    else:
+        return True
+
+# Winner/Loser action maps. This first one is Winner action as key; note
+# that WAIT and IN_PROGRESS are essentially no-ops in terms of win/lose
+# due to the asynchronous nature of when advance/detect actions square
+# off; if this were a simultaneous game then the passive actions WAIT
+# and IN_PROGRESS could be included with empty set (they win aganst no
+# actions), but that isn't necessary here. For the active action keys
+# below, the actions that are commented out are the actions that the
+# given action will lose to.
 Win = {
     #Actions.WAIT: set(),
     #Actions.IN_PROGRESS: set(),

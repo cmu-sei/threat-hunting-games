@@ -116,9 +116,13 @@ class InProgress():
     actions to take before finalizing the effect of the given action.
     """
 
-    def __init__(self, action=None, turns=0):
-        self._action = None
-        self._turns = turns or 0
+    # these get replaced by instance vars in set()
+    _action = None
+    _turns = 0
+    _succeeded = None
+
+    def __init__(self, action=None, turns=0, succeeded=None):
+        self.set(None, 0)
 
     @property
     def action(self):
@@ -128,16 +132,29 @@ class InProgress():
     def turns(self):
         return self._turns
 
+    @property
+    def succeeded(self):
+        return self._succeeded
+
     def take_turn(self):
         self._turns -= 1
 
-    def set(self, action, turn_cnt):
+    def set(self, action, turn_cnt, succeeded=None):
         self._action = action
         self._turns = turn_cnt
+        if action:
+            if succeeded is not None:
+                self._succeeded = succeeded
+            else:
+                self._succeeded = arena.action_succeeded(action)
+        else:
+            self._succeeded = None
 
     def reset(self):
-        self._action = None
-        self._turns = 0
+        self.set(None, 0)
+
+    def copy(self):
+        return InProgress(self._action, self._turns, self.succeeded)
 
     def __str__(self):
         return f"[ turn: {self.turns} action: {self.action} ]"
@@ -147,7 +164,7 @@ class AttackerState(NamedTuple):
     """foo"""
     state_pos: int
     utility: int
-    history: list[arena.Actions]
+    full_history: list[tuple[arena.Actions, InProgress]]
     available_actions: list[arena.Actions]
     progress: InProgress
     costs: list[int]
@@ -155,21 +172,53 @@ class AttackerState(NamedTuple):
     damages: list[int]
 
     @property
-    def last_action(self) -> arena.Actions | None:
-        return self.history[-1] if self.history else None
+    def history(self) -> arena.Actions|None:
+        if self.full_history:
+            return (x[0] for x in self.full_history)
+        else:
+            return []
 
     @property
-    def asserted_actions(self) -> tuple[arena.Actions]:
-        return [x for x in self.history if x not in arena.NoOp_Actions]
+    def asserted_history(self) -> tuple[arena.Actions]:
+        return (x[0] for x in self.history if x[0] not in arena.NoOp_Actions)
+
+    @property
+    def full_asserted_history(self) -> tuple[arena.Actions]:
+        return (t for t in self.full_history
+                if t[0] not in arena.NoOp_Actions)
+
+    @property
+    def last_action(self) -> arena.Actions|None:
+        last = None
+        if self.full_history:
+            *_, last = self.history
+        return last
+
+    @property
+    def last_full_action(self) -> arena.Actions|None:
+        return self.full_history[-1] if self.full_history else None
 
     @property
     def last_asserted_action(self) -> arena.Actions|None:
-        asserted_actions = self.asserted_actions
-        return asserted_actions[-1] if asserted_actions else None
+        last = None
+        if self.full_history:
+            *_, last = self.asserted_history
+        return last
+
+    @property
+    def last_full_asserted_action(self) -> arena.Actions|None:
+        last = None
+        if self.full_history:
+            *_, last = self.full_asserted_history
+        return last
 
     @property
     def last_reward(self) -> int|None:
         return self.rewards[-1] if self.rewards else 0
+
+    def log_result(self):
+        self.history_with_results.append(
+                (self.last_action, self.progress.copy()))
 
     def advance(self, action: arena.Actions) -> "AttackerState":
 
@@ -194,11 +243,13 @@ class AttackerState(NamedTuple):
                 # tally action -- the delayed source action gets its
                 # reward; this reward can potentially be lessened or
                 # nullified later by defend action damage if this action
-                # is detected.
-                reward = arena.attack_reward(self.progress.action)
-                new_utility += reward
-                self.rewards[-1] += reward
-                new_pos += 1
+                # is detected. If the action failed there is no reward
+                # or advancement.
+                if self.progress.succeeded:
+                    reward = arena.attack_reward(self.progress.action)
+                    new_utility += reward
+                    self.rewards[-1] += reward
+                    new_pos += 1
                 self.progress.reset()
                 self.available_actions[:] = arena.Attack_Actions
         else:
@@ -214,41 +265,69 @@ class AttackerState(NamedTuple):
             self.progress.set(action, turn_cnt)
             self.available_actions[:] = [arena.Actions.IN_PROGRESS]
 
-        self.history.append(action)
+        self.full_history.append((action, self.progress.copy()))
         return self._replace(state_pos=new_pos, utility=new_utility)
 
     def tally(self, action: arena.Actions,
             defend_action: arena.Actions) -> "AttackerState":
         if self.last_action is None:
             raise ValueError("no prior action")
-        # reward has already been tallied when progress/action conclude
-        damage = arena.defend_damage(defend_action, action)
-        self.damages[-1] -= damage
-        return self._replace(utility=(self.utility - damage))
+        if self.progress.succeeded:
+            # reward has already been tallied when progress/action
+            # concluded
+            damage = arena.defend_damage(defend_action, action)
+            self.damages[-1] -= damage
+            return self._replace(utility=(self.utility - damage))
+        else:
+            return self
         
 
 class DefenderState(NamedTuple):
     utility: int
-    history: list[arena.Actions]
+    full_history: list[arena.Actions]
     available_actions: list[arena.Actions]
     progress: InProgress
     costs: list[int]
     rewards: list[int]
     damages: list[int]
 
+    @property
+    def history(self) -> arena.Actions|None:
+        return (x[0] for x in self.full_history)
+
+    @property
+    def asserted_history(self) -> tuple[arena.Actions]:
+        return (x for x in self.history if x not in arena.NoOp_Actions)
+
+    @property
+    def full_asserted_history(self) -> tuple[arena.Actions]:
+        return (t for t in self.full_history
+            if t[0] not in arena.NoOp_Actions)
 
     @property
     def last_action(self) -> arena.Actions|None:
-        return self.history[-1] if self.history else None
+        last = None
+        if self.full_history:
+            *_, last = self.history
+        return last
 
     @property
-    def asserted_actions(self) -> tuple[arena.Actions]:
-        return [x for x in self.history if x not in arena.NoOp_Actions]
+    def last_full_action(self) -> arena.Actions|None:
+        return self.full_history[-1] if self.full_history else None
 
     @property
     def last_asserted_action(self) -> arena.Actions|None:
-        asserted_actions = self.asserted_actions
-        return asserted_actions[-1] if asserted_actions else None
+        last = None
+        if self.full_history:
+            *_, last = self.asserted_history
+        return last
+
+    @property
+    def last_full_asserted_action(self) -> arena.Actions|None:
+        last = None
+        if self.full_history:
+            *_, last = self.full_asserted_history
+        return last
 
     @property
     def last_reward(self) -> int|None:
@@ -273,9 +352,9 @@ class DefenderState(NamedTuple):
             #print("defend progress:", self.progress)
             self.progress.take_turn()
             if self.progress.turns <= 0:
-                # tally action -- the delayed defender action does *not*
-                # immediately yield a reward -- that happens only with a
-                # successful detect action which is determined later in
+                # the delayed defender action does *not* immediately
+                # yield a reward -- that happens only with a successful
+                # detect action which is determined later in
                 # GameState._apply_action()
                 self.progress.reset()
                 self.available_actions[:] = arena.Defend_Actions
@@ -293,18 +372,21 @@ class DefenderState(NamedTuple):
             self.progress.set(action, turn_cnt)
             self.available_actions[:] = [arena.Actions.IN_PROGRESS]
 
-        self.history.append(action)
+        self.full_history.append((action, self.progress.copy()))
         return self._replace(utility=new_utility)
 
     def tally(self, action: arena.Actions,
             attack_action: arena.Actions) -> "DefenderState":
         if self.last_action is None:
             raise ValueError("no prior action")
-        reward = arena.defend_reward(action, attack_action)
-        damage = arena.attack_damage(attack_action)
-        self.rewards[-1] += reward
-        self.damages[-1] -= damage
-        return self._replace(utility=(self.utility + reward - damage))
+        if self.progress.succeeded:
+            reward = arena.defend_reward(action, attack_action)
+            damage = arena.attack_damage(attack_action)
+            self.rewards[-1] += reward
+            self.damages[-1] -= damage
+            return self._replace(utility=(self.utility + reward - damage))
+        else:
+            return self
 
 
 # pylint: disable=too-few-public-methods
@@ -316,11 +398,11 @@ class GameState(pyspiel.State):
         self._num_turns = game_info.max_game_length
         self._curr_turn = 0
         self._attacker = AttackerState(
-            state_pos=0, utility=0, history=[],
+            state_pos=0, utility=0, full_history=[],
             available_actions=list(arena.Attack_Actions),
             progress=InProgress(), costs=[], rewards=[], damages=[])
         self._defender = DefenderState(
-            utility=0, history=[],
+            utility=0, full_history=[],
             available_actions=list(arena.Defend_Actions),
             progress=InProgress(), costs=[], rewards=[], damages=[])
 
@@ -478,28 +560,29 @@ class GameState(pyspiel.State):
         self._defender = self._defender.detect(action)
         self._defend_vec[self._curr_turn] = action
 
-        action_utils = arena.Utilities[action]
         detected = breached = False
         atk_action = None
         if action not in arena.NoOp_Actions:
             # perform action sweep of attacker history to see if *any*
             # of the attacker's past actions are detected by this
             # defender action
-            for attack_action in self.attacker_state.asserted_actions:
-                if arena.action_cmp(action, attack_action) is True:
-                    # attack action detected
-                    self.defender_state.tally(action, attack_action)
-                    self.attacker_state.tally(attack_action, action)
-                    detected = True
-                    atk_action = attack_action
-                    break
+            for (attack_action, result) \
+                    in self.attacker_state.full_asserted_history:
+                if result.succeeded:
+                    if arena.action_cmp(action, attack_action) is True:
+                        # attack action detected
+                        self.defender_state.tally(action, attack_action)
+                        self.attacker_state.tally(attack_action, action)
+                        detected = True
+                        atk_action = attack_action
+                        break
         if not detected:
             # if the *last* attack action (only the last, otherwise
             # attacks would potentially yield damage multiple times) was
             # an asserted action (not IN_PROGRESS or WAIT) and goes
             # undetected, met out damage to defender
-            attack_action = self.attacker_state.last_action
-            if attack_action not in arena.NoOp_Actions:
+            attack_action, result = self.attacker_state.last_full_action
+            if attack_action not in arena.NoOp_Actions and result.succeeded:
                 # attack_reward has already been tallied in
                 # AttackerState.advance(); here we tally damage dealt to
                 # defender

@@ -8,9 +8,12 @@ import sys
 
 from typing import NamedTuple, Mapping, Any, List
 from enum import IntEnum
-from logging import debug  # pylint: disable=unused-import
 import pyspiel  # type: ignore
 import numpy as np
+
+from absl import logging
+from absl.logging import debug
+#logging.set_verbosity(logging.DEBUG)
 
 from . import arena_v3 as arena
 
@@ -122,7 +125,7 @@ class InProgress():
     _succeeded = None
 
     def __init__(self, action=None, turns=0, succeeded=None):
-        self.set(None, 0)
+        self.set(action, turns, succeeded)
 
     @property
     def action(self):
@@ -143,10 +146,10 @@ class InProgress():
         self._action = action
         self._turns = turn_cnt
         if action:
-            if succeeded is not None:
-                self._succeeded = succeeded
-            else:
+            if succeeded is None:
                 self._succeeded = arena.action_succeeded(action)
+            else:
+                self._succeeded = succeeded
         else:
             self._succeeded = None
 
@@ -154,7 +157,7 @@ class InProgress():
         self.set(None, 0)
 
     def copy(self):
-        return InProgress(self._action, self._turns, self.succeeded)
+        return InProgress(self.action, self.turns, self.succeeded)
 
     def __str__(self):
         return f"[ turn: {self.turns} action: {self.action} ]"
@@ -184,8 +187,8 @@ class AttackerState(NamedTuple):
 
     @property
     def full_asserted_history(self) -> tuple[arena.Actions]:
-        return (t for t in self.full_history
-                if t[0] not in arena.NoOp_Actions)
+        return (x for x in self.full_history
+                if x[0] not in arena.NoOp_Actions)
 
     @property
     def last_action(self) -> arena.Actions|None:
@@ -215,10 +218,6 @@ class AttackerState(NamedTuple):
     @property
     def last_reward(self) -> int|None:
         return self.rewards[-1] if self.rewards else 0
-
-    def log_result(self):
-        self.history_with_results.append(
-                (self.last_action, self.progress.copy()))
 
     def advance(self, action: arena.Actions) -> "AttackerState":
 
@@ -270,6 +269,11 @@ class AttackerState(NamedTuple):
 
     def tally(self, action: arena.Actions,
             defend_action: arena.Actions) -> "AttackerState":
+        # no general failure of last attack action; note that the
+        # only conditions where this gets called is down below in
+        # GameState._apply_action() is for a non NoOP_Actions and a
+        # successful detection of this action but only if this action
+        # did not suffer a general failure
         if self.last_action is None:
             raise ValueError("no prior action")
         if self.progress.succeeded:
@@ -380,6 +384,11 @@ class DefenderState(NamedTuple):
         if self.last_action is None:
             raise ValueError("no prior action")
         if self.progress.succeeded:
+            # no general failure of last defend action; the
+            # only conditions where this gets called is down below in
+            # GameState._apply_action() for this to be a non
+            # NoOP_Actions and a successful detection or a confirmed
+            # failed detection
             reward = arena.defend_reward(action, attack_action)
             damage = arena.attack_damage(attack_action)
             self.rewards[-1] += reward
@@ -524,7 +533,6 @@ class GameState(pyspiel.State):
         # (Not sure why it's handled that way.)
         # self._is_chance = True
 
-        print("apply_actions, curr turn:", self._curr_turn)
         raise NotImplementedError()
 
     def _apply_action(self, action):
@@ -540,6 +548,13 @@ class GameState(pyspiel.State):
         # Asserted as invariant in sample games:
         # assert self._is_chance and not self._game_over
         assert not self._game_over
+
+        # Are we done after this turn? We set this here because attacker
+        # immediately returns when finished
+        self._curr_turn += 1
+        if self._curr_turn == self._num_turns:
+            print(f"max game length reached, terminating after this turn: {self._curr_turn}")
+            self._game_over = True
 
         if self._current_player is arena.Players.ATTACKER:
             # we *could* deal out damage to the defender here (which
@@ -558,7 +573,7 @@ class GameState(pyspiel.State):
         # register cost of action, history, initiate IN_PROGRESS
         # sequences, etc
         self._defender = self._defender.detect(action)
-        self._defend_vec[self._curr_turn] = action
+        self._defend_vec[self._curr_turn - 1] = action
 
         detected = breached = False
         atk_action = None
@@ -569,12 +584,19 @@ class GameState(pyspiel.State):
             for (attack_action, result) \
                     in self.attacker_state.full_asserted_history:
                 if result.succeeded:
+                    # attack action did not suffer a general failure;
+                    # now see if it gets detected by this defend action
                     if arena.action_cmp(action, attack_action) is True:
-                        # attack action detected
-                        self.defender_state.tally(action, attack_action)
-                        self.attacker_state.tally(attack_action, action)
-                        detected = True
-                        atk_action = attack_action
+                        # attack action can possibly be detected by the
+                        # current defend action
+                        if arena.action_succeeded(action, attack_action):
+                            # attack action is *actually* detected by
+                            # the current defend action; defender gets
+                            # reward, attacker takes damage
+                            self.defender_state.tally(action, attack_action)
+                            self.attacker_state.tally(attack_action, action)
+                            detected = True
+                            atk_action = attack_action
                         break
         if not detected:
             # if the *last* attack action (only the last, otherwise
@@ -583,24 +605,23 @@ class GameState(pyspiel.State):
             # undetected, met out damage to defender
             attack_action, result = self.attacker_state.last_full_action
             if attack_action not in arena.NoOp_Actions and result.succeeded:
-                # attack_reward has already been tallied in
-                # AttackerState.advance(); here we tally damage dealt to
-                # defender
-                self.defender_state.tally(action, attack_action)
-                breached = True
+                # attack action did not suffer a general failure;
+                # now see if it definitely succeeds against this
+                # particular detect action
+                if arena.action_succeeded(attack_action, action):
+                    # attack action *actually* succeeded against the
+                    # current defend action; defender takes damage
+                    # (attacker reward has already been tallied)
+                    self.defender_state.tally(action, attack_action)
+                    breached = True
 
         self._current_player = arena.Players.ATTACKER
 
-        # Are we done?
-        self._curr_turn += 1
+        # we are done if detected
+        assert self._curr_turn <= self._num_turns
         if detected:
-            print(f"attack action was detected, game over: [{action}, {atk_action}]")
+            print(f"attack action detected, game over: {arena.Actions(action).name} detected {arena.Actions(atk_action).name}")
             self._game_over = True
-        else:
-            assert self._curr_turn <= self._num_turns
-            if self._curr_turn == self._num_turns:
-                print(f"max game length reached, terminated after {self._curr_turn} turns")
-                self._game_over = True
 
     ### Not sure if these methods are required, but they are
     ### implemented in sample games. We should probably do some

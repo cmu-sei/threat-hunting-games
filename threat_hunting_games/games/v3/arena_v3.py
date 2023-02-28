@@ -4,6 +4,7 @@
 # into matrix form.
 
 from typing import NamedTuple, Mapping, Any, List
+from dataclasses import dataclass
 from enum import IntEnum, auto
 import random
 
@@ -154,7 +155,20 @@ TimeWaits = {
 def get_timewait(action):
     return TimeWaits.get(action, TimeWait(0, 0))
 
-ChanceFail = {
+# The GeneralFail values are the percentage of failure for a general
+# failure -- the operation fails no matter which opposing action it
+# might be compared against. If the action is not in the GeneralFail
+# map, then DEFAULT_FAIL is used. Specific failure rates of action vs
+# action are in the SkirmishFail map farther below...note that if a
+# particular action has a general failure rate (G) as well as a failure
+# rate (V) agains a particular action then the probability of G or V
+# failing (but not both) will be:
+#
+#     P(G^V) = P(G) + P(V) - 2P(P(G) * P(V))
+
+DEFAULT_FAIL = 0
+
+GeneralFail = {
     Actions.S0_VERIFY_PRIV:      0.15,
     Actions.S0_VERIFY_PRIV_CAMO: 0.15,
     Actions.S1_WRITE_EXE:        0.15,
@@ -169,18 +183,58 @@ ChanceFail = {
     Actions.FF_SEARCH_STRONG:    0.15,
 }
 
-def get_chance_fail(action):
-    return ChanceFail.get(action, 0.0)
+SkirmishFail = {
+    Actions.PSGREP_STRONG: {
+        Actions.S0_VERIFY_PRIV: 0.05,
+    },
+    Actions.SMB_LOGS_STRONG: {
+        Actions.S1_WRITE_EXE: 0.05,
+    },
+    Actions.FF_SEARCH_STRONG: {
+        Actions.S2_ENCRYPT: 0.05,
+    },
+}
 
-def action_succeeded(action):
-    pct = get_chance_fail(action)
-    if pct:
-        result = random.random() > pct
-        if not result:
-            print("ACTION FAIL!", action)
-        return result
+def get_general_pct_fail(action):
+    #print(f"GENERAL pct_fail: {GeneralFail.get(action, DEFAULT_FAIL)} {Actions(action).name}")
+    return GeneralFail.get(action, DEFAULT_FAIL)
+
+def get_skirmish_pct_fail(action1, action2):
+    pct_fail = DEFAULT_FAIL
+    if action1 in SkirmishFail:
+        # note: don't use DEFAULT_FAIL as a fallback here
+        pct_fail = SkirmishFail[action1].get(action2, 0.0)
+        #pct_fail = SkirmishFail[action1].get(action2, 0.9)
+        #print("SKIRMISH in level 1 SkirmishFail")
+        #if pct_fail != DEFAULT_FAIL:
+        #    print("SKIRMISH in level 2 SkirmishFail")
+    #print(f"SKIRMISH pct_fail: {pct_fail} {Actions(action1).name} {Actions(action2).name}")
+    return pct_fail
+
+def action_succeeded(action1, action2=None):
+    #print("action_succeeded() begin")
+    succeeded = True
+    if action2 is None:
+        pct_fail = get_general_pct_fail(action1)
     else:
-        return True
+        pct_fail = get_skirmish_pct_fail(action1, action2)
+    if pct_fail:
+        chance = random.random()
+        #if action2:
+        #    print(f"SKIRMISH rand: {rand} > {pct_fail} succeed? {chance > pct_fail}")
+        #else:
+        #    print(f"GENERAL rand: {rand} > {pct_fail} succeed? {chance > pct_fail}")
+        succeeded = chance > pct_fail
+        if not succeeded:
+            # in case the actions are plain integers
+            action1 = Actions(action1).name
+            if action2:
+                action2 = Actions(action2).name
+                print(f"action SKIRMISH fail! {action1} vs {action2}: {chance:.2f} > {pct_fail:.2f} : False")
+            else:
+                print(f"action GENERAL fail! {action1}: {chance:.2f} > {pct_fail:.2f} : False")
+    #print("action_succeeded() end\n")
+    return succeeded
 
 # Winner/Loser action maps. This first one is Winner action as key; note
 # that WAIT and IN_PROGRESS are essentially no-ops in terms of win/lose

@@ -287,7 +287,7 @@ class AttackerState(NamedTuple):
             # defender until the progress turns are complete.
             if self.progress.action:
                 raise ValueError(f"stale attacker action: {self.progress}")
-            turn_cnt = arena.get_timewait(action).turns()
+            turn_cnt = arena.get_timewait(action).rand_turns()
             self.progress.set(action, turn_cnt)
             self.available_actions[:] = [arena.Actions.IN_PROGRESS]
 
@@ -399,7 +399,7 @@ class DefenderState(NamedTuple):
             # complete.
             if self.progress.action:
                 raise ValueError(f"stale defender action: {self.progress}")
-            turn_cnt = arena.get_timewait(action).turns()
+            turn_cnt = arena.get_timewait(action).rand_turns()
             self.progress.set(action, turn_cnt)
             self.available_actions[:] = [arena.Actions.IN_PROGRESS]
 

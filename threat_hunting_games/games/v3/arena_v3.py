@@ -10,25 +10,28 @@ import random
 
 class Players(IntEnum):
     # the values of these Player enums are used as 0-based indices later
-    # -- also hence IntEnum
+    # in GameState._assert_action(s) -- also hence IntEnum
     ATTACKER = 0
     DEFENDER = 1
 
 class Actions(IntEnum):
-    WAIT = auto()
-    IN_PROGRESS = auto()
-    S0_VERIFY_PRIV = auto()
+    # both players
+    WAIT                = auto()
+    IN_PROGRESS         = auto()
+    # attacker
+    S0_VERIFY_PRIV      = auto()
     S0_VERIFY_PRIV_CAMO = auto()
-    S1_WRITE_EXE = auto()
-    S1_WRITE_EXE_CAMO = auto()
-    S2_ENCRYPT = auto()
-    S2_ENCRYPT_CAMO = auto()
-    PSGREP = auto()
-    PSGREP_STRONG = auto()
-    SMB_LOGS = auto()
-    SMB_LOGS_STRONG = auto()
-    FF_SEARCH = auto()
-    FF_SEARCH_STRONG = auto()
+    S1_WRITE_EXE        = auto()
+    S1_WRITE_EXE_CAMO   = auto()
+    S2_ENCRYPT          = auto()
+    S2_ENCRYPT_CAMO     = auto()
+    # defender
+    PSGREP              = auto()
+    PSGREP_STRONG       = auto()
+    SMB_LOGS            = auto()
+    SMB_LOGS_STRONG     = auto()
+    FF_SEARCH           = auto()
+    FF_SEARCH_STRONG    = auto()
 
 Attack_Actions = tuple(sorted([
     # do not include IN_PROGRESS
@@ -119,21 +122,21 @@ Utilities = {
 
 for action in Actions:
     utils = Utilities[action]
-    if utils.cost is None:
+    if not isinstance(utils.cost, int):
         raise ValueError(
-        f"action cost must have int value")
+        f"action {action_to_str(action)} cost must have explicit int value, not {utils.cost}")
 for action in Attack_Actions:
     utils = Utilities[action]
-    if utils.reward is ZSUM:
+    if not isinstance(utils.reward, int):
         raise ValueError(
-        f"attack action reward must have int value: {utils.reward}")
+        f"attack action {action_to_str(action)} reward must have explicit int value, not {utils.reward}")
 
 
 class TimeWait(NamedTuple):
     min: int
     max: int
 
-    def turns(self) -> int:
+    def rand_turns(self) -> int:
         return random.randint(self.min, self.max)
 
 # min/max wait actions preceeding the given action

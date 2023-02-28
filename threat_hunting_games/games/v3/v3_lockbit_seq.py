@@ -174,6 +174,27 @@ class AttackerState(NamedTuple):
     rewards: list[int]
     damages: list[int]
 
+    _avail_actions_by_pos = tuple([
+        [
+          # pos 0
+          arena.Actions.WAIT,
+          arena.Actions.S0_VERIFY_PRIV,
+          arena.Actions.S0_VERIFY_PRIV_CAMO,
+        ],
+        [
+          # pos 1
+          arena.Actions.WAIT,
+          arena.Actions.S1_WRITE_EXE,
+          arena.Actions.S1_WRITE_EXE_CAMO,
+        ],
+        [
+          # pos 2
+          arena.Actions.WAIT,
+          arena.Actions.S2_ENCRYPT,
+          arena.Actions.S2_ENCRYPT_CAMO,
+        ],
+    ])
+
     @property
     def history(self) -> arena.Actions|None:
         if self.full_history:
@@ -219,9 +240,15 @@ class AttackerState(NamedTuple):
     def last_reward(self) -> int|None:
         return self.rewards[-1] if self.rewards else 0
 
+    @property
+    def got_all_the_marbles(self):
+        return self.state_pos == len(self._avail_actions_by_pos)
+
     def advance(self, action: arena.Actions) -> "AttackerState":
 
-        # TODO: pct failure, rand(IN_PROGRESS), populate progress
+        if not self.available_actions:
+            self.available_actions[:] = \
+                    self._avail_actions_by_pos[self.state_pos]
 
         utils = arena.Utilities[action]
         new_pos = self.state_pos
@@ -617,11 +644,18 @@ class GameState(pyspiel.State):
 
         self._current_player = arena.Players.ATTACKER
 
-        # we are done if detected
         assert self._curr_turn <= self._num_turns
+
+        # we are done if defender detected attack
         if detected:
             print(f"attack action detected, game over after {self._curr_turn} turns: {arena.action_to_str(action)} detected {arena.action_to_str(atk_action)}")
             self._game_over = True
+
+        # we are done if attacker completed action escalation sequence
+        if self.attacker_state.got_all_the_marbles:
+            print(f"attack sequence complete, attacker is feeling smug: game over after {self._curr_turn} turns")
+            self._game_over = True
+
 
     ### Not sure if these methods are required, but they are
     ### implemented in sample games. We should probably do some

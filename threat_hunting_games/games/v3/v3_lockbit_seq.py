@@ -431,6 +431,8 @@ class GameState(pyspiel.State):
 
     def __init__(self, game, game_info):
         super().__init__(game)
+        assert not (game_info.max_game_length % 2), \
+            "game length must have even number of turns"
         self._num_turns = game_info.max_game_length
         self._curr_turn = 0
         self._attacker = AttackerState(

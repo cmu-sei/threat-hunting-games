@@ -163,37 +163,38 @@ class InProgress():
         return f"[ turn: {self.turns} action: {self.action} ]"
 
 
+_atk_actions_by_pos = tuple([
+    [
+      # pos 0
+      arena.Actions.WAIT,
+      arena.Actions.S0_VERIFY_PRIV,
+      arena.Actions.S0_VERIFY_PRIV_CAMO,
+    ],
+    [
+      # pos 1
+      arena.Actions.WAIT,
+      arena.Actions.S1_WRITE_EXE,
+      arena.Actions.S1_WRITE_EXE_CAMO,
+    ],
+    [
+      # pos 2
+      arena.Actions.WAIT,
+      arena.Actions.S2_ENCRYPT,
+      arena.Actions.S2_ENCRYPT_CAMO,
+    ],
+])
+
+
 class AttackerState(NamedTuple):
     """foo"""
-    state_pos: int
-    utility: int
-    full_history: list[tuple[arena.Actions, InProgress]]
-    available_actions: list[arena.Actions]
-    progress: InProgress
-    costs: list[int]
-    rewards: list[int]
-    damages: list[int]
-
-    _avail_actions_by_pos = tuple([
-        [
-          # pos 0
-          arena.Actions.WAIT,
-          arena.Actions.S0_VERIFY_PRIV,
-          arena.Actions.S0_VERIFY_PRIV_CAMO,
-        ],
-        [
-          # pos 1
-          arena.Actions.WAIT,
-          arena.Actions.S1_WRITE_EXE,
-          arena.Actions.S1_WRITE_EXE_CAMO,
-        ],
-        [
-          # pos 2
-          arena.Actions.WAIT,
-          arena.Actions.S2_ENCRYPT,
-          arena.Actions.S2_ENCRYPT_CAMO,
-        ],
-    ])
+    state_pos: int = 0
+    utility: int = 0
+    full_history: list[tuple[arena.Actions, InProgress]] = []
+    available_actions: list[arena.Actions] = _atk_actions_by_pos[0]
+    progress: InProgress = InProgress()
+    costs: list[int] = []
+    rewards: list[int] = []
+    damages: list[int] = []
 
     @property
     def history(self) -> arena.Actions|None:
@@ -242,13 +243,13 @@ class AttackerState(NamedTuple):
 
     @property
     def got_all_the_marbles(self):
-        return self.state_pos == len(self._avail_actions_by_pos)
+        return self.state_pos == len(_atk_actions_by_pos)
 
     def advance(self, action: arena.Actions) -> "AttackerState":
 
         if not self.available_actions:
             self.available_actions[:] = \
-                    self._avail_actions_by_pos[self.state_pos]
+                    self._avail_atk_by_pos[self.state_pos]
 
         utils = arena.Utilities[action]
         new_pos = self.state_pos
@@ -276,8 +277,12 @@ class AttackerState(NamedTuple):
                     new_utility += reward
                     self.rewards[-1] += reward
                     new_pos += 1
+                    print(f"attack {arena.action_to_str(self.progress.action)} succeeded, attacker advance to {new_pos}")
                 self.progress.reset()
-                self.available_actions[:] = arena.Attack_Actions
+                if new_pos >= len(_atk_actions_by_pos):
+                    self.available_actions[:] = []
+                else:
+                    self.available_actions[:] = _atk_actions_by_pos[new_pos]
         else:
             # initiate the sequence of IN_PROGRESS actions (turns can
             # be 0 also, it's a no-op and this current action will be
@@ -314,13 +319,13 @@ class AttackerState(NamedTuple):
         
 
 class DefenderState(NamedTuple):
-    utility: int
-    full_history: list[arena.Actions]
-    available_actions: list[arena.Actions]
-    progress: InProgress
-    costs: list[int]
-    rewards: list[int]
-    damages: list[int]
+    utility: int = 0
+    full_history: list[arena.Actions] = []
+    available_actions: list[arena.Actions] = list(arena.Defend_Actions)
+    progress: InProgress = InProgress()
+    costs: list[int] = []
+    rewards: list[int] = []
+    damages: list[int] = []
 
     @property
     def history(self) -> arena.Actions|None:
@@ -435,14 +440,8 @@ class GameState(pyspiel.State):
             "game length must have even number of turns"
         self._num_turns = game_info.max_game_length
         self._curr_turn = 0
-        self._attacker = AttackerState(
-            state_pos=0, utility=0, full_history=[],
-            available_actions=list(arena.Attack_Actions),
-            progress=InProgress(), costs=[], rewards=[], damages=[])
-        self._defender = DefenderState(
-            utility=0, full_history=[],
-            available_actions=list(arena.Defend_Actions),
-            progress=InProgress(), costs=[], rewards=[], damages=[])
+        self._attacker = AttackerState()
+        self._defender = DefenderState()
 
         # attacker always moves first
         self._current_player = arena.Players.ATTACKER
@@ -539,7 +538,7 @@ class GameState(pyspiel.State):
                 actions = self.defender_state.available_actions
             case _:
                 raise ValueError(f"undefined player: {player}")
-        #print(f"legal actions for player {player}: {actions}")
+        print(f"legal actions at turn {self._curr_turn+1} for player {arena.player_to_str(player)}: {[arena.action_to_str(x) for x in actions]}")
         return actions
 
     def _apply_actions(self, actions: List[int]):
@@ -572,27 +571,27 @@ class GameState(pyspiel.State):
         shown for reference.
         """
 
-        #print(f"apply_action, {self.current_player()} turn: {self._curr_turn}")
+        #print(f"apply_action, {self.current_player()} turn: {self._curr_turn+1}")
 
         # Asserted as invariant in sample games:
         # assert self._is_chance and not self._game_over
         assert not self._game_over
 
-        # Are we done after this turn? We set this here because attacker
-        # immediately returns when finished
-        self._curr_turn += 1
-        if self._curr_turn == self._num_turns:
-            print(f"max game length reached, terminating after this turn: {self._curr_turn}")
-            self._game_over = True
+        # _curr_turn is 0-based; this value is for display purposes
+        dsp_turn = self._curr_turn + 1
 
         if self._current_player is arena.Players.ATTACKER:
             # we *could* deal out damage to the defender here (which
             # would be regained on a successful detect) but it seems
             # more "real" to do that down below when the attack action
-            # goes undetected
+            # goes undetected. Do not terminate game here for completed
+            # action sequence, defender still has a chance to detect.
+            # Game will not terminate here by reaching self._num_turns
+            # either because defender always gets the last action.
             self._attacker = self._attacker.advance(action)
-            self._attack_vec[self._curr_turn-1] = action
+            self._attack_vec[self._curr_turn] = action
             self._current_player = arena.Players.DEFENDER
+            self._curr_turn += 1
             return
 
         assert(self._current_player is arena.Players.DEFENDER)
@@ -602,7 +601,7 @@ class GameState(pyspiel.State):
         # register cost of action, history, initiate IN_PROGRESS
         # sequences, etc
         self._defender = self._defender.detect(action)
-        self._defend_vec[self._curr_turn-1] = action
+        self._defend_vec[self._curr_turn] = action
 
         detected = breached = False
         atk_action = None
@@ -646,16 +645,24 @@ class GameState(pyspiel.State):
 
         self._current_player = arena.Players.ATTACKER
 
-        assert self._curr_turn <= self._num_turns
+        # self._curr_turn is 0 based
+        assert self._curr_turn < self._num_turns
 
         # we are done if defender detected attack
         if detected:
-            print(f"attack action detected, game over after {self._curr_turn} turns: {arena.action_to_str(action)} detected {arena.action_to_str(atk_action)}")
+            print(f"attack action detected, game over after {dsp_turn} turns: {arena.action_to_str(action)} detected {arena.action_to_str(atk_action)}")
             self._game_over = True
 
         # we are done if attacker completed action escalation sequence
         if self.attacker_state.got_all_the_marbles:
-            print(f"attack sequence complete, attacker is feeling smug: game over after {self._curr_turn} turns")
+            print(f"attack sequence complete, attacker is feeling smug: game over after {dsp_turn} turns")
+            self._game_over = True
+
+        self._curr_turn += 1
+
+        # Have we reached max game length? Terminate if so.
+        if not self._game_over and self._curr_turn >= self._num_turns:
+            print(f"max game length reached, terminating game after turn {dsp_turn}")
             self._game_over = True
 
 
@@ -685,7 +692,7 @@ class GameState(pyspiel.State):
 
     def __str__(self):
         """String for debugging. No particular semantics."""
-        return f"Attacker pos at Turn {self._curr_turn}: {self._attacker.state_pos}"
+        return f"Attacker pos at Turn {self._curr_turn+1}: {self._attacker.state_pos}"
 
 
 class OmniscientObserver:
@@ -739,9 +746,7 @@ class OmniscientObserver:
         # games/tic_tac_toe.py):
         #self.dict = {"observation": self.tensor}
 
-    def set_from(
-        self, state: GameState, player: int
-    ):  # pylint: disable=unused-argument
+    def set_from(self, state: GameState, player: int):  # pylint: disable=unused-argument
         """
         Update the observer state to reflect `state` from the POV
         of `player`.
@@ -749,7 +754,7 @@ class OmniscientObserver:
         This is an omniscient observation, so the info will be the same
         for all players.
         """
-        #print("set_from() here, turn/player:", state._curr_turn, player)
+        #print("set_from() here, turn/player:", state._curr_turn+1, player)
         # Tensor values: attacker position, attacker utility, defender utility
         #self.tensor[0] = state.attacker_state.state_pos
         #self.tensor[1] = state.attacker_state.utility
@@ -779,13 +784,13 @@ class OmniscientObserver:
         # These are concatenated into a single string. The f prefix is
         # unnecessary for all but the first, but it makes the syntax
         # highlighting work better in Emacs. :)
-        turn = state._curr_turn
+        turn = state._curr_turn - 1 # this gets invoked after turn increment
         utility = self.dict["utility"]
         return (
             #f"Attacker position: {self.tensor[0]} | "
             #f"Attacker Utility: {self.tensor[1]} | "
             #f"Defender Utility: {self.tensor[2]}"
-            f"Attacker position: {turn} | "
+            f"Attacker position: {state.attacker_state.state_pos} | "
             f"Attacker Utility: {utility[arena.Players.ATTACKER][turn]} | "
             f"Defender Utility: {utility[arena.Players.DEFENDER][turn]}"
         )

@@ -212,6 +212,9 @@ def get_skirmish_pct_fail(action1, action2):
     return pct_fail
 
 def action_succeeded(action1, action2=None):
+    # I suspect that using chance nodes in open_spiel might be a viable
+    # way for dealing with an action failing...
+
     #print("action_succeeded() begin")
     succeeded = True
     if action2 is None:

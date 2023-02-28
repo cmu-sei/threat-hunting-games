@@ -57,11 +57,13 @@ NoOp_Actions = tuple(sorted([
     Actions.IN_PROGRESS
 ]))
 
-def player_to_string(player: Actions) -> str:
-    return Players(int(player)).name.title()
+def player_to_str(player: Actions) -> str:
+    # call the enum in case player is an int
+    return Players(player).name.title()
 
-def action_to_string(action: Actions) -> str:
-    return Actions(int(action)).name.title()
+def action_to_str(action: Actions) -> str:
+    # call the enum in case action is an int
+    return Actions(action).name.title()
 
 class Utility(NamedTuple):
     cost:    int # utility cost
@@ -196,7 +198,7 @@ SkirmishFail = {
 }
 
 def get_general_pct_fail(action):
-    #print(f"GENERAL pct_fail: {GeneralFail.get(action, DEFAULT_FAIL)} {Actions(action).name}")
+    #print(f"GENERAL pct_fail: {GeneralFail.get(action, DEFAULT_FAIL)} {action_to_str(action)}")
     return GeneralFail.get(action, DEFAULT_FAIL)
 
 def get_skirmish_pct_fail(action1, action2):
@@ -208,7 +210,7 @@ def get_skirmish_pct_fail(action1, action2):
         #print("SKIRMISH in level 1 SkirmishFail")
         #if pct_fail != DEFAULT_FAIL:
         #    print("SKIRMISH in level 2 SkirmishFail")
-    #print(f"SKIRMISH pct_fail: {pct_fail} {Actions(action1).name} {Actions(action2).name}")
+    #print(f"SKIRMISH pct_fail: {pct_fail} {action_to_str(action1)} {action_to_str(action2)}")
     return pct_fail
 
 def action_succeeded(action1, action2=None):
@@ -230,9 +232,9 @@ def action_succeeded(action1, action2=None):
         succeeded = chance > pct_fail
         if not succeeded:
             # in case the actions are plain integers
-            action1 = Actions(action1).name
+            action1 = action_to_str(action1)
             if action2:
-                action2 = Actions(action2).name
+                action2 = action_to_str(action2)
                 print(f"action SKIRMISH fail! {action1} vs {action2}: {chance:.2f} > {pct_fail:.2f} : False")
             else:
                 print(f"action GENERAL fail! {action1}: {chance:.2f} > {pct_fail:.2f} : False")

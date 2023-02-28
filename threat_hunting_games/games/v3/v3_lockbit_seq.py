@@ -562,7 +562,7 @@ class GameState(pyspiel.State):
             # more "real" to do that down below when the attack action
             # goes undetected
             self._attacker = self._attacker.advance(action)
-            self._attack_vec[self._curr_turn] = action
+            self._attack_vec[self._curr_turn-1] = action
             self._current_player = arena.Players.DEFENDER
             return
 
@@ -573,7 +573,7 @@ class GameState(pyspiel.State):
         # register cost of action, history, initiate IN_PROGRESS
         # sequences, etc
         self._defender = self._defender.detect(action)
-        self._defend_vec[self._curr_turn - 1] = action
+        self._defend_vec[self._curr_turn-1] = action
 
         detected = breached = False
         atk_action = None
@@ -620,7 +620,7 @@ class GameState(pyspiel.State):
         # we are done if detected
         assert self._curr_turn <= self._num_turns
         if detected:
-            print(f"attack action detected, game over: {arena.Actions(action).name} detected {arena.Actions(atk_action).name}")
+            print(f"attack action detected, game over after {self._curr_turn} turns: {arena.action_to_str(action)} detected {arena.action_to_str(atk_action)}")
             self._game_over = True
 
     ### Not sure if these methods are required, but they are
@@ -630,8 +630,8 @@ class GameState(pyspiel.State):
     def _action_to_string(self, player, action):
         """Convert an action to a string representation, presumably
         for logging."""
-        player_str = arena.player_to_string(player)
-        action_str = arena.action_to_string(action)
+        player_str = arena.player_to_str(player)
+        action_str = arena.action_to_str(action)
         return f"{player_str}: {action_str}"
 
     def is_terminal(self):

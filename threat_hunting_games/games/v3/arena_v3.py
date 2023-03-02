@@ -62,11 +62,17 @@ NoOp_Actions = tuple(sorted([
 
 def player_to_str(player: Actions) -> str:
     # call the enum in case player is an int
-    return Players(player).name.title()
+    if player is not None:
+        return Players(player).name.title()
+    else:
+        return "None"
 
 def action_to_str(action: Actions) -> str:
     # call the enum in case action is an int
-    return Actions(action).name.title()
+    if action is not None:
+        return Actions(action).name.title()
+    else:
+        return "None"
 
 class Utility(NamedTuple):
     cost:    int # utility cost
@@ -216,12 +222,15 @@ def get_skirmish_pct_fail(action1, action2):
     #print(f"SKIRMISH pct_fail: {pct_fail} {action_to_str(action1)} {action_to_str(action2)}")
     return pct_fail
 
-def action_succeeded(action1, action2=None):
+def action_completed(action1, action2=None):
     # I suspect that using chance nodes in open_spiel might be a viable
     # way for dealing with an action failing...
 
-    #print("action_succeeded() begin")
-    succeeded = True
+    #print("action_completed() begin")
+    if action1 in NoOp_Actions:
+        # don't want to advance on a no-op action
+        return None
+    completed = True
     if action2 is None:
         pct_fail = get_general_pct_fail(action1)
     else:
@@ -232,17 +241,16 @@ def action_succeeded(action1, action2=None):
         #    print(f"SKIRMISH rand: {rand} > {pct_fail} succeed? {chance > pct_fail}")
         #else:
         #    print(f"GENERAL rand: {rand} > {pct_fail} succeed? {chance > pct_fail}")
-        succeeded = chance > pct_fail
-        if not succeeded:
-            # in case the actions are plain integers
+        completed = chance > pct_fail
+        if not completed:
             action1 = action_to_str(action1)
             if action2:
                 action2 = action_to_str(action2)
-                print(f"action SKIRMISH fail! {action1} vs {action2}: {chance:.2f} > {pct_fail:.2f} : False")
+                print(f"action SKIRMISH fail! {action1} vs {action2}: {chance:.2f} > {pct_fail:.2f} : {completed}")
             else:
-                print(f"action GENERAL fail! {action1}: {chance:.2f} > {pct_fail:.2f} : False")
-    #print("action_succeeded() end\n")
-    return succeeded
+                print(f"action GENERAL fail! {action1}: {chance:.2f} > {pct_fail:.2f} : {completed}")
+    #print("action_completed() end\n")
+    return completed
 
 # Winner/Loser action maps. This first one is Winner action as key; note
 # that WAIT and IN_PROGRESS are essentially no-ops in terms of win/lose
@@ -257,7 +265,6 @@ Win = {
     #Actions.IN_PROGRESS: set(),
     Actions.S0_VERIFY_PRIV: set([
         Actions.WAIT,
-        Actions.IN_PROGRESS,
         # Actions.PSGREP,
         # Actions.PSGREP_STRONG,
         Actions.SMB_LOGS,
@@ -267,7 +274,6 @@ Win = {
     ]),
     Actions.S0_VERIFY_PRIV_CAMO: set([
         Actions.WAIT,
-        Actions.IN_PROGRESS,
         Actions.PSGREP,
         # Actions.PSGREP_STRONG,
         Actions.SMB_LOGS,
@@ -277,7 +283,6 @@ Win = {
     ]),
     Actions.S1_WRITE_EXE: set([
         Actions.WAIT,
-        Actions.IN_PROGRESS,
         Actions.PSGREP,
         Actions.PSGREP_STRONG,
         # Actions.SMB_LOGS,
@@ -287,7 +292,6 @@ Win = {
     ]),
     Actions.S1_WRITE_EXE_CAMO: set([
         Actions.WAIT,
-        Actions.IN_PROGRESS,
         Actions.PSGREP,
         Actions.PSGREP_STRONG,
         Actions.SMB_LOGS,
@@ -297,7 +301,6 @@ Win = {
     ]),
     Actions.S2_ENCRYPT: set([
         Actions.WAIT,
-        Actions.IN_PROGRESS,
         Actions.PSGREP,
         Actions.PSGREP_STRONG,
         Actions.SMB_LOGS,
@@ -307,7 +310,6 @@ Win = {
     ]),
     Actions.S2_ENCRYPT_CAMO: set([
         Actions.WAIT,
-        Actions.IN_PROGRESS,
         Actions.PSGREP,
         Actions.PSGREP_STRONG,
         Actions.SMB_LOGS,
@@ -398,10 +400,14 @@ def action_cmp(action1: Actions, action2: Actions) -> bool:
     return result
 
 def attack_reward(action: Actions):
+    # reward received for action
+    assert action in Attack_Actions
     utils = Utilities[action]
     return utils.reward
 
 def attack_damage(action: Actions) -> int:
+    # damage dealt by action
+    assert action in Attack_Actions
     utils = Utilities[action]
     damage = utils.damage
     if damage is ZSUM:
@@ -413,6 +419,8 @@ def attack_damage(action: Actions) -> int:
 
 def defend_reward(action: Actions, attack_action: Actions) -> int:
     # reward received for action1
+    assert action in Defend_Actions
+    assert attack_action in Attack_Actions
     utils = Utilities[action]
     attack_utils = Utilities[attack_action]
     reward = utils.reward
@@ -424,7 +432,9 @@ def defend_reward(action: Actions, attack_action: Actions) -> int:
     return reward
 
 def defend_damage(action: Actions, attack_action: Actions) -> int:
-    # damage dealt by actionn1
+    # damage dealt by action1
+    assert action in Defend_Actions
+    assert attack_action in Attack_Actions
     utils = Utilities[action]
     attack_utils = Utilities[attack_action]
     damage = utils.damage

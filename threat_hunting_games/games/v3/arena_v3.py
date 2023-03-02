@@ -126,9 +126,9 @@ Utilities = {
     Actions.PSGREP:              Utility(1, ZSUM, ZSUM),
     Actions.PSGREP_STRONG:       Utility(2, ZSUM, ZSUM),
     Actions.SMB_LOGS:            Utility(2, ZSUM, ZSUM),
-    Actions.SMB_LOGS_STRONG:     Utility(2, ZSUM, ZSUM),
-    Actions.FF_SEARCH:           Utility(2, ZSUM, ZSUM),
-    Actions.FF_SEARCH_STRONG:    Utility(2, ZSUM, ZSUM),
+    Actions.SMB_LOGS_STRONG:     Utility(3, ZSUM, ZSUM),
+    Actions.FF_SEARCH:           Utility(3, ZSUM, ZSUM),
+    Actions.FF_SEARCH_STRONG:    Utility(4, ZSUM, ZSUM),
 }
 
 for action in Actions:

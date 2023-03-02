@@ -18,19 +18,6 @@ from absl.logging import debug
 
 from . import arena_v3 as arena
 
-# note: I tried representing the IV as an integer and playing around
-# with various values for the action types (splitting out
-# attacker/defender actions into their own IntEnums) in such a way as to
-# facilitate a truth table for detect/no_detect/don't_care but there was
-# no consistent way to do it with a single logical operation (or, !xor,
-# etc). Figuring out the bit math as number of actions grows doesn't
-# seem scalable. Plus an integer IV limits the number of turns in a game
-# if you want perfect recall in the IV
-#
-# Also I ran into difficulties trying to put attack/defend actions in
-# their own IntEnums (0, 1, 2 value for each). Pyspiel will blow up if
-# the action values are not indeed distinct.
-
 # Arguments to pyspiel.GameType:
 #
 # (short_name: str,
@@ -121,6 +108,8 @@ class InProgress():
     """
     For the given action indicate the remaining number of IN_PROGRESS
     actions to take before finalizing the effect of the given action.
+    Also make a note of which turn in the game this InProgress
+    originated.
     """
 
     # these get replaced by instance vars in set()

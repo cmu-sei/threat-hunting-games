@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 import random
 
+# I ran into difficulties trying to put attack/defend actions in their
+# own IntEnums (0, 1, 2 value for each). Pyspiel will blow up if the
+# action values are not indeed distinct.
+
 class Players(IntEnum):
     # the values of these Player enums are used as 0-based indices later
     # in GameState._assert_action(s) -- also hence IntEnum

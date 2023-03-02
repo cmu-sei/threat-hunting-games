@@ -15,7 +15,7 @@ class Players(IntEnum):
     DEFENDER = 1
 
 class Actions(IntEnum):
-    # both players
+    # both players; auto() starts at 1
     WAIT                = auto()
     IN_PROGRESS         = auto()
     # attacker
@@ -57,7 +57,7 @@ Defend_Actions = tuple(sorted([
 
 NoOp_Actions = tuple(sorted([
     Actions.WAIT,
-    Actions.IN_PROGRESS
+    Actions.IN_PROGRESS,
 ]))
 
 def player_to_str(player: Actions) -> str:
@@ -102,7 +102,8 @@ class Utility(NamedTuple):
 # to see the logic implemented -- and consequence() that uses those to
 # tally utility for any particular action vs action.
 
-ZSUM = None
+class ZSUM():
+    pass
 
 # the following values for utilities can potentially be overridden for
 # parameter exploration; results depending on these utilities are
@@ -166,19 +167,21 @@ TimeWaits = {
 def get_timewait(action):
     return TimeWaits.get(action, TimeWait(0, 0))
 
-# The GeneralFail values are the percentage of failure for a general
-# failure -- the operation fails no matter which opposing action it
-# might be compared against. If the action is not in the GeneralFail
-# map, then DEFAULT_FAIL is used. Specific failure rates of action vs
-# action are in the SkirmishFail map farther below...note that if a
-# particular action has a general failure rate (G) as well as a failure
-# rate (V) agains a particular action then the probability of G or V
-# failing (but not both) will be:
+# The GeneralFail values are the percentage of failure for an
+# unspecified failure -- the operation fails no matter which opposing
+# action it might be compared against. If the action is not in the
+# GeneralFail map, then DEFAULT_FAIL is used.
+#
+# Specific failure rates of action vs action are in the SkirmishFail map
+# farther below...note that if a particular action has a general failure
+# rate (G) as well as a failure rate (V) agains a particular action then
+# the probability of G or V failing (but not both) will be:
 #
 #     P(G^V) = P(G) + P(V) - 2P(P(G) * P(V))
 
 DEFAULT_FAIL = 0
 
+# Chance of an unspecified failure.
 GeneralFail = {
     Actions.S0_VERIFY_PRIV:      0.15,
     Actions.S0_VERIFY_PRIV_CAMO: 0.15,
@@ -194,6 +197,8 @@ GeneralFail = {
     Actions.FF_SEARCH_STRONG:    0.15,
 }
 
+# Chance of the given action failing while encountering another
+# specific action.
 SkirmishFail = {
     Actions.PSGREP_STRONG: {
         Actions.S0_VERIFY_PRIV: 0.05,
@@ -211,7 +216,7 @@ def get_general_pct_fail(action):
     return GeneralFail.get(action, DEFAULT_FAIL)
 
 def get_skirmish_pct_fail(action1, action2):
-    pct_fail = DEFAULT_FAIL
+    pct_fail = 0.0
     if action1 in SkirmishFail:
         # note: don't use DEFAULT_FAIL as a fallback here
         pct_fail = SkirmishFail[action1].get(action2, 0.0)
@@ -226,7 +231,6 @@ def action_completed(action1, action2=None):
     # I suspect that using chance nodes in open_spiel might be a viable
     # way for dealing with an action failing...
 
-    #print("action_completed() begin")
     if action1 in NoOp_Actions:
         # don't want to advance on a no-op action
         return None
@@ -237,10 +241,6 @@ def action_completed(action1, action2=None):
         pct_fail = get_skirmish_pct_fail(action1, action2)
     if pct_fail:
         chance = random.random()
-        #if action2:
-        #    print(f"SKIRMISH rand: {rand} > {pct_fail} succeed? {chance > pct_fail}")
-        #else:
-        #    print(f"GENERAL rand: {rand} > {pct_fail} succeed? {chance > pct_fail}")
         completed = chance > pct_fail
         if not completed:
             action1 = action_to_str(action1)
@@ -379,11 +379,9 @@ for win_action in Win:
 
 active_actions = set(Actions).difference([Actions.WAIT, Actions.IN_PROGRESS])
 missing = active_actions - set(Win)
-if missing:
-    raise ValueError(f"Missing win actions: {missing}")
+assert not missing, f"Missing win actions: {missing}"
 missing = active_actions - set(Lose)
-if missing:
-    raise ValueError(f"Missing lose actions: {missing}")
+assert not missing, f"Missing lose actions: {missing}"
 
 def action_cmp(action1: Actions, action2: Actions) -> bool:
     result = None
@@ -400,13 +398,13 @@ def action_cmp(action1: Actions, action2: Actions) -> bool:
     return result
 
 def attack_reward(action: Actions):
-    # reward received for action
+    # reward received for attack action
     assert action in Attack_Actions
     utils = Utilities[action]
     return utils.reward
 
 def attack_damage(action: Actions) -> int:
-    # damage dealt by action
+    # damage dealt by attack action
     assert action in Attack_Actions
     utils = Utilities[action]
     damage = utils.damage
@@ -418,7 +416,7 @@ def attack_damage(action: Actions) -> int:
     return damage
 
 def defend_reward(action: Actions, attack_action: Actions) -> int:
-    # reward received for action1
+    # reward received for action depending on attack_action
     assert action in Defend_Actions
     assert attack_action in Attack_Actions
     utils = Utilities[action]
@@ -432,7 +430,7 @@ def defend_reward(action: Actions, attack_action: Actions) -> int:
     return reward
 
 def defend_damage(action: Actions, attack_action: Actions) -> int:
-    # damage dealt by action1
+    # damage dealt by action depending on attack_action
     assert action in Defend_Actions
     assert attack_action in Attack_Actions
     utils = Utilities[action]

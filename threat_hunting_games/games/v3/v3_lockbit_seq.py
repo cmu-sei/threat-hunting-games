@@ -350,15 +350,15 @@ class AttackerState(BaseState):
         if not self.available_actions:
             self.available_actions = _Atk_Actions_By_Pos[self.state_pos]
 
+        curr_turn = 2 * len(self.full_history) + 1
 
-        curr_turn = len(self.full_history) + 1
         if action != arena.Actions.IN_PROGRESS:
-            print(f"Attacker (turn {curr_turn}): exec({arena.action_to_str(action)})")
+            print(f"\nAttacker (turn {curr_turn}): action {arena.action_to_str(action)}")
         elif self.progress.turns == 1 \
                 and self.progress.action not in arena.NoOp_Actions:
             # print last IN_PROGRESS for an action that is not WAIT that
             # is being finalized during this turn.
-            print(f"Attacker (turn {curr_turn}): exec({arena.action_to_str(action)} : resolve)")
+            print(f"\nAttacker (turn {curr_turn}): last {arena.action_to_str(action)} action (resolves {arena.action_to_str(self.progress.action)})\n")
 
         utils = arena.Utilities[action]
 
@@ -369,6 +369,30 @@ class AttackerState(BaseState):
         self.rewards += (0,)
         self.damages += (0,)
 
+        def _resolve_action():
+            # tally action -- the delayed source action gets its reward;
+            # this reward can potentially be lessened or nullified later
+            # by defend action damage if this action is detected. If the
+            # action failed there is no reward or advancement.
+            if not self.progress.action:
+                raise ValueError("no action set in progress")
+            if self.progress.completed:
+                reward = arena.attack_reward(self.progress.action)
+                self.utility += reward
+                self.increment_reward(reward)
+                self.state_pos += 1
+                if self.progress.action not in arena.NoOp_Actions:
+                    print(f"Attacker (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: executed, attacker advance to position {self.state_pos}")
+            else:
+                if self.progress.action not in arena.NoOp_Actions:
+                    print(f"Attacker (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: failed to execute, attacker stays at position {self.state_pos}")
+            if self.state_pos >= len(_Atk_Actions_By_Pos):
+                self.available_actions = ()
+            else:
+                self.available_actions = \
+                        _Atk_Actions_By_Pos[self.state_pos]
+            self.progress.reset()
+
         if action == arena.Actions.IN_PROGRESS:
             # still in the progress sequence of an asserted action;
             # possibly conclude that action and reset available actions
@@ -376,29 +400,7 @@ class AttackerState(BaseState):
             #print(f"attack progress: {self.progress}")
             self.progress.take_turn()
             if self.progress.turns <= 0:
-                # tally action -- the delayed source action gets its
-                # reward; this reward can potentially be lessened or
-                # nullified later by defend action damage if this action
-                # is detected. If the action failed there is no reward
-                # or advancement.
-                if not self.progress.action:
-                    raise ValueError("no action set in progress")
-                if self.progress.completed:
-                    reward = arena.attack_reward(self.progress.action)
-                    self.utility += reward
-                    self.increment_reward(reward)
-                    self.state_pos += 1
-                    if self.progress.action not in arena.NoOp_Actions:
-                        print(f"Attacker (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: executed, attacker advance to position {self.state_pos}")
-                else:
-                    if self.progress.action not in arena.NoOp_Actions:
-                        print(f"Attacker (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: no-op, attacker stays at position {self.state_pos}")
-                self.progress.reset()
-                if self.state_pos >= len(_Atk_Actions_By_Pos):
-                    self.available_actions = ()
-                else:
-                    self.available_actions = \
-                            _Atk_Actions_By_Pos[self.state_pos]
+                _resolve_action()
         else:
             # initiate the sequence of IN_PROGRESS actions (turns can
             # be 0 also, it's a no-op and this current action will be
@@ -409,17 +411,17 @@ class AttackerState(BaseState):
             if self.progress.action:
                 raise ValueError(f"stale attacker action: {arena.action_to_str(self.progress.action)}")
             turn_cnt = arena.get_timewait(action).rand_turns()
-            if action in arena.NoOp_Actions:
-                # completed not applicable
-                self.progress.set(action, turn_cnt, curr_turn, NA)
-            else:
-                self.progress.set(action, turn_cnt, curr_turn)
-            self.available_actions = (arena.Actions.IN_PROGRESS,)
-            if action not in arena.NoOp_Actions:
-                print(f"Attacker (turn {curr_turn}): prior to resolving {arena.action_to_str(action)} in turn {curr_turn + 2*turn_cnt} will apply {turn_cnt} {arena.action_to_str(arena.Actions.IN_PROGRESS)} actions")
 
-        if action != arena.Actions.IN_PROGRESS:
-            print()
+            if not turn_cnt:
+                # don't currently have any actions besides WAIT that
+                # have turn_cnt == 0
+                self.progress.set(action, 0, curr_turn, True)
+                _resolve_action()
+            else:
+                # limit actions to just IN_PROGRESS for turn_cnt turns
+                self.progress.set(action, turn_cnt, curr_turn)
+                self.available_actions = (arena.Actions.IN_PROGRESS,)
+                print(f"Attacker (turn {curr_turn}): will resolve {arena.action_to_str(action)} in turn {curr_turn + 2*turn_cnt} after {turn_cnt} {arena.action_to_str(arena.Actions.IN_PROGRESS)} actions")
 
         self.record_action(action)
 
@@ -463,15 +465,15 @@ class DefenderState(BaseState):
             self.available_actions = arena.Defend_Actions
 
         # +2 because defender always moves second
-        curr_turn = len(self.full_history) + 2
+        curr_turn = 2 * len(self.full_history) + 2
 
         if action != arena.Actions.IN_PROGRESS:
-            print(f"Defender (turn {curr_turn}): exec({arena.action_to_str(action)})")
+            print(f"\nDefender (turn {curr_turn}): action {arena.action_to_str(action)}")
         elif self.progress.turns == 1 \
                 and self.progress.action not in arena.NoOp_Actions:
             # print last IN_PROGRESS for an action that is not WAIT that
             # is being finalized during this turn.
-            print(f"Defender (turn {curr_turn}): exec({arena.action_to_str(action)} : resolve)")
+            print(f"\nDefender (turn {curr_turn}): last {arena.action_to_str(action)} action (resolves {arena.action_to_str(self.progress.action)})")
 
         utils = arena.Utilities[action]
 
@@ -482,27 +484,29 @@ class DefenderState(BaseState):
         self.rewards += (0,)
         self.damages += (0,)
 
+        def _resolve_action():
+            # the defender action does *not* immediately yield a reward
+            # -- that happens only with a successful detect action which
+            # is determined later in GameState._apply_action()
+            if self.progress.completed:
+                if self.progress.action not in arena.NoOp_Actions:
+                    print(f"Defender (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: executed")
+            else:
+                if self.progress.action not in arena.NoOp_Actions:
+                    print(f"Defender (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: failed to execute")
+            self.progress.reset()
+            self.available_actions = arena.Defend_Actions
+
         if action == arena.Actions.IN_PROGRESS:
             # still in progress sequence
             #print("defend progress:", self.progress)
             self.progress.take_turn()
             if self.progress.turns <= 0:
-                # the delayed defender action does *not* immediately
-                # yield a reward -- that happens only with a successful
-                # detect action which is determined later in
-                # GameState._apply_action()
-                if self.progress.completed:
-                    if self.progress.action not in arena.NoOp_Actions:
-                        print(f"Defender (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: executed")
-                else:
-                    if self.progress.action not in arena.NoOp_Actions:
-                        print(f"Defender (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: no-op")
-                # append this delayed action to history
-                self.progress.reset()
+                _resolve_action()
                 self.available_actions = arena.Defend_Actions
         else:
-            # initiate the sequence of IN_PROGRESS actions (turns can
-            # be 0 also, it's a no-op and this current action will be
+            # initiate the sequence of IN_PROGRESS actions (turns can be
+            # 0 also, it's a no-op and this current action will be
             # resolved in the IN_PROGRESS block above); available
             # actions are limited to just IN_PROGRESS for turn_cnt
             # turns; this initiating action does not (potentially)
@@ -511,19 +515,18 @@ class DefenderState(BaseState):
             if self.progress.action:
                 raise ValueError(f"stale defender action: {arena.action_to_str(self.progress.action)}")
             turn_cnt = arena.get_timewait(action).rand_turns()
-            if action in arena.NoOp_Actions:
-                # completed not applicable
-                self.progress.set(action, turn_cnt, curr_turn, NA)
+            if not turn_cnt:
+                # don't currently have any actions besides WAIT that
+                # have turn_cnt == 0
+                self.progress.set(action, 0, curr_turn, True)
+                _resolve_action()
             else:
+                # limit actions to just IN_PROGRESS for turn_cnt turns
                 self.progress.set(action, turn_cnt, curr_turn)
-            self.available_actions = (arena.Actions.IN_PROGRESS,)
-            if action not in arena.NoOp_Actions:
-                print(f"Defender (turn {curr_turn}): prior to resolving {arena.action_to_str(action)} in turn {curr_turn + 2*turn_cnt} will apply {turn_cnt} {arena.action_to_str(arena.Actions.IN_PROGRESS)} actions")
+                self.available_actions = (arena.Actions.IN_PROGRESS,)
+                print(f"Defender (turn {curr_turn}): will resolve {arena.action_to_str(action)} in turn {curr_turn + 2*turn_cnt} after {turn_cnt} {arena.action_to_str(arena.Actions.IN_PROGRESS)} actions")
 
         self.record_action(action)
-
-        if action != arena.Actions.IN_PROGRESS:
-            print()
 
         return self
 
@@ -794,19 +797,19 @@ class GameState(pyspiel.State):
 
         # we are done if defender detected attack
         if detected:
-            print(f"attack action detected, game over after {dsp_turn} turns: {arena.action_to_str(action)} detected {arena.action_to_str(atk_action)}\n")
+            print(f"\nattack action detected, game over after {dsp_turn} turns: {arena.action_to_str(action)} detected {arena.action_to_str(atk_action)}\n")
             self._game_over = True
 
         # we are done if attacker completed action escalation sequence
         if self.attacker_state.got_all_the_marbles:
-            print(f"attacker is feeling smug, attack sequence complete: game over after {dsp_turn} turns\n")
+            print(f"\nattacker is feeling smug, attack sequence complete: game over after {dsp_turn} turns\n")
             self._game_over = True
 
         self._curr_turn += 1
 
         # Have we reached max game length? Terminate if so.
         if not self._game_over and self._curr_turn >= self._num_turns:
-            print(f"max game length reached, terminating game after {dsp_turn} turns\n")
+            print(f"\nmax game length reached, terminating game after {dsp_turn} turns\n")
             self._game_over = True
 
 

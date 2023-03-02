@@ -338,7 +338,7 @@ class AttackerState(BaseState):
         """
         return self.state_pos == len(_Atk_Actions_By_Pos)
 
-    def advance(self, action: arena.Actions) -> "AttackerState":
+    def advance(self, action: arena.Actions):
         """
         Attacker attempts to make their move.
         """
@@ -425,10 +425,7 @@ class AttackerState(BaseState):
 
         self.record_action(action)
 
-        return self
-
-    def tally(self, action: arena.Actions,
-            defend_action: arena.Actions) -> "AttackerState":
+    def tally(self, action: arena.Actions, defend_action: arena.Actions):
         """
         There was not a GENERAL failure of last attack action; note that
         the only conditions where this gets called is down below in
@@ -446,7 +443,6 @@ class AttackerState(BaseState):
             damage = arena.defend_damage(defend_action, action)
             self.increment_damage(-damage)
             self.utility -= damage
-        return self
         
 
 @dataclass
@@ -455,7 +451,7 @@ class DefenderState(BaseState):
     Track all state and history for the defender.
     """
 
-    def detect(self, action: arena.Actions) -> "DefenderState":
+    def detect(self, action: arena.Actions):
 
         if not self.progress:
             # if initialized in BaseState ends up being shared between
@@ -528,10 +524,7 @@ class DefenderState(BaseState):
 
         self.record_action(action)
 
-        return self
-
-    def tally(self, action: arena.Actions,
-            attack_action: arena.Actions) -> "DefenderState":
+    def tally(self, action: arena.Actions, attack_action: arena.Actions):
         # Gets called for rewards on successful defend action as well as
         # damages from attack actions that have not been detected yet.
         if self.last_action is None:
@@ -545,7 +538,6 @@ class DefenderState(BaseState):
             damage = arena.attack_damage(attack_action)
             self.increment_damage(-damage)
             self.utility -= damage
-        return self
 
 
 # pylint: disable=too-few-public-methods
@@ -717,7 +709,7 @@ class GameState(pyspiel.State):
             # action sequence, defender still has a chance to detect.
             # Game will not terminate here by reaching self._num_turns
             # either because defender always gets the last action.
-            self._attacker = self._attacker.advance(action)
+            self._attacker.advance(action)
             self._attack_vec[self._curr_turn] = action
             self._current_player = arena.Players.DEFENDER
             self._curr_turn += 1
@@ -729,7 +721,7 @@ class GameState(pyspiel.State):
 
         # register cost of action, history, initiate IN_PROGRESS
         # sequences, etc
-        self._defender = self._defender.detect(action)
+        self._defender.detect(action)
         self._defend_vec[self._curr_turn] = action
 
         # All non-IN_PROGRESS attack action states also excluding the

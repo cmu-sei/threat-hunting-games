@@ -78,6 +78,7 @@ def action_to_str(action: Actions) -> str:
     else:
         return "None"
 
+
 class Utility(NamedTuple):
     cost:    int # utility cost
     reward:  int # action success reward (only attacker for now)
@@ -131,17 +132,6 @@ Utilities = {
     Actions.FF_SEARCH_STRONG:    Utility(4, ZSUM, ZSUM),
 }
 
-for action in Actions:
-    utils = Utilities[action]
-    if not isinstance(utils.cost, int):
-        raise ValueError(
-        f"action {action_to_str(action)} cost must have explicit int value, not {utils.cost}")
-for action in Attack_Actions:
-    utils = Utilities[action]
-    if not isinstance(utils.reward, int):
-        raise ValueError(
-        f"attack action {action_to_str(action)} reward must have explicit int value, not {utils.reward}")
-
 
 class TimeWait(NamedTuple):
     min: int
@@ -171,22 +161,22 @@ TimeWaits = {
 def get_timewait(action):
     return TimeWaits.get(action, TimeWait(0, 0))
 
-# The GeneralFail values are the percentage of failure for an
+# The GeneralFails values are the percentage of failure for an
 # unspecified failure -- the operation fails no matter which opposing
 # action it might be compared against. If the action is not in the
-# GeneralFail map, then DEFAULT_FAIL is used.
+# GeneralFails map, then DEFAULT_FAIL is used.
 #
-# Specific failure rates of action vs action are in the SkirmishFail map
-# farther below...note that if a particular action has a general failure
-# rate (G) as well as a failure rate (V) agains a particular action then
-# the probability of G or V failing (but not both) will be:
+# Specific failure rates of action vs action are in the SkirmishFails
+# map farther below...note that if a particular action has a general
+# failure rate (G) as well as a failure rate (V) agains a particular
+# action then the probability of G or V failing (but not both) will be:
 #
 #     P(G^V) = P(G) + P(V) - 2P(P(G) * P(V))
 
 DEFAULT_FAIL = 0
 
 # Chance of an unspecified failure.
-GeneralFail = {
+GeneralFails = {
     Actions.S0_VERIFY_PRIV:      0.15,
     Actions.S0_VERIFY_PRIV_CAMO: 0.15,
     Actions.S1_WRITE_EXE:        0.15,
@@ -203,7 +193,7 @@ GeneralFail = {
 
 # Chance of the given action failing while encountering another
 # specific action.
-SkirmishFail = {
+SkirmishFails = {
     Actions.PSGREP_STRONG: {
         Actions.S0_VERIFY_PRIV: 0.05,
     },
@@ -216,18 +206,18 @@ SkirmishFail = {
 }
 
 def get_general_pct_fail(action):
-    #print(f"GENERAL pct_fail: {GeneralFail.get(action, DEFAULT_FAIL)} {action_to_str(action)}")
-    return GeneralFail.get(action, DEFAULT_FAIL)
+    #print(f"GENERAL pct_fail: {GeneralFails.get(action, DEFAULT_FAIL)} {action_to_str(action)}")
+    return GeneralFails.get(action, DEFAULT_FAIL)
 
 def get_skirmish_pct_fail(action1, action2):
     pct_fail = 0.0
-    if action1 in SkirmishFail:
+    if action1 in SkirmishFails:
         # note: don't use DEFAULT_FAIL as a fallback here
-        pct_fail = SkirmishFail[action1].get(action2, 0.0)
-        #pct_fail = SkirmishFail[action1].get(action2, 0.9)
-        #print("SKIRMISH in level 1 SkirmishFail")
+        pct_fail = SkirmishFails[action1].get(action2, 0.0)
+        #pct_fail = SkirmishFails[action1].get(action2, 0.9)
+        #print("SKIRMISH in level 1 SkirmishFails")
         #if pct_fail != DEFAULT_FAIL:
-        #    print("SKIRMISH in level 2 SkirmishFail")
+        #    print("SKIRMISH in level 2 SkirmishFails")
     #print(f"SKIRMISH pct_fail: {pct_fail} {action_to_str(action1)} {action_to_str(action2)}")
     return pct_fail
 
@@ -373,19 +363,20 @@ Win = {
 
 # loser action as key
 Lose = {}
-for win_action in Win:
-    if win_action not in Lose:
-        Lose[win_action] = set()
-    for lose_action in Win[win_action]:
-        if lose_action not in Lose:
-            Lose[lose_action] = set()
-        Lose[lose_action].add(win_action)
 
-active_actions = set(Actions).difference([Actions.WAIT, Actions.IN_PROGRESS])
-missing = active_actions - set(Win)
-assert not missing, f"Missing win actions: {missing}"
-missing = active_actions - set(Lose)
-assert not missing, f"Missing lose actions: {missing}"
+def infer_lose():
+    # this is here so that it can be called while importing parameters
+    # from JSON
+    Lose.clear()
+    for win_action in Win:
+        if win_action not in Lose:
+            Lose[win_action] = set()
+        for lose_action in Win[win_action]:
+            if lose_action not in Lose:
+                Lose[lose_action] = set()
+            Lose[lose_action].add(win_action)
+
+infer_lose()
 
 def action_cmp(action1: Actions, action2: Actions) -> bool:
     result = None
@@ -547,6 +538,75 @@ def min_utility() -> int:
     min_util *= -1
     _min_max_util._replace(min=min_util)
     return min_util
+
+def assert_arena_parameters():
+    # Assert the various arena parameters in order to check for data
+    # integrity while importing their values from JSON.
+
+    def assert_attack_actions():
+        for action in Attack_Actions:
+            assert action in Actions, f"not an Action: {action}"
+
+    def assert_defend_actions():
+        for action in Defend_Actions:
+            assert action in Actions, f"not an Action: {action}"
+    
+    def assert_noop_actions():
+        for action in NoOp_Actions:
+            assert action in Actions, f"not an Action: {action}"
+    
+    def assert_utilities():
+        for action in Actions:
+            utils = Utilities[action]
+            assert isinstance(utils.cost, int), \
+                f"action {action.name} cost must have explicit int value, not {utils.cost}"
+        for action in Attack_Actions:
+            utils = Utilities[action]
+            assert isinstance(utils.reward, int), \
+                f"attack action {action.name} reward must have explicit int value, not {utils.reward}"
+            assert isinstance(utils.damage, int) or utils.damage == ZSUM, \
+                f"attack action {action.name} damage must be int or ZSUM, not {utils.reward}"
+        for action in Defend_Actions:
+            utils = Utilities[action]
+            assert isinstance(utils.reward, int) or utils.reward == ZSUM, \
+                f"defend action {action.name} reward must be int or ZSUM, not {utils.reward}"
+            assert isinstance(utils.damage, int) or utils.damage == ZSUM, \
+                f"defend action {action.name} damage must be int or ZSUM, not {utils.reward}"
+    
+    def assert_timewaits():
+        for action, tw in TimeWaits.items():
+            assert action in Actions, f"not an Action: {action}"
+            assert isinstance(tw, TimeWait)
+    
+    def assert_general_fails():
+        for action, chance in GeneralFails.items():
+            assert action in Actions, f"not an Action: {action}"
+            assert (chance >= 0 and chance <= 1)
+    
+    def assert_skirmish_fails():
+        for action, oppose_actions in SkirmishFails.items():
+            assert action in Actions, f"not an Action: {action}"
+            for act in oppose_actions:
+                assert act in Actions, f"not an Action: {action}"
+    
+    def assert_win_lose():
+        active_actions = \
+                set(Actions).difference(NoOp_Actions)
+        missing = active_actions - set(Win)
+        assert not missing, f"Missing win actions: {missing}"
+        missing = active_actions - set(Lose)
+        assert not missing, f"Missing lose actions: {missing}"
+    
+    # assert values in this order
+    assert_attack_actions()
+    assert_defend_actions()
+    assert_noop_actions()
+    assert_utilities()
+    assert_timewaits()
+    assert_general_fails()
+    assert_skirmish_fails()
+    assert_win_lose()
+
 
 def matrix_args():
     """

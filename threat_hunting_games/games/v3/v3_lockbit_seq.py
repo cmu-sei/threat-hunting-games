@@ -39,11 +39,12 @@ from . import arena_v3 as arena
 #  provides_factored_observation_string: bool = False)
 
 game_name = "chain_game_v2_seq_lockbit"
-game_turns = 30
+game_long_name = "Chain game version 3 Sequential LockBit"
+game_max_turns = 30
 
 _GAME_TYPE = pyspiel.GameType(
     short_name=game_name,
-    long_name="Chain game version 3 Sequential LockBit",
+    long_name=game_long_name,
     dynamics=pyspiel.GameType.Dynamics.SEQUENTIAL,
     chance_mode=pyspiel.GameType.ChanceMode.DETERMINISTIC,
     information=pyspiel.GameType.Information.PERFECT_INFORMATION,
@@ -66,7 +67,7 @@ _GAME_TYPE = pyspiel.GameType(
     #
     # tuples, lists, and others don't work
     parameter_specification={
-        "num_turns": game_turns,
+        "num_turns": game_max_turns,
     }
 )
 
@@ -93,11 +94,11 @@ def make_game_info(num_turns: int) -> pyspiel.GameInfo:
     return pyspiel.GameInfo(
         num_distinct_actions=len(arena.Actions),
         max_chance_outcomes=0,
-        num_players=2,
+        num_players=len(arena.Players),
         min_utility=float(min_utility),
         max_utility=float(max_utility),
         utility_sum=0.0,
-        max_game_length=num_turns,
+        max_game_length=game_max_turns,
     )
 
 # constant meaning "not applicable"
@@ -168,7 +169,7 @@ class InProgress():
         return f"[ turn: {self.turns} action: {self.action} ]"
 
 
-_Atk_Actions_By_Pos = (
+Atk_Actions_By_Pos = (
     (
       # pos 0
       arena.Actions.WAIT,
@@ -325,7 +326,7 @@ class AttackerState(BaseState):
         """
         Final attack stage has been successfully completed.
         """
-        return self.state_pos == len(_Atk_Actions_By_Pos)
+        return self.state_pos == len(Atk_Actions_By_Pos)
 
     def advance(self, action: arena.Actions):
         """
@@ -337,7 +338,7 @@ class AttackerState(BaseState):
             # AttackerState and DefenderState
             self.progress = InProgress()
         if not self.available_actions:
-            self.available_actions = _Atk_Actions_By_Pos[self.state_pos]
+            self.available_actions = Atk_Actions_By_Pos[self.state_pos]
 
         curr_turn = 2 * len(self.full_history) + 1
 
@@ -375,11 +376,11 @@ class AttackerState(BaseState):
             else:
                 if self.progress.action not in arena.NoOp_Actions:
                     print(f"Attacker (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: failed to execute, attacker stays at position {self.state_pos}")
-            if self.state_pos >= len(_Atk_Actions_By_Pos):
+            if self.state_pos >= len(Atk_Actions_By_Pos):
                 self.available_actions = ()
             else:
                 self.available_actions = \
-                        _Atk_Actions_By_Pos[self.state_pos]
+                        Atk_Actions_By_Pos[self.state_pos]
             self.progress.reset()
 
         if action == arena.Actions.IN_PROGRESS:
@@ -543,7 +544,7 @@ class GameState(pyspiel.State):
         # can be popuated in AttackerState and DefenderState...so
         # initiaize them here.
         self._attacker = \
-                AttackerState(available_actions=_Atk_Actions_By_Pos[0])
+                AttackerState(available_actions=Atk_Actions_By_Pos[0])
         self._defender = \
                 DefenderState(available_actions=arena.Defend_Actions)
         self._turns_seen = set()
@@ -841,7 +842,7 @@ class OmniscientObserver:
         #num_turns = params["num_turns"]
 
         # include turn 0
-        num_turns = game_turns + 1
+        num_turns = game_max_turns + 1
 
         #turn_map_size = num_turns * len(arena.Actions)
         turn_map_size = num_turns

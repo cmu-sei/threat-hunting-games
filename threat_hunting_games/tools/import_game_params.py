@@ -49,8 +49,6 @@ def json_to_dataclass(cls, fields, namespace=None):
 
 ###
 
-Action_Map = {}
-
 def actions_from_json(actions):
     # This needs to be called before any of the other import functions
     # that deal with actions.
@@ -131,11 +129,8 @@ def game_parameters_from_json(data):
 
     arena.assert_arena_parameters()
 
-def dump_game_parameters(fh=None, params=None, indent=2):
-    if not fh:
-        fh = sys.stdout
-    elif not hasattr(fh, "close"):
-        fh = open(fh, "w")
-    if not params:
-        params = game_parameters_to_json()
-    json.dump(params, fh, indent=indent)
+def load_game_parameters(fh=None, params=None, indent=2):
+    if not hasattr(fh, "close"):
+        fh = open(fh)
+    data = json.load(fh)
+    game_parameters_from_json(data)

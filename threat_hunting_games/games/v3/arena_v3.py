@@ -584,10 +584,19 @@ def assert_arena_parameters():
             assert (chance >= 0 and chance <= 1)
     
     def assert_skirmish_fails():
+        fail_pairs = set()
+        reverse_pairs = set()
         for action, oppose_actions in SkirmishFails.items():
             assert action in Actions, f"not an Action: {action}"
             for act in oppose_actions:
                 assert act in Actions, f"not an Action: {action}"
+                fail_pair = (action, act)
+                assert fail_pair not in fail_pairs, f"multiple instances defined for SkirmishFail action pair: {fail_pair}"
+                fail_pairs.add(fail_pair)
+                reverse_pairs.add(tuple(reversed(fail_pair)))
+        # make sure there are no bidirectional fail pairings
+        bidirects = fail_pairs.intersection(reverse_pairs)
+        assert not bidirects, f"{len(bidirects)} bidirectional SkirmishFail action pairs detected: {list(sorted(bidirects))}"
     
     def assert_win_lose():
         active_actions = \

@@ -101,11 +101,10 @@ class Utility(NamedTuple):
 #           S1_WRITE_EXE.reward (4)
 #              ... if S1_WRITE_EXE.reward is ZSUM, that's a loop exception
 #
-# See the winner/loser maps below for which actions are effective
+# See the fail/win maps below for which actions are effective
 # against other actions. See the attack_reward(),
 # attack_damage(), defend_reward(), and defend_damage() functions below
-# to see the logic implemented -- and consequence() that uses those to
-# tally utility for any particular action vs action.
+# to see the logic implemented .
 
 class ZSUM():
     pass
@@ -191,35 +190,76 @@ GeneralFails = {
     Actions.FF_SEARCH_STRONG:    0.15,
 }
 
-# Chance of the given action failing while encountering another
-# specific action.
+# Chance of the given action failing while encountering another specific
+# action. If an action is not a primary key or secondary key in this map
+# then by default it will 100% "fail" against other actions (WAIT,
+# IN_PROGRESS). If an action appears as a secondary key, it's failure
+# rate will be, by definition, the remaining percentage vs the primary
+# key action. These skirmishes are currently only calculated from the
+# point of view of the primary keys, i.e. defend actions.
 SkirmishFails = {
+    Actions.PSGREP: {
+        Actions.SO_VERIFY_PRIV: 0.10,
+        Actions.SO_VERIFY_PRIV_STRONG: 0.90,
+    }
     Actions.PSGREP_STRONG: {
         Actions.S0_VERIFY_PRIV: 0.05,
+        Actions.SO_VERIFY_PRIV_CAMO: 0.10,
+    },
+    Actions.SMB_LOGS: {
+        Actions.S1_WRITE_EXE: 0.10,
+        Actions.S1_WRITE_EXE_CAMO: 0.90,
     },
     Actions.SMB_LOGS_STRONG: {
         Actions.S1_WRITE_EXE: 0.05,
+        Actions.S1_WRITE_EXE_CAMO: 0.10,
+    },
+    Actions.FF_SEARCH: {
+        Actions.S2_ENCRYPT: 0.10,
+        Actions.S2_ENCRYPT_CAMO: 0.90,
     },
     Actions.FF_SEARCH_STRONG: {
         Actions.S2_ENCRYPT: 0.05,
+        Actions.S2_ENCRYPT_CAMO: 0.10,
     },
 }
+
+SkirmishWins = {}
+
+def infer_wins():
+    # invert SkirmishFails
+    SkirmishWins.clear()
+    for fail_action in SkirmishFails:
+        for win_action, pct_skirm_fail in SkirmishFails[fail_action].items():
+            if win_action not in SkirmishWins:
+                SkirmishWins[win_action] = {}
+            pct_skirm_win = 1.0 - pct_skirm_fail
+            SkirmishWins[win_action][fail_action] = pct_skirm_win
+
+infer_wins()
 
 def get_general_pct_fail(action):
     #print(f"GENERAL pct_fail: {GeneralFails.get(action, DEFAULT_FAIL)} {action_to_str(action)}")
     return GeneralFails.get(action, DEFAULT_FAIL)
 
 def get_skirmish_pct_fail(action1, action2):
-    pct_fail = 0.0
+    pct_fail = 1.0
     if action1 in SkirmishFails:
         # note: don't use DEFAULT_FAIL as a fallback here
-        pct_fail = SkirmishFails[action1].get(action2, 0.0)
+        pct_fail = SkirmishFails[action1].get(action2, 1.0)
         #pct_fail = SkirmishFails[action1].get(action2, 0.9)
         #print("SKIRMISH in level 1 SkirmishFails")
         #if pct_fail != DEFAULT_FAIL:
         #    print("SKIRMISH in level 2 SkirmishFails")
     #print(f"SKIRMISH pct_fail: {pct_fail} {action_to_str(action1)} {action_to_str(action2)}")
     return pct_fail
+
+def get_skirmish_pct_win(action1, action2):
+    pct_win = 0.0
+    if action1 in SkirmishWins:
+        # note: don't use DEFAULT_FAIL as a fallback here
+        pct_win = SkirmishWins[action1].get(action2, 0.0)
+    return pct_win
 
 def action_completed(action1, action2=None):
     # I suspect that using chance nodes in open_spiel might be a viable
@@ -228,11 +268,16 @@ def action_completed(action1, action2=None):
     if action1 in NoOp_Actions:
         # don't want to advance on a no-op action
         return None
-    completed = True
     if action2 is None:
+        # general failure chance
         pct_fail = get_general_pct_fail(action1)
     else:
-        pct_fail = get_skirmish_pct_fail(action1, action2)
+        # skirmish fail chance
+        if action1 in SkirmishFails:
+            pct_fail = get_skirmish_pct_fail(action1, action2)
+        else:
+            pct_fail = 1 - get_skirmish_pct_win(action1, action2)
+    completed = True
     if pct_fail:
         chance = random.random()
         completed = chance > pct_fail
@@ -245,152 +290,6 @@ def action_completed(action1, action2=None):
                 print(f"action GENERAL fail! {action1}: {chance:.2f} > {pct_fail:.2f} : {completed}")
     #print("action_completed() end\n")
     return completed
-
-# Winner/Loser action maps. This first one is Winner action as key; note
-# that WAIT and IN_PROGRESS are essentially no-ops in terms of win/lose
-# due to the asynchronous nature of when advance/detect actions square
-# off; if this were a simultaneous game then the passive actions WAIT
-# and IN_PROGRESS could be included with empty set (they win aganst no
-# actions), but that isn't necessary here. For the active action keys
-# below, the actions that are commented out are the actions that the
-# given action will lose to.
-Win = {
-    #Actions.WAIT: set(),
-    #Actions.IN_PROGRESS: set(),
-    Actions.S0_VERIFY_PRIV: set([
-        Actions.WAIT,
-        # Actions.PSGREP,
-        # Actions.PSGREP_STRONG,
-        Actions.SMB_LOGS,
-        Actions.SMB_LOGS_STRONG,
-        Actions.FF_SEARCH,
-        Actions.FF_SEARCH_STRONG,
-    ]),
-    Actions.S0_VERIFY_PRIV_CAMO: set([
-        Actions.WAIT,
-        Actions.PSGREP,
-        # Actions.PSGREP_STRONG,
-        Actions.SMB_LOGS,
-        Actions.SMB_LOGS_STRONG,
-        Actions.FF_SEARCH,
-        Actions.FF_SEARCH_STRONG,
-    ]),
-    Actions.S1_WRITE_EXE: set([
-        Actions.WAIT,
-        Actions.PSGREP,
-        Actions.PSGREP_STRONG,
-        # Actions.SMB_LOGS,
-        # Actions.SMB_LOGS_STRONG,
-        Actions.FF_SEARCH,
-        Actions.FF_SEARCH_STRONG,
-    ]),
-    Actions.S1_WRITE_EXE_CAMO: set([
-        Actions.WAIT,
-        Actions.PSGREP,
-        Actions.PSGREP_STRONG,
-        Actions.SMB_LOGS,
-        # Actions.SMB_LOGS_STRONG,
-        Actions.FF_SEARCH,
-        Actions.FF_SEARCH_STRONG,
-    ]),
-    Actions.S2_ENCRYPT: set([
-        Actions.WAIT,
-        Actions.PSGREP,
-        Actions.PSGREP_STRONG,
-        Actions.SMB_LOGS,
-        Actions.SMB_LOGS_STRONG,
-        #Actions.FF_SEARCH,
-        #Actions.FF_SEARCH_STRONG,
-    ]),
-    Actions.S2_ENCRYPT_CAMO: set([
-        Actions.WAIT,
-        Actions.PSGREP,
-        Actions.PSGREP_STRONG,
-        Actions.SMB_LOGS,
-        Actions.SMB_LOGS_STRONG,
-        Actions.FF_SEARCH,
-        #Actions.FF_SEARCH_STRONG,
-    ]),
-    Actions.PSGREP: set([
-        Actions.S0_VERIFY_PRIV,
-        #Actions.S0_VERIFY_PRIV_CAMO,
-        #Actions.S1_WRITE_EXE,
-        #Actions.S1_WRITE_EXE_CAMO,
-        #Actions.S2_ENCRYPT,
-        #Actions.S2_ENCRYPT_CAMO,
-    ]),
-    Actions.PSGREP_STRONG: set([
-        Actions.S0_VERIFY_PRIV,
-        Actions.S0_VERIFY_PRIV_CAMO,
-        #Actions.S1_WRITE_EXE,
-        #Actions.S1_WRITE_EXE_CAMO,
-        #Actions.S2_ENCRYPT,
-        #Actions.S2_ENCRYPT_CAMO,
-    ]),
-    Actions.SMB_LOGS: set([
-        #Actions.S0_VERIFY_PRIV,
-        #Actions.S0_VERIFY_PRIV_CAMO,
-        Actions.S1_WRITE_EXE,
-        #Actions.S1_WRITE_EXE_CAMO,
-        #Actions.S2_ENCRYPT,
-        #Actions.S2_ENCRYPT_CAMO,
-    ]),
-    Actions.SMB_LOGS_STRONG: set([
-        #Actions.S0_VERIFY_PRIV,
-        #Actions.S0_VERIFY_PRIV_CAMO,
-        Actions.S1_WRITE_EXE,
-        Actions.S1_WRITE_EXE_CAMO,
-        #Actions.S2_ENCRYPT,
-        #Actions.S2_ENCRYPT_CAMO,
-    ]),
-    Actions.FF_SEARCH: set([
-        #Actions.S0_VERIFY_PRIV,
-        #Actions.S0_VERIFY_PRIV_CAMO,
-        #Actions.S1_WRITE_EXE,
-        #Actions.S1_WRITE_EXE_CAMO,
-        Actions.S2_ENCRYPT,
-        #Actions.S2_ENCRYPT_CAMO,
-    ]),
-    Actions.FF_SEARCH_STRONG: set([
-        #Actions.S0_VERIFY_PRIV,
-        #Actions.S0_VERIFY_PRIV_CAMO,
-        #Actions.S1_WRITE_EXE,
-        #Actions.S1_WRITE_EXE_CAMO,
-        Actions.S2_ENCRYPT,
-        Actions.S2_ENCRYPT_CAMO,
-    ]),
-}
-
-# loser action as key
-Lose = {}
-
-def infer_lose():
-    # this is here so that it can be called while importing parameters
-    # from JSON
-    Lose.clear()
-    for win_action in Win:
-        if win_action not in Lose:
-            Lose[win_action] = set()
-        for lose_action in Win[win_action]:
-            if lose_action not in Lose:
-                Lose[lose_action] = set()
-            Lose[lose_action].add(win_action)
-
-infer_lose()
-
-def action_cmp(action1: Actions, action2: Actions) -> bool:
-    result = None
-    if action2 in Win[action1]:
-        # action1 wins
-        result = True
-    elif action2 in Lose[action1]:
-        # action2 wins
-        result = False
-    else:
-        # no-op (doesn't happen without WAIT and IN_PROGRESS in
-        # Win/Lose)
-        pass
-    return result
 
 def attack_reward(action: Actions):
     # reward received for attack action
@@ -411,7 +310,7 @@ def attack_damage(action: Actions) -> int:
     return damage
 
 def defend_reward(action: Actions, attack_action: Actions) -> int:
-    # reward received for action depending on attack_action
+    # reward received for defend action depending on attack_action
     assert action in Defend_Actions
     assert attack_action in Attack_Actions
     utils = Utilities[action]
@@ -425,7 +324,8 @@ def defend_reward(action: Actions, attack_action: Actions) -> int:
     return reward
 
 def defend_damage(action: Actions, attack_action: Actions) -> int:
-    # damage dealt by action depending on attack_action
+    # damage (typically taking back an attack reward) dealt by defend
+    # action depending on attack_action
     assert action in Defend_Actions
     assert attack_action in Attack_Actions
     utils = Utilities[action]
@@ -440,41 +340,6 @@ def defend_damage(action: Actions, attack_action: Actions) -> int:
             f"defend damage {action} {utils} {attack_action} {attack_utils} ZSUM loop")
     return damage
 
-def consequence(action1: Actions, action2: Actions) -> int:
-    # resulting utility (not including action costs) for action1 when it
-    # squares off with action2
-
-    if not set([action1, action2]).difference(Attack_Actions) \
-            or not set([action1, action2]).difference(Defend_Actions):
-        raise ValueError(f"must provide one attack, one defend action: [{action1}, {action2}]")
-
-    if action1 in Attack_Actions:
-        print("\n consq attack reward")
-        reward = attack_reward(action1)
-        print("\n consq defend damage")
-        damage = defend_damage(action2, action1)
-        print("\n")
-    else:
-        print("\n consq defend reward")
-        reward = defend_reward(action1, action2)
-        print("\n consq attack damage")
-        damage = attack_damage(action2)
-        print("\n")
-
-    util = 0
-    match action_cmp(action1, action2):
-        # don't include costs here because of asynchronus
-        # resolution in v3
-        case True:
-            #util = utils1.reward - utils1.cost
-            util = reward
-        case False:
-            #util = -utils2.damage - utils1.cost
-            util = -damage
-        case None:
-            #util = -utils.cost
-            util = 0
-    return util
 
 class MinMaxUtil(NamedTuple):
     min: int | None
@@ -488,23 +353,22 @@ def max_utility() -> int:
         return _min_max_util.max
     max_util = 0
     for action in Actions:
-        if action not in Win:
-            continue
         win_cost = Utilities[action].cost
         max_win = 0
-        for lose_action in Win.get(action, []):
-            if lose_action in Defend_Actions:
-                win_reward = attack_reward(action)
-            else:
-                win_reward = defend_reward(action, lose_action)
-            win_util = win_cost + win_reward
-            if win_util > max_win:
-                max_win = win_util
-        if Utilities[Actions.IN_PROGRESS].cost:
-            # subtract costs of maximum possible IN_PROGRESS actions
-            if TimeWaits.get(action):
-                max_win -= TimeWaits[action].max \
-                        * Utilities[Actions.IN_PROGRESS].cost
+        for skirmish_map in (SkirmishFails, SkirmishWins):
+            for lose_action in skirmish_map.get(action, []):
+                if lose_action in Defend_Actions:
+                    win_reward = attack_reward(action)
+                else:
+                    win_reward = defend_reward(action, lose_action)
+                win_util = win_cost + win_reward
+                if win_util > max_win:
+                    max_win = win_util
+            if Utilities[Actions.IN_PROGRESS].cost:
+                # subtract costs of maximum possible IN_PROGRESS actions
+                if TimeWaits.get(action):
+                    max_win -= TimeWaits[action].max \
+                            * Utilities[Actions.IN_PROGRESS].cost
         if max_win > max_util:
             max_util = max_win
     _min_max_util._replace(max=max_util)
@@ -516,26 +380,24 @@ def min_utility() -> int:
         return _min_max_util.min
     min_util = 0
     for action in Actions:
-        if action not in Lose:
-            continue
-        lose_cost = Utilities[action].cost
-        min_lose = 0
-        for win_action in Lose.get(action, []):
-            if win_action in Attack_Actions:
-                win_damage = attack_damage(win_action)
-            else:
-                win_damage = defend_damage(win_action, action)
-            lose_util = lose_cost + win_damage
-            if lose_util > min_lose:
-                min_lose = lose_util
-        if Utilities[Actions.IN_PROGRESS].cost:
-            # add costs of maximum possible IN_PROGRESS actions
-            if TimeWaits.get(action):
-                min_lose += TimeWaits[action].max \
-                        * Utilities[Actions.IN_PROGRESS].cost
-        if min_lose > min_util:
-            min_util = min_lose
-    min_util *= -1
+        fail_cost = -Utilities[action].cost
+        min_fail = 0
+        for skirmish_map in (SkirmishFails, SkirmishWins):
+            for win_action in skirmish_map.get(action, []):
+                if win_action in Attack_Actions:
+                    fail_damage = attack_damage(win_action)
+                else:
+                    fail_damage = defend_damage(win_action, action)
+                fail_util = fail_cost - fail_damage
+                if fail_util < min_fail:
+                    min_fail = fail_util
+            if Utilities[Actions.IN_PROGRESS].cost:
+                # subtract costs of maximum possible IN_PROGRESS actions
+                if TimeWaits.get(action):
+                    min_fail -= TimeWaits[action].max \
+                            * Utilities[Actions.IN_PROGRESS].cost
+        if min_fail < min_util:
+            min_util = min_fail
     _min_max_util._replace(min=min_util)
     return min_util
 
@@ -598,14 +460,6 @@ def assert_arena_parameters():
         bidirects = fail_pairs.intersection(reverse_pairs)
         assert not bidirects, f"{len(bidirects)} bidirectional SkirmishFail action pairs detected: {list(sorted(bidirects))}"
     
-    def assert_win_lose():
-        active_actions = \
-                set(Actions).difference(NoOp_Actions)
-        missing = active_actions - set(Win)
-        assert not missing, f"Missing win actions: {missing}"
-        missing = active_actions - set(Lose)
-        assert not missing, f"Missing lose actions: {missing}"
-    
     # assert values in this order
     assert_attack_actions()
     assert_defend_actions()
@@ -614,8 +468,6 @@ def assert_arena_parameters():
     assert_timewaits()
     assert_general_fails()
     assert_skirmish_fails()
-    assert_win_lose()
-
 
 def matrix_args():
     """

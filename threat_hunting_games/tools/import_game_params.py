@@ -129,7 +129,7 @@ def game_parameters_from_json(data):
 
     arena.assert_arena_parameters()
 
-def load_game_parameters(fh=None, params=None, indent=2):
+def load_game_parameters(fh=None):
     if not hasattr(fh, "close"):
         fh = open(fh)
     data = json.load(fh)

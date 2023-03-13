@@ -9,8 +9,8 @@ hunting.
 `/bin/sh /build_docker_containers.sh`
 
 ### Flags
-- **-d**: Run the environment in detached mode \
-- **-r**: Reset the databases of the GHOSTS, POSTGRES, and GHOSTS-SPECTRE containers \
+- **-d**: Run the environment in detached mode 
+- **-r**: Reset the databases of the GHOSTS, POSTGRES, and GHOSTS-SPECTRE containers 
 - **-v**: Configure the containers to run in the VPN configuration (SEI Zscaler)
 
 ## Local Environment

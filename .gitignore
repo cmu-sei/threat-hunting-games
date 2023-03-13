@@ -18,7 +18,9 @@ venv
 Containers/Environment_Data/*
 !Containers/Environment_Data/dashboards
 !Containers/Environment_Data/datasources
+Containers/Logs/api-calls.log
+
 # Basic MACOS removal
 .DS_Store
 # Don't save the api-call logs
-Containers/Logs/api-calls.log
+

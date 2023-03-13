@@ -13,18 +13,19 @@ logger.setLevel(logging.DEBUG)
 # Function to create a machine group within the environment
 def create_machinegroup(name):
     req_status = ''
-    machine_group_uuid = uuid4()
+    machine_group_uuid = str(uuid4())
     logger.debug(msg=f'UUID of {name}: {machine_group_uuid}')
     machinegroup_req = {
         "name": name,
         "groupMachines": [
             {
-                "id": 0,
-                "groupId": 0,
+                "id": 1,
+                "groupId": 1,
                 "machineId": machine_group_uuid
             }
         ]
     }
+    logger.debug(msg=machinegroup_req)
     try:
         req_status = post(url='http://ghosts-api:5000/api/', data=machinegroup_req)
         logger.debug(msg=f'Created machine {name}. | {req_status.content.decode("utf-8")}')
@@ -35,13 +36,13 @@ def create_machinegroup(name):
         exit(1)
 
     return {
-        "machinegroup_name" : name,
-        "machinegroup_uuid" : machine_group_uuid
+        "machinegroup_name": name,
+        "machinegroup_uuid": machine_group_uuid
     }
 
 
 # Function to create a new machine within the environment
-def create_machine(name, fqdn, domain, host, resolved_host, host_ip, ip, curr_username, client_ver,):
+def create_machine(name, fqdn, domain, host, resolved_host, host_ip, ip, curr_username, client_ver):
     machine_json_req = {
         "name": name,
         "fqdn": fqdn,
@@ -106,6 +107,8 @@ if __name__ == '__main__':
     machines = []
     confirm_connection()
     machine_groups.append(create_machinegroup('Test_Machine_Group'))
+    machines.append(create_machine('test_machine', 'fqdn', 'sei.cmu.edu', 'test_host', 'test_resolved_host',
+                                   '17.172.224.47', 'username', '0.0.1'))
     list_machine_groups()
     list_machines()
 

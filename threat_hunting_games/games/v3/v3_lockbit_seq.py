@@ -41,6 +41,7 @@ from . import arena_v3 as arena
 game_name = "chain_game_v2_seq_lockbit"
 game_long_name = "Chain game version 3 Sequential LockBit"
 game_max_turns = 30
+num_players = len(arena.Players)
 
 _GAME_TYPE = pyspiel.GameType(
     short_name=game_name,
@@ -53,8 +54,8 @@ _GAME_TYPE = pyspiel.GameType(
     # Markov decision processes. (See spiel.h)
     reward_model=pyspiel.GameType.RewardModel.TERMINAL,
     # Note again: num_players doesn't count Chance
-    max_num_players=len(arena.Players),
-    min_num_players=len(arena.Players),
+    max_num_players=num_players,
+    min_num_players=num_players,
     provides_information_state_string=True,
     provides_information_state_tensor=True,
     provides_observation_string=True,
@@ -70,7 +71,6 @@ _GAME_TYPE = pyspiel.GameType(
         "num_turns": game_max_turns,
     }
 )
-
 
 def make_game_info(num_turns: int) -> pyspiel.GameInfo:
     # The most expensive strategy is for D to always wait while A
@@ -94,7 +94,7 @@ def make_game_info(num_turns: int) -> pyspiel.GameInfo:
     return pyspiel.GameInfo(
         num_distinct_actions=len(arena.Actions),
         max_chance_outcomes=0,
-        num_players=len(arena.Players),
+        num_players=num_players,
         min_utility=float(min_utility),
         max_utility=float(max_utility),
         utility_sum=0.0,
@@ -151,7 +151,7 @@ class InProgress():
             if completed is None:
                 self._completed = arena.action_completed(action)
             elif completed is NA:
-                # a bit of a kludge, pass in -1 for a WAIT action;
+                # a bit of a kludge, pass in NA for a WAIT action;
                 # setting completed to None here prevents success/fail
                 # messages from appearing for a WAIT
                 self_completed = None
@@ -730,28 +730,20 @@ class GameState(pyspiel.State):
                     # attack action did not suffer a general failure;
                     # now see if it gets detected by this defend action
                     attack_action = attack_action_state.action
-                    if arena.action_cmp(
-                            action, attack_action) is True:
-                        # attack action can possibly be detected by the
-                        # current defend action
-                        if arena.action_completed(
-                                action, attack_action):
-                            # attack action is *actually* detected by
-                            # the current defend action; defender gets
-                            # reward, attacker takes damage
-                            self.defender_state.tally(
-                                    action, attack_action)
-                            self.attacker_state.tally(
-                                    attack_action, action)
-                            detected = True
-                            atk_action = attack_action
-                            break
-                        else:
-                            # note that if the detection *could have*
-                            # detected the attack action, but failed, we
-                            # continue sweeping the attack action
-                            # history.
-                            pass
+                    if arena.action_completed(action, attack_action):
+                        # attack action is *actually* detected by the
+                        # current defend action; defender gets reward,
+                        # attacker takes damage
+                        self.defender_state.tally(action, attack_action)
+                        self.attacker_state.tally(attack_action, action)
+                        detected = True
+                        atk_action = attack_action
+                        break
+                    else:
+                        # note that if the detection *could have*
+                        # detected the attack action, but failed, we
+                        # continue sweeping the attack action history.
+                        pass
             if not detected:
                 # if the *last* attack action was an asserted action
                 # (not IN_PROGRESS or WAIT), goes undetected, and has

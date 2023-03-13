@@ -199,12 +199,12 @@ GeneralFails = {
 # point of view of the primary keys, i.e. defend actions.
 SkirmishFails = {
     Actions.PSGREP: {
-        Actions.SO_VERIFY_PRIV: 0.10,
-        Actions.SO_VERIFY_PRIV_STRONG: 0.90,
-    }
+        Actions.S0_VERIFY_PRIV: 0.10,
+        Actions.S0_VERIFY_PRIV_CAMO: 0.90,
+    },
     Actions.PSGREP_STRONG: {
         Actions.S0_VERIFY_PRIV: 0.05,
-        Actions.SO_VERIFY_PRIV_CAMO: 0.10,
+        Actions.S0_VERIFY_PRIV_CAMO: 0.10,
     },
     Actions.SMB_LOGS: {
         Actions.S1_WRITE_EXE: 0.10,

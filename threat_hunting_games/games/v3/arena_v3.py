@@ -261,35 +261,41 @@ def get_skirmish_pct_win(action1, action2):
         pct_win = SkirmishWins[action1].get(action2, 0.0)
     return pct_win
 
-def action_completed(action1, action2=None):
+def action_faulty(action):
     # I suspect that using chance nodes in open_spiel might be a viable
-    # way for dealing with an action failing...
+    # way for dealing with an action failing to execute...
 
-    if action1 in NoOp_Actions:
+    if action in NoOp_Actions:
         # don't want to advance on a no-op action
         return None
-    if action2 is None:
-        # general failure chance
-        pct_fail = get_general_pct_fail(action1)
-    else:
-        # skirmish fail chance
-        if action1 in SkirmishFails:
-            pct_fail = get_skirmish_pct_fail(action1, action2)
-        else:
-            pct_fail = 1 - get_skirmish_pct_win(action1, action2)
     completed = True
+    pct_fail = get_general_pct_fail(action)
     if pct_fail:
         chance = random.random()
         completed = chance > pct_fail
         if not completed:
-            action1 = action_to_str(action1)
-            if action2:
-                action2 = action_to_str(action2)
-                print(f"action SKIRMISH fail! {action1} vs {action2}: {chance:.2f} > {pct_fail:.2f} : {completed}")
-            else:
-                print(f"action GENERAL fail! {action1}: {chance:.2f} > {pct_fail:.2f} : {completed}")
+            action = action_to_str(action)
+            print(f"action GENERAL fail! {action}: {chance:.2f} > {pct_fail:.2f} : {completed}")
     #print("action_completed() end\n")
-    return completed
+    return not completed
+
+def action_defeated(action1, action2):
+
+    if action1 in NoOp_Actions:
+        # don't want to advance on a no-op action
+        return None
+    # skirmish fail chance
+    if action1 in SkirmishFails:
+        pct_fail = get_skirmish_pct_fail(action1, action2)
+    else:
+        pct_fail = 1 - get_skirmish_pct_win(action1, action2)
+    successful = True
+    if pct_fail:
+        chance = random.random()
+        successful = chance > pct_fail
+        if not successful:
+            print(f"action SKIRMISH fail! {action_to_str(action1)} vs {action_to_str(action2)}: {chance:.2f} > {pct_fail:.2f} : {successful}")
+    return not successful
 
 def attack_reward(action: Actions):
     # reward received for attack action

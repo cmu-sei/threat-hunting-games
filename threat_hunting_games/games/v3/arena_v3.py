@@ -64,6 +64,27 @@ NoOp_Actions = tuple(sorted([
     Actions.IN_PROGRESS,
 ]))
 
+Atk_Actions_By_Pos = (
+    (
+      # pos 0
+      Actions.WAIT,
+      Actions.S0_VERIFY_PRIV,
+      Actions.S0_VERIFY_PRIV_CAMO,
+    ),
+    (
+      # pos 1
+      Actions.WAIT,
+      Actions.S1_WRITE_EXE,
+      Actions.S1_WRITE_EXE_CAMO,
+    ),
+    (
+      # pos 2
+      Actions.WAIT,
+      Actions.S2_ENCRYPT,
+      Actions.S2_ENCRYPT_CAMO,
+    ),
+)
+
 def player_to_str(player: Actions) -> str:
     # call the enum in case player is an int
     if player is not None:

@@ -101,99 +101,6 @@ def make_game_info(num_turns: int) -> pyspiel.GameInfo:
         max_game_length=game_max_turns,
     )
 
-# constant meaning "not applicable"
-class NA:
-    pass
-
-class InProgress():
-    """
-    For the given action indicate the remaining number of IN_PROGRESS
-    actions to take before finalizing the effect of the given action.
-    Also make a note of which turn in the game this InProgress
-    originated.
-    """
-
-    # these get replaced by instance vars in set()
-    _action = None
-    _turns = 0
-    _faulty = None
-    _from_turn = None
-
-    def __init__(self, action=None, turns=0, from_turn=None, faulty=None):
-        self.set(action, turns, from_turn, faulty)
-
-    @property
-    def action(self):
-        return self._action
-
-    @property
-    def turns(self):
-        return self._turns
-
-    @property
-    def from_turn(self):
-        return self._from_turn
-
-    @property
-    def faulty(self):
-        return self._faulty
-
-    @property
-    def in_progress(self):
-        # even faulty actions have to complete their progress sequence
-        return self._turns > 0
-
-    def take_turn(self):
-        self._turns -= 1
-
-    def set(self, action, turn_cnt, from_turn, faulty=None):
-        self._action = action
-        self._turns = turn_cnt
-        self._from_turn = from_turn
-        if action is None:
-            self._faulty = None
-        else:
-            if faulty is None:
-                self._faulty = arena.action_faulty(action)
-            elif faulty is NA:
-                # a bit of a kludge, pass in NA for a WAIT action;
-                # setting faulty to None here prevents success/fail
-                # messages from appearing for a WAIT
-                self._faulty = None
-            else:
-                self._faulty = faulty
-
-    def reset(self):
-        self.set(None, 0, None,  None)
-
-    def copy(self):
-        return InProgress(self.action, self.turns,
-                self.from_turn, self.faulty)
-
-    def __str__(self):
-        return f"[ turn: {self.turns} action: {self.action} ]"
-
-
-Atk_Actions_By_Pos = (
-    (
-      # pos 0
-      arena.Actions.WAIT,
-      arena.Actions.S0_VERIFY_PRIV,
-      arena.Actions.S0_VERIFY_PRIV_CAMO,
-    ),
-    (
-      # pos 1
-      arena.Actions.WAIT,
-      arena.Actions.S1_WRITE_EXE,
-      arena.Actions.S1_WRITE_EXE_CAMO,
-    ),
-    (
-      # pos 2
-      arena.Actions.WAIT,
-      arena.Actions.S2_ENCRYPT,
-      arena.Actions.S2_ENCRYPT_CAMO,
-    ),
-)
 
 @dataclass
 class ActionState:
@@ -202,47 +109,63 @@ class ActionState:
     meta-information -- used for storing action histories in action
     histories for ActionState and DefenderState.
     """
-    action: arena.Actions
-    progress: InProgress
-    finished: bool = False
-    defeated: bool = False
-
-    @property
-    def depleted(self):
-        # has this action already dealt out final reward/damage
-        return not (self.action not in arena.NoOp_Actions \
-                and not self.progress.faulty and not self.finished)
+    action: arena.Actions|None = None
+    from_turn: int|None = None
+    turns_remaining: int = 0
+    initial_turns: int = 0
+    faulty: bool|None = None
+    depleted: bool|None = None
+    defeated: bool|None = None
 
     @property
     def in_progress(self):
-        # this is not necessarily the same as `not self.depleted` or
-        # `not self.finished`
-        return self.progress.in_progress
+        # even faulty actions have to complete their progress sequence
+        return self.turns_remaining > 0
 
     @property
-    def faulty(self):
-        # action suffered a general failure determined at the outset of
-        # this action
-        return self.progress.faulty
+    def finished(self) -> bool:
+        return not self.in_progress
 
-    def finish(self):
-        self.finished = True
+    @property
+    def was_delayed(self):
+        return bool(self.initial_turns)
+
+    def take_turn(self):
+        assert self.in_progress, "no turns to take"
+        self.turns_remaining -= 1
+
+    def set_turns(self, turns: int):
+        if self.action == arena.Actions.WAIT and turns:
+            raise ValueError()
+        self.initial_turns = turns
+        self.turns_remaining = turns
+
+    def capitulate(self):
+        self.deplete()
+        self.defeated = True
+
+    def deplete(self):
+        self.depleted = True
+
+    def __str__(self):
+        return f"[ from turn: {self.from_turn} turns left: {self.turns_remaining} action: {arena.action_to_str(self.action)} ]"
 
 
 @dataclass
-class BaseState:
+class BasePlayerState:
     """
     Common properties/methods shared between AttackerState and
     DefenderState. Note that "asserted" means any action besides
     IN_PROGRESS and the last action if it is still in progress.
     """
     utility: int = 0
-    full_history: tuple[arena.Actions] = ()
+    full_history: tuple[ActionState] = ()
     available_actions: tuple[arena.Actions] = ()
-    progress: InProgress = None # needs to be initialized individually
     costs: tuple[int] = ()
     rewards: tuple[int] = ()
     damages: tuple[int] = ()
+    curr_turn: int = 0
+    player: str = None
 
     @property
     def history(self) -> arena.Actions|None:
@@ -258,27 +181,26 @@ class BaseState:
 
     @property
     def asserted_state_history(self) -> tuple[ActionState]:
+        # Return all ActionStates excluding IN_PROGRESS actions,
+        # including the last asserted state even if it is unfinished.
+        history = self.full_history if self.full_history else []
+        return (x for x in history if x.action != arena.Actions.IN_PROGRESS)
+
+    @property
+    def finished_state_history(self) -> tuple[ActionState]:
         # Return all ActionStates excluding IN_PROGRESS actions. Also
         # exclude the last asserted ActionState if it is still in
-        # progress and has not been finalized.
+        # progress.
         if self.full_history and \
                 self.full_history[-1].action == arena.Actions.IN_PROGRESS:
             history = list(self.full_history)
-            last_is_delayed = False
-            while history and history[-1].action == arena.Actions.IN_PROGRESS:
-                last_is_delayed = True
-                history.pop()
-            if history and last_is_delayed:
+            while history and \
+                    (history[-1].action == arena.Actions.IN_PROGRESS
+                            or history[-1].in_progress):
                 history.pop()
         else:
             history = self.full_history
         return (x for x in history if x.action != arena.Actions.IN_PROGRESS)
-
-    @property
-    def last_action(self) -> arena.Actions|None:
-        # Return just the action from the last ActionState, even if it
-        # is the IN_PROGRESS action.
-        return self.last_state.action if self.full_history else None
 
     @property
     def last_state(self) -> ActionState|None:
@@ -286,23 +208,43 @@ class BaseState:
         return self.full_history[-1] if self.full_history else None
 
     @property
-    def last_asserted_action(self) -> arena.Actions|None:
-        # Return the just the last action withing an ActionState
-        # excluding IN_PROGRESS and the last action if it is still in
-        # progress.
-        last = None
-        if self.full_history:
-            *_, last = self.asserted_history
-        return last.action
-
-    @property
     def last_asserted_state(self) -> ActionState|None:
         # Return the just the last ActionState excluding IN_PROGRESS and
         # the last ActionState if it is still in progress.
         last = None
         if self.full_history:
-            *_, last = self.asserted_state_history
+            try:
+                idx = -1
+                while True:
+                    last = self.full_history[idx]
+                    idx -= 1
+                    if last.action != arena.Actions.IN_PROGRESS:
+                        break
+            except IndexError:
+                pass
         return last
+
+    @property
+    def last_finished_state(self) -> ActionState|None:
+        # Return the just the last ActionState excluding IN_PROGRESS and
+        # the last ActionState if it is still in progress.
+        last = None
+        if self.full_history:
+            try:
+                idx = -1
+                while True:
+                    last = self.full_history[idx]
+                    idx -= 1
+                    if last == arena.Actions.IN_PROGRESS or last.in_progress:
+                        continue
+            except IndexError:
+                pass
+        return last
+
+    @property
+    def state(self) -> ActionState|None:
+        # include last state if it is still in progress
+        return self.last_asserted_state
 
     @property
     def last_reward(self) -> int|None:
@@ -312,11 +254,16 @@ class BaseState:
     def last_damage(self) -> int|None:
         return self.damages[-1] if self.damages else 0
 
-    def reset_progress(self):
-        self.progress = InProgress()
-
     def record_action(self, action: arena.Actions):
-        self.full_history += (ActionState(action, self.progress),)
+        if action in arena.NoOp_Actions:
+            action_state = ActionState(action,
+                    self.curr_turn, faulty=False)
+        else:
+            action_state = ActionState(action, self.curr_turn)
+        self.full_history += (action_state,)
+        self.costs += (0,)
+        self.rewards += (0,)
+        self.damages += (0,)
 
     def _increment_tuple(self, t, inc):
         # dataclass doesn't allow mutable (list) fields (even though you
@@ -325,46 +272,49 @@ class BaseState:
 
     def increment_cost(self, inc):
         self.costs = self._increment_tuple(self.costs, inc)
+        self.utility -= inc
 
     def increment_reward(self, inc):
         self.rewards = self._increment_tuple(self.rewards, inc)
+        self.utility += inc
 
     def increment_damage(self, inc):
         self.damages = self._increment_tuple(self.damages, inc)
+        self.utility -= inc
 
 
 @dataclass
-class AttackerState(BaseState):
+class AttackerState(BasePlayerState):
     """
     Track all state and history for the attacker. Adds one more field to
     BaseState: state_pos, which tracks the advancement steps/stages of
     an attack sequence.
     """
+    available_actions: tuple[arena.Actions] = arena.Atk_Actions_By_Pos[0]
     state_pos: int = 0
+    player: str = "Attacker"
 
     @property
     def got_all_the_marbles(self):
         """
         Final attack stage has been successfully completed.
         """
-        return self.state_pos == len(Atk_Actions_By_Pos)
+        return self.state_pos == len(arena.Atk_Actions_By_Pos)
 
     def advance(self, action: arena.Actions):
         """
         Attacker attempts to make their move.
         """
 
-        if not self.progress:
-            # if initialized in BaseState ends up being shared between
-            # AttackerState and DefenderState
-            self.progress = InProgress()
-        if not self.available_actions:
-            self.available_actions = Atk_Actions_By_Pos[self.state_pos]
+        self.curr_turn = 2 * len(self.full_history) + 1
 
-        curr_turn = 2 * len(self.full_history) + 1
+        self.record_action(action)
+
+        if not self.available_actions:
+            self.available_actions = arena.Atk_Actions_By_Pos[self.state_pos]
 
         if action != arena.Actions.IN_PROGRESS:
-            print(f"\nAttacker (turn {curr_turn}): action {arena.action_to_str(action)}")
+            print(f"{self.player} (turn {self.curr_turn}): selected {arena.action_to_str(action)}")
 
         utils = arena.Utilities[action]
 
@@ -375,42 +325,34 @@ class AttackerState(BaseState):
         self.rewards += (0,)
         self.damages += (0,)
 
-        self.record_action(action)
-
         def _resolve_action():
             # tally action -- the delayed source action gets its reward;
             # this reward can potentially be lessened or nullified later
             # by defend action damage if this action is detected. If the
             # action was faulty there is no reward or advancement.
-            if not self.progress.action:
-                raise ValueError("no action set in progress")
-            if not self.progress.faulty:
+            assert self.state, "no current action state in ActionState"
+            if self.state.faulty:
                 # action suffered a general failure determined at
                 # the outset
-                if self.progress.action not in arena.NoOp_Actions:
-                    print(f"Attacker (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: faulty execution, attacker stays at position {self.state_pos}")
+                if self.state.was_delayed:
+                    print(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.action_to_str(self.state.action)} from turn {self.state.from_turn}: faulty execution, {self.player} stays at position {self.state_pos}")
             else:
-                reward = arena.attack_reward(self.progress.action)
-                self.utility += reward
+                reward = arena.attack_reward(self.state.action)
                 self.increment_reward(reward)
-                if self.progress.action not in arena.NoOp_Actions:
+                if self.state.was_delayed:
                     self.state_pos += 1
-                    print(f"Attacker (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: executed, attacker advance to position {self.state_pos}")
-            if self.state_pos >= len(Atk_Actions_By_Pos):
+                    print(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.action_to_str(self.state.action)} from turn {self.state.from_turn}: executed, {self.player} advance to position {self.state_pos}")
+            if self.state_pos >= len(arena.Atk_Actions_By_Pos):
                 self.available_actions = ()
             else:
                 self.available_actions = \
-                        Atk_Actions_By_Pos[self.state_pos]
-            # ready for a new action
-            self.reset_progress()
+                        arena.Atk_Actions_By_Pos[self.state_pos]
 
         if action == arena.Actions.IN_PROGRESS:
             # still in the progress sequence of an asserted action;
             # possibly conclude that action and reset available actions
-
-            #print(f"attack progress: {self.progress}")
-            self.progress.take_turn()
-            if self.progress.turns <= 0:
+            self.state.take_turn()
+            if self.state.finished:
                 # time to resolve the action that triggered this
                 # IN_PROGRESS sequence
                 _resolve_action()
@@ -421,21 +363,21 @@ class AttackerState(BaseState):
             # actions are limited to just IN_PROGRESS for turn_cnt
             # turns; this initiating action is not detectable by the
             # defender until the progress turns are complete.
-            if self.progress.action:
-                raise ValueError(f"stale attacker action: {arena.action_to_str(self.progress.action)}")
+
             # how many IN_PROGRESS states before this action resolves
             turn_cnt = arena.get_timewait(action).rand_turns()
-
-            if not turn_cnt:
+            if action == arena.Actions.WAIT:
+                print("WAIT turn_cnt, initial_turns:", turn_cnt, self.state.initial_turns, bool(turn_cnt))
+            if turn_cnt:
+                # limit actions to just IN_PROGRESS for turn_cnt turns
+                assert self.state.action != arena.Actions.WAIT, "whoops"
+                self.state.set_turns(turn_cnt)
+                self.available_actions = (arena.Actions.IN_PROGRESS,)
+                print(f"{self.player} (turn {self.curr_turn}): will resolve {arena.action_to_str(action)} in turn {self.curr_turn + 2*turn_cnt} after {turn_cnt} {arena.action_to_str(arena.Actions.IN_PROGRESS)} actions")
+            else:
                 # don't currently have any actions besides WAIT that
                 # have turn_cnt == 0
-                self.progress.set(action, 0, curr_turn, True)
                 _resolve_action()
-            else:
-                # limit actions to just IN_PROGRESS for turn_cnt turns
-                self.progress.set(action, turn_cnt, curr_turn)
-                self.available_actions = (arena.Actions.IN_PROGRESS,)
-                print(f"Attacker (turn {curr_turn}): will resolve {arena.action_to_str(action)} in turn {curr_turn + 2*turn_cnt} after {turn_cnt} {arena.action_to_str(arena.Actions.IN_PROGRESS)} actions")
 
     def tally(self, action: arena.Actions, defend_action: arena.Actions):
         """
@@ -447,37 +389,36 @@ class AttackerState(BaseState):
         when the attack action was first initiated -- but might be
         negated here.
         """
-        if self.last_action is None:
+        if self.state.action is None:
             raise ValueError("no prior action")
-        if not self.progress.faulty:
+        if not self.state.faulty:
             # action did not suffer a general failure at outset;
             # reward was already tallied when action initiated (but
             # might be taken away here via damage)
             damage = arena.defend_damage(defend_action, action)
-            self.increment_damage(-damage)
-            self.utility -= damage
+            self.increment_damage(damage)
         
 
 @dataclass
-class DefenderState(BaseState):
+class DefenderState(BasePlayerState):
     """
     Track all state and history for the defender.
     """
+    available_actions: tuple[arena.Actions] = arena.Defend_Actions
+    player: str = "Defender"
 
     def detect(self, action: arena.Actions):
 
-        if not self.progress:
-            # if initialized in BaseState ends up being shared between
-            # AttackerState and DefenderState
-            self.progress = InProgress()
         if not self.available_actions:
             self.available_actions = arena.Defend_Actions
 
         # +2 because defender always moves second
-        curr_turn = 2 * len(self.full_history) + 2
+        self.curr_turn = 2 * len(self.full_history) + 2
+
+        self.record_action(action)
 
         if action != arena.Actions.IN_PROGRESS:
-            print(f"\nDefender (turn {curr_turn}): action {arena.action_to_str(action)}")
+            print(f"{self.player} (turn {self.curr_turn}): selected {arena.action_to_str(action)}")
 
         utils = arena.Utilities[action]
 
@@ -488,28 +429,25 @@ class DefenderState(BaseState):
         self.rewards += (0,)
         self.damages += (0,)
 
-        self.record_action(action)
-
         def _resolve_action():
             # the defender action does *not* immediately yield a reward
             # -- that happens only with a successful detect action which
             # is determined later in GameState._apply_action()
-            if self.progress.faulty:
-                # action suffered a general failure at outset
-                if self.progress.action not in arena.NoOp_Actions:
-                    print(f"Defender (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: faulty execution")
+            if self.state.faulty:
+                if self.state.was_delayed:
+                    # action suffered a general failure at outset
+                    print(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.action_to_str(self.state.action)} from turn {self.state.from_turn}: faulty execution")
             else:
-                if self.progress.action not in arena.NoOp_Actions:
-                    print(f"Defender (turn {curr_turn}): resolved {arena.action_to_str(self.progress.action)} from turn {self.progress.from_turn}: executed")
-            # ready for a new action
-            self.reset_progress()
+                if self.state.was_delayed:
+                    print(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.action_to_str(self.state.action)} from turn {self.state.from_turn}: executed")
+            # back to all defend actions available
             self.available_actions = arena.Defend_Actions
 
         if action == arena.Actions.IN_PROGRESS:
             # still in progress sequence
             #print("defend progress:", self.progress)
-            self.progress.take_turn()
-            if self.progress.turns <= 0:
+            self.state.take_turn()
+            if self.state.finished:
                 _resolve_action()
                 self.available_actions = arena.Defend_Actions
         else:
@@ -520,34 +458,29 @@ class DefenderState(BaseState):
             # turns; this initiating action does not (potentially)
             # detect an attacker action until the progress turns are
             # complete.
-            if self.progress.action:
-                raise ValueError(f"stale defender action: {arena.action_to_str(self.progress.action)}")
             turn_cnt = arena.get_timewait(action).rand_turns()
             if not turn_cnt:
                 # don't currently have any actions besides WAIT that
                 # have turn_cnt == 0
-                self.progress.set(action, 0, curr_turn, True)
                 _resolve_action()
             else:
                 # limit actions to just IN_PROGRESS for turn_cnt turns
-                self.progress.set(action, turn_cnt, curr_turn)
+                self.state.set_turns(turn_cnt)
                 self.available_actions = (arena.Actions.IN_PROGRESS,)
-                print(f"Defender (turn {curr_turn}): will resolve {arena.action_to_str(action)} in turn {curr_turn + 2*turn_cnt} after {turn_cnt} {arena.action_to_str(arena.Actions.IN_PROGRESS)} actions")
+                print(f"{self.player} (turn {self.curr_turn}): will resolve {arena.action_to_str(action)} in turn {self.curr_turn + 2*turn_cnt} after {turn_cnt} {arena.action_to_str(arena.Actions.IN_PROGRESS)} actions")
 
     def tally(self, action: arena.Actions, attack_action: arena.Actions):
         # Gets called for rewards on successful defend action as well as
         # damages from attack actions that have not been detected yet.
-        if self.last_action is None:
+        if self.state is None:
             raise ValueError("no prior action")
-        if not self.progress.faulty:
+        if not self.state.faulty:
             # There was no GENERAL failure of this detect action
             # at outset
             reward = arena.defend_reward(action, attack_action)
             self.increment_reward(reward)
-            self.utility += reward
             damage = arena.attack_damage(attack_action)
-            self.increment_damage(-damage)
-            self.utility -= damage
+            self.increment_damage(damage)
 
 
 # pylint: disable=too-few-public-methods
@@ -560,14 +493,18 @@ class GameState(pyspiel.State):
             "game length must have even number of turns"
         self._num_turns = game_info.max_game_length
         self._curr_turn = 0
+        # _turns_seen is just for display purposes in _legal_actions()
+        self._turns_seen = set()
         # GameState._legal_actions gets called before available actions
         # can be popuated in AttackerState and DefenderState...so
-        # initiaize them here.
-        self._attacker = \
-                AttackerState(available_actions=Atk_Actions_By_Pos[0])
-        self._defender = \
-                DefenderState(available_actions=arena.Defend_Actions)
-        self._turns_seen = set()
+        # initiaize available actions here.
+        self._attacker = AttackerState()
+        self._defender = DefenderState()
+        #self._attacker = \
+        #        AttackerState(available_actions=arena.Atk_Actions_By_Pos[0])
+        #self._defender = \
+        #        DefenderState(available_actions=arena.Defend_Actions)
+        #self._turns_seen = set()
 
         # attacker always moves first
         self._current_player = arena.Players.ATTACKER
@@ -664,10 +601,9 @@ class GameState(pyspiel.State):
                 actions = self.defender_state.available_actions
             case _:
                 raise ValueError(f"undefined player: {player}")
-        if not (len(actions) == 1 \
-                and actions[0] == arena.Actions.IN_PROGRESS) \
+        if not (actions and actions[0] == arena.Actions.IN_PROGRESS) \
                 and self._curr_turn not in self._turns_seen:
-            print(f"{arena.player_to_str(self.current_player())} (turn {self._curr_turn+1}): legal actions {[arena.action_to_str(x) for x in actions]}")
+            print(f"\n{arena.player_to_str(self.current_player())} (turn {self._curr_turn+1}): legal actions {[arena.action_to_str(x) for x in actions]}")
             self._turns_seen.add(self._curr_turn)
         return actions
 
@@ -732,17 +668,19 @@ class GameState(pyspiel.State):
         # register cost of action, add to history, initiate IN_PROGRESS
         # sequences, etc
         self._defender.detect(action)
+        print("after detect resolved:", arena.action_to_str(action), self._defender.state.finished, self._defender.state.in_progress)
         self._defend_vec[self._curr_turn] = action
 
         # All non-IN_PROGRESS attack action states also excluding the
         # last attack action if it is still in progress.
         attack_action_states = \
-                list(self.attacker_state.asserted_state_history)
+                list(self.attacker_state.finished_state_history)
 
         detected = breached = False
         atk_action = None
-        if action not in arena.NoOp_Actions \
-                and not self.progress.in_progress and attack_action_states:
+        if action == arena.Actions.IN_PROGRESS \
+                and self.defender_state.state.finished \
+                and attack_action_states:
             print(f"(turn {dsp_turn}) ATK ACTION SWEEP using: {arena.action_to_str(action)}")
             # perform action sweep of attacker history to see if *any*
             # of the attacker's past actions are detected by this
@@ -755,14 +693,17 @@ class GameState(pyspiel.State):
                     # faulty actions are not detectable currently
                     continue
                 # attack action was not faulty and is not still in progress
+                defend_action = self.defender_state.state.action
                 attack_action = attack_action_state.action
-                if not arena.action_defeated(action, attack_action):
+                if not arena.action_defeated(defend_action, attack_action):
                     # attack action is *actually* detected by the
                     # current defend action; defender gets reward,
                     # attacker takes damage
-                    self.defender_state.tally(action, attack_action)
-                    self.attacker_state.tally(attack_action, action)
+                    print("HMM DEFEND ACTION:", arena.action_to_str(defend_action))
+                    self.defender_state.tally(defend_action, attack_action)
+                    self.attacker_state.tally(attack_action, defend_action)
                     detected = True
+                    attack_action_state.capitulate()
                     atk_action = attack_action
                     break
                 else:
@@ -770,12 +711,14 @@ class GameState(pyspiel.State):
                     # detected the attack action, but failed, we
                     # continue sweeping the attack action history.
                     pass
+            self.defender_state.state.deplete()
             if not detected:
                 # if the *last* completed attack action was an asserted
                 # action (not IN_PROGRESS or WAIT), goes undetected, and
                 # has not yet dealt damage to defender, do so now
                 attack_action_state = attack_action_states[-1]
                 attack_action = attack_action_state.action
+                defend_action = self.defender_state.state.action
                 if not attack_action_state.depleted:
                     # attack action did not suffer a general failure and
                     # has not dealt damage yet; now see if it definitely
@@ -783,17 +726,20 @@ class GameState(pyspiel.State):
                     # note that this indicates that the attack action
                     # failed in this skirmish even though it went
                     # undetected
-                    if not arena.action_defeated(attack_action, action):
+                    if not arena.action_defeated(
+                            attack_action, defend_action):
                         # attack action *actually* succeeded against the
                         # current defend action; defender takes damage
                         # (attacker reward has already been tallied at
                         # the outset of the attack action assuming it
                         # wasn't faulty)
-                        self.defender_state.tally(action, attack_action)
+                        self.defender_state.tally(
+                                defend_action, attack_action)
                         breached = True
                     # attack action is depleted whether or not it
                     # successfully dealt damage
-                    attack_action_state.finish()
+                    attack_action_state.deplete()
+                self.defender_state.state.capitulate()
 
         self._current_player = arena.Players.ATTACKER
 
@@ -835,6 +781,7 @@ class GameState(pyspiel.State):
 
     def rewards(self):
         """Total reward for each player for current turn"""
+        # this does not get called by openspiel...?
         return [self._attacker.last_reward, self._defender.last_reward]
 
     def returns(self):

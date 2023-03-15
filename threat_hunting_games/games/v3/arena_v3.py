@@ -314,7 +314,8 @@ def action_defeated(action1, action2):
     if pct_fail:
         chance = random.random()
         successful = chance > pct_fail
-        if not successful:
+        if not successful and pct_fail < 1:
+            # don't report skirmishes that are 100% doomed
             print(f"action SKIRMISH fail! {action_to_str(action1)} vs {action_to_str(action2)}: {chance:.2f} > {pct_fail:.2f} : {successful}")
     return not successful
 

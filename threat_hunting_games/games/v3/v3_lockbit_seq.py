@@ -668,7 +668,6 @@ class GameState(pyspiel.State):
         # register cost of action, add to history, initiate IN_PROGRESS
         # sequences, etc
         self._defender.detect(action)
-        print("after detect resolved:", arena.action_to_str(action), self._defender.state.finished, self._defender.state.in_progress)
         self._defend_vec[self._curr_turn] = action
 
         # All non-IN_PROGRESS attack action states also excluding the
@@ -681,7 +680,8 @@ class GameState(pyspiel.State):
         if action == arena.Actions.IN_PROGRESS \
                 and self.defender_state.state.finished \
                 and attack_action_states:
-            print(f"(turn {dsp_turn}) ATK ACTION SWEEP using: {arena.action_to_str(action)}")
+            defend_action = self.defender_state.state.action
+            print(f"(turn {dsp_turn}) ATK ACTION SWEEP using: {arena.action_to_str(defend_action)}")
             # perform action sweep of attacker history to see if *any*
             # of the attacker's past actions are detected by this
             # defender action.
@@ -693,7 +693,6 @@ class GameState(pyspiel.State):
                     # faulty actions are not detectable currently
                     continue
                 # attack action was not faulty and is not still in progress
-                defend_action = self.defender_state.state.action
                 attack_action = attack_action_state.action
                 if not arena.action_defeated(defend_action, attack_action):
                     # attack action is *actually* detected by the
@@ -718,7 +717,6 @@ class GameState(pyspiel.State):
                 # has not yet dealt damage to defender, do so now
                 attack_action_state = attack_action_states[-1]
                 attack_action = attack_action_state.action
-                defend_action = self.defender_state.state.action
                 if not attack_action_state.depleted:
                     # attack action did not suffer a general failure and
                     # has not dealt damage yet; now see if it definitely

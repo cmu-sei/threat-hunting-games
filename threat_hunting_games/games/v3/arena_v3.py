@@ -99,6 +99,10 @@ def action_to_str(action: Actions) -> str:
     else:
         return "None"
 
+def a2s(action: Actions) -> str:
+    # shorthand option
+    return action_to_str(action)
+
 
 class Utility(NamedTuple):
     cost:    int # utility cost
@@ -161,7 +165,7 @@ class TimeWait(NamedTuple):
         return random.randint(self.min, self.max)
 
 # min/max wait actions preceeding the given action
-TimeWaits = {
+Time_Waits = {
     Actions.WAIT:                TimeWait(0, 0),
     Actions.IN_PROGRESS:         TimeWait(0, 0),
     Actions.S0_VERIFY_PRIV:      TimeWait(1, 4),
@@ -179,7 +183,7 @@ TimeWaits = {
 }
 
 def get_timewait(action):
-    return TimeWaits.get(action, TimeWait(0, 0))
+    return Time_Waits.get(action, TimeWait(0, 0))
 
 # The GeneralFails values are the percentage of failure for an
 # unspecified failure -- the operation fails no matter which opposing
@@ -300,7 +304,7 @@ def action_faulty(action):
     #print("action_completed() end\n")
     return not completed
 
-def action_defeated(action1, action2):
+def action_succeeds(action1, action2):
 
     if action1 in NoOp_Actions:
         # don't want to advance on a no-op action
@@ -317,16 +321,26 @@ def action_defeated(action1, action2):
         if not successful and pct_fail < 1:
             # don't report skirmishes that are 100% doomed
             print(f"action SKIRMISH fail! {action_to_str(action1)} vs {action_to_str(action2)}: {chance:.2f} > {pct_fail:.2f} : {successful}")
-    return not successful
+    return successful
+
+def action_cost(action: Actions):
+    action = Actions(action)
+    assert action in Actions
+    utils = Utilities[action]
+    return utils.cost
 
 def attack_reward(action: Actions):
     # reward received for attack action
+    action = Actions(action)
+    assert action in Actions
     assert action in Attack_Actions
     utils = Utilities[action]
     return utils.reward
 
 def attack_damage(action: Actions) -> int:
     # damage dealt by attack action
+    action = Actions(action)
+    assert action in Actions
     assert action in Attack_Actions
     utils = Utilities[action]
     damage = utils.damage
@@ -339,6 +353,7 @@ def attack_damage(action: Actions) -> int:
 
 def defend_reward(action: Actions, attack_action: Actions) -> int:
     # reward received for defend action depending on attack_action
+    action = Actions(action)
     assert action in Defend_Actions
     assert attack_action in Attack_Actions
     utils = Utilities[action]
@@ -354,6 +369,7 @@ def defend_reward(action: Actions, attack_action: Actions) -> int:
 def defend_damage(action: Actions, attack_action: Actions) -> int:
     # damage (typically taking back an attack reward) dealt by defend
     # action depending on attack_action
+    action = Actions(action)
     assert action in Defend_Actions
     assert attack_action in Attack_Actions
     utils = Utilities[action]
@@ -394,8 +410,8 @@ def max_utility() -> int:
                     max_win = win_util
             if Utilities[Actions.IN_PROGRESS].cost:
                 # subtract costs of maximum possible IN_PROGRESS actions
-                if TimeWaits.get(action):
-                    max_win -= TimeWaits[action].max \
+                if Time_Waits.get(action):
+                    max_win -= Time_Waits[action].max \
                             * Utilities[Actions.IN_PROGRESS].cost
         if max_win > max_util:
             max_util = max_win
@@ -421,8 +437,8 @@ def min_utility() -> int:
                     min_fail = fail_util
             if Utilities[Actions.IN_PROGRESS].cost:
                 # subtract costs of maximum possible IN_PROGRESS actions
-                if TimeWaits.get(action):
-                    min_fail -= TimeWaits[action].max \
+                if Time_Waits.get(action):
+                    min_fail -= Time_Waits[action].max \
                             * Utilities[Actions.IN_PROGRESS].cost
         if min_fail < min_util:
             min_util = min_fail
@@ -464,7 +480,7 @@ def assert_arena_parameters():
                 f"defend action {action.name} damage must be int or ZSUM, not {utils.reward}"
     
     def assert_timewaits():
-        for action, tw in TimeWaits.items():
+        for action, tw in Time_Waits.items():
             assert action in Actions, f"not an Action: {action}"
             assert isinstance(tw, TimeWait)
     

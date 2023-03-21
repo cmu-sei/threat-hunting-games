@@ -8,7 +8,7 @@ import sys
 
 from typing import NamedTuple, Mapping, Any, List
 from enum import IntEnum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from open_spiel.python.observation import IIGObserverForPublicInfoGame
 import pyspiel  # type: ignore
 import numpy as np
@@ -162,12 +162,12 @@ class BasePlayerState:
     action even if it is still in progress.
     """
     utility: int = 0
-    history: tuple[ActionState] = ()
-    available_actions: tuple[arena.Actions] = ()
-    costs: tuple[int] = ()
-    rewards: tuple[int] = ()
-    damages: tuple[int] = ()
-    utilities: tuple[int] = ()
+    history: list[ActionState] = field(default_factory=list)
+    available_actions: list[arena.Actions] = field(default_factory=list)
+    costs: list[int] = field(default_factory=list)
+    rewards: list[int] = field(default_factory=list)
+    damages: list[int] = field(default_factory=list)
+    utilities: list[int] = field(default_factory=list)
     curr_turn: int = 0
     player: str = None
 
@@ -260,34 +260,29 @@ class BasePlayerState:
         else:
             # but completed actions can be faulty
             action_state = ActionState(action, self.curr_turn)
-        self.history += (action_state,)
-        self.costs += (0,)
-        self.rewards += (0,)
-        self.damages += (0,)
-        self.utilities += (0,)
-
-    def _increment_tuple(self, t, inc):
-        # dataclass doesn't allow mutable (list) fields (even though you
-        # can assign entirely new values to fields)
-        return t[:-1] + (t[-1] + inc,)
+        self.history.append(action_state)
+        self.costs.append(0)
+        self.rewards.append(0)
+        self.damages.append(0)
+        self.utilities.append(0)
 
     def increment_cost(self, inc):
         inc = abs(inc)
-        self.costs = self._increment_tuple(self.costs, inc)
+        self.costs[-1] -= inc
         self.utility -= inc
 
     def increment_reward(self, inc):
         inc = abs(inc)
-        self.rewards = self._increment_tuple(self.rewards, inc)
+        self.rewards[-1] += inc
         self.utility += inc
 
     def increment_damage(self, inc):
         inc = abs(inc)
-        self.damages = self._increment_tuple(self.damages, inc)
+        self.damages[-1] -= inc
         self.utility -= inc
 
     def record_utility(self):
-        self.utilities[:-1] + (self.utilities[-1] + self.utility,)
+        self.utilities[-1] = self.utility
 
 
 @dataclass
@@ -297,9 +292,9 @@ class AttackerState(BasePlayerState):
     BaseState: state_pos, which tracks the advancement steps/stages of
     an attack sequence.
     """
-    available_actions: tuple[arena.Actions] = arena.Atk_Actions_By_Pos[0]
+    available_actions: list[arena.Actions] = field(default_factory=list)
     state_pos: int = 0
-    pos: tuple[int] = ()
+    pos: list[int] = field(default_factory=list)
     stuff = np.zeros(20)
 
     @property
@@ -310,7 +305,7 @@ class AttackerState(BasePlayerState):
         return self.state_pos == len(arena.Atk_Actions_By_Pos)
 
     def increment_pos(self):
-        self.pos = self._increment_tuple(self.pos, 1)
+        self.pos[-1] += 1
 
     def advance(self, action: arena.Actions):
         """
@@ -331,9 +326,8 @@ class AttackerState(BasePlayerState):
 
         # pay the cost immediately no matter which action this is
         self.utility -= utils.cost
-        self.increment_cost(-utils.cost)
-        self.pos += (self.state_pos,)
-        print("ATK ADVANCE", self.pos)
+        self.increment_cost(utils.cost)
+        self.pos.append(self.state_pos)
 
         def _resolve_action():
             # tally action -- the delayed source action gets its reward;
@@ -382,7 +376,7 @@ class AttackerState(BasePlayerState):
                 # timewaits defined with 0 as max/min.
                 _resolve_action()
             else:
-                self.available_actions = (arena.Actions.IN_PROGRESS,)
+                self.available_actions = [arena.Actions.IN_PROGRESS]
                 print(f"{self.player} (turn {self.curr_turn}): will resolve {arena.a2s(action)} in turn {self.curr_turn + 2*turn_cnt} after {turn_cnt} {arena.a2s(arena.Actions.IN_PROGRESS)} actions")
 
 
@@ -391,7 +385,7 @@ class DefenderState(BasePlayerState):
     """
     Track all state and history for the defender.
     """
-    available_actions: tuple[arena.Actions] = arena.Defend_Actions
+    available_actions: list[arena.Actions] = field(default_factory=list)
     player: str = arena.player_to_str(arena.Players.DEFENDER)
 
     def detect(self, action: arena.Actions):
@@ -411,7 +405,7 @@ class DefenderState(BasePlayerState):
 
         # pay the cost immediately no matter which action this is
         self.utility -= utils.cost
-        self.increment_cost(-utils.cost)
+        self.increment_cost(utils.cost)
 
         def _resolve_action():
             # the defender action does *not* immediately yield a reward
@@ -567,9 +561,13 @@ class GameState(pyspiel.State):
         assert player >= 0
         match player:
             case arena.Players.ATTACKER:
-                actions = self._attacker.available_actions
+                actions = self._attacker.available_actions \
+                    if self._attacker.available_actions \
+                    else arena.Atk_Actions_By_Pos[self._attacker.state_pos]
             case arena.Players.DEFENDER:
-                actions = self._defender.available_actions
+                actions = self._defender.available_actions \
+                    if self._defender.available_actions \
+                    else arena.Defend_Actions
             case _:
                 raise ValueError(f"undefined player: {player}")
         if not (actions and actions[0] == arena.Actions.IN_PROGRESS) \

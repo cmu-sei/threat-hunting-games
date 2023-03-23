@@ -69,7 +69,7 @@ FLAGS = flags.FLAGS
 
 # Game.
 flags.DEFINE_string(
-    "game", "kuhn_poker_3p",
+    "game", thg_game_name,
     "Game and settings name.")
 
 # JPSRO - General.
@@ -195,7 +195,8 @@ def get_game(game_name):
 
   elif game_name == thg_game_name:
       game_name = thg_game_name
-      game_kwargs = { "num_players": 2 }
+      #game_kwargs = { "num_players": 2 }
+      game_kwargs = {}
 
   else:
     raise ValueError("Unrecognised game: %s" % game_name)

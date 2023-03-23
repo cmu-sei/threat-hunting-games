@@ -22,7 +22,7 @@ See the logic in ShouldDisplayStateTracker for details.
 """
 
 import collections
-import os
+import os, sys
 import re
 from typing import Optional
 
@@ -85,23 +85,34 @@ def _format_float_vector(v):
 
 def _format_tensor(tensor, tensor_name, max_cols=120):
   """Formats a tensor in an easy-to-view format as a list of lines."""
+  #print(f"  not tensor.shape: {not tensor.shape}")
+  #print(f"  tensor.shape == (0,): {tensor.shape == (0,)}")
+  #print(f"  len(tensor.shape > 3: {len(tensor.shape) > 3}")
+  #print(f"  not np.logical_or(tensor == 0, tensor == 1).all(): {not np.logical_or(tensor == 0, tensor == 1).all()}")
+  #print(f"  tensor: {tensor}")
   if ((not tensor.shape) or (tensor.shape == (0,)) or (len(tensor.shape) > 3) or
       not np.logical_or(tensor == 0, tensor == 1).all()):
+    #print("tensor opt 1")
     vec = ", ".join(str(round(v, 5)) for v in tensor.ravel())
     return ["{} = [{}]".format(tensor_name, vec)]
   elif len(tensor.shape) == 1:
+    #print("tensor opt 2")
     return ["{}: {}".format(tensor_name, _format_vec(tensor))]
   elif len(tensor.shape) == 2:
+    #print("tensor opt 3")
     if len(tensor_name) + tensor.shape[1] + 2 < max_cols:
+      #print("tensor opt 3.1")
       lines = ["{}: {}".format(tensor_name, _format_vec(tensor[0]))]
       prefix = " " * (len(tensor_name) + 2)
     else:
+      #print("tensor opt 3.2")
       lines = ["{}:".format(tensor_name), _format_vec(tensor[0])]
       prefix = ""
     for row in tensor[1:]:
       lines.append(prefix + _format_vec(row))
     return lines
   elif len(tensor.shape) == 3:
+    #print("tensor opt 4")
     lines = ["{}:".format(tensor_name)]
     rows = []
     for m in tensor:

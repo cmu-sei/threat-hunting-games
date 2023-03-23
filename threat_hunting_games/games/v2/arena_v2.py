@@ -24,12 +24,14 @@ Attack_Actions = frozenset((
     Actions.ADVANCE_NOISY,
     Actions.ADVANCE_CAMO,
 ))
+Legal_Attack_Actions = tuple(sorted(Attack_Actions))
 
 Defend_Actions = frozenset((
     Actions.WAIT,
     Actions.DETECT_WEAK,
     Actions.DETECT_STRONG,
 ))
+Legal_Defend_Actions = tuple(sorted(Defend_Actions))
 
 def player_to_string(player):
     return Players(int(player)).name.title()
@@ -125,19 +127,19 @@ def matrix_args():
 
     # row/attack POV
     _row_adv_utils = []
-    for row_adv_action in Attack_Actions:
-        for col_def_action in Defend_Actions:
+    for row_adv_action in Legal_Attack_Actions:
+        for col_def_action in Legal_Defend_Actions:
             _row_adv_utils.append(
                 consequence(row_adv_action, col_def_action))
     # col/defend POV
     _col_def_utils = []
-    for col_def_action in Defend_Actions:
-        for row_adv_action in Attack_Actions:
+    for col_def_action in Legal_Defend_Actions:
+        for row_adv_action in Legal_Attack_Actions:
             _col_def_utils.append(
                 consequence(col_def_action, row_adv_action))
     return [
-        [x.name for x in Attack_Actions],
-        [x.name for x in Defend_Actions],
+        [x.name for x in Legal_Attack_Actions],
+        [x.name for x in Legal_Defend_Actions],
         _row_adv_utils,
         _col_def_utils,
     ]

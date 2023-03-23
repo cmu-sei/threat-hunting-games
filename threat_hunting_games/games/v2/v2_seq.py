@@ -122,7 +122,7 @@ class AttackerState(NamedTuple):
 
         #print("ATTACK old_utility:", self.utility)
 
-        utils = arena.utilities[action]
+        utils = arena.Utilities[action]
 
         new_utility = self.utility - utils.cost
         new_last_action = action
@@ -137,7 +137,7 @@ class AttackerState(NamedTuple):
         if self.last_action is None:
             raise ValueError("no prior action")
 
-        utils = arena.utilities[self.last_action]
+        utils = arena.Utilities[self.last_action]
 
         new_utility = self.utility
         new_state = self.state_pos
@@ -172,7 +172,7 @@ class DefenderState(NamedTuple):
 
         #print("DEFEND old_utility:", self.utility)
 
-        utils = arena.utilities[action]
+        utils = arena.Utilities[action]
 
         new_utility = self.utility - utils.cost
 
@@ -189,7 +189,7 @@ class DefenderState(NamedTuple):
         if self.last_action is None:
             raise ValueError("no prior action")
 
-        utils = arena.utilities[self.last_action]
+        utils = arena.Utilities[self.last_action]
         new_utility = self.utility
 
         if breached:
@@ -304,9 +304,9 @@ class V2GameState(pyspiel.State):
         debug(f"legal actions for player {player}")
         match player:
             case arena.Players.ATTACKER:
-                return arena.Attack_Actions
+                return arena.Legal_Attack_Actions
             case arena.Players.DEFENDER:
-                return arena.Defend_Actions
+                return arena.Legal_Defend_Actions
             case _:
                 raise ValueError(f"undefined player: {player}")
 
@@ -439,36 +439,6 @@ class V2GameState(pyspiel.State):
     def __str__(self):
         """String for debugging. No particular semantics."""
         return f"Attacker pos at Turn {self._curr_turn}: {self._attacker.state_pos}"
-
-    ### The folowing methods are custom and not part of the API
-
-    def legal_Attack_Actions(self):
-        # Things we have to play with here for determining next actions:
-        #
-        #   - IV (attack_vec)
-        #   - current turn (position in the vector)
-        #   - we could track utility history also
-        #
-        # If we want to make determinations based on future action
-        # chains, probabilities, etc, we need to build a wrapper around
-        # this game that explores the tree -- we probably need a
-        # wrapper anyway.
-
-        return arena.Attack_Actions
-
-    def legal_Defend_Actions(self):
-        # Things we have to play with here for determining next action:
-        #
-        #   - defend_vec (I'm tracking it here, but we don't have to)
-        #   - current turn (position in the vector)
-        #   - we could track detections (and for strong detect whether
-        #     it detected a noisy or camo attack)
-        #   - we could track utility history also
-        #
-        # This logic will probably end up living into a wrapper(s) when
-        # probabability distributions, etc, enter the picture.
-
-        return arena.Defend_Actions
 
 
 class OmniscientObserver:

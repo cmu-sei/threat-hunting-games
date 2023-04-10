@@ -1,0 +1,62 @@
+{
+  "Actions List": [
+    {
+      "Name": "Expand ZIP File",
+      "Requires Admin": "False",
+      "Action": {
+        "Command": "cd %homedrive%%homepath%\\Downloads",
+        "CommandArgs": [
+          "powershell expand-archive -Path italian_breakfast.zip -destinationpath x",
+          "cd x",
+          "dir"
+        ],
+        "TrackableId": "<guid id from trackables table/>",
+        "DelayAfter": 10,
+        "DelayBefore": 10000
+      }
+    },
+    {
+      "Name": "Search Log Files",
+      "Requires Admin": "False",
+      "Action": {
+        "Command": "$search = \"hyper\" Get-EventLog -LogName system -after (Get-Date).AddDays(-1) | Where-Object { $_.Category.ToLower().Contains($search.ToLower()) -or $_.Message.ToLower().Contains($search.ToLower()) -or $_.Source.ToLower().Contains($search.ToLower())} | Format-Table -AutoSize -Wrap",
+        "CommandArgs": [
+          ""
+        ],
+        "DelayAfter": 10,
+        "DelayBefore": 10000
+      }
+    },
+    {
+      "Name": "Gain Admin",
+      "Requires Admin": "False",
+      "Action": {
+        "Command": "cd %homedrive%%homepath%\\Downloads",
+        "CommandArgs": [
+          "powershell New-Item -Path '\\admin_access_gained.flag' -ItemType File",
+          "$text = 'admin privileges gained by another system' | Out-File $text -FilePath %homedrive%%homepath%\\Downloads\\admin_access_gained.flag"
+        ],
+        "DelayAfter": 10,
+      "DelayBefore": 10000
+      }
+    },
+    {
+      "Name": "",
+      "Requires Admin": "False",
+      "Action": {
+        "Command": "",
+        "CommandArgs": []
+      }
+    },
+    {
+      "Name": "",
+      "Requires Admin": "False",
+      "Action": {
+        "Command": "",
+        "CommandArgs": [],
+        "DelayAfter": 10,
+        "DelayBefore": 10000
+      }
+    }
+  ]
+}

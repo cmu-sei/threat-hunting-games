@@ -18,7 +18,7 @@ venv
 Containers/Environment_Data/*
 !Containers/Environment_Data/dashboards
 !Containers/Environment_Data/datasources
-Containers/Logs/api-calls.log
+Containers/Logs/GHOSTSConnection.log
 
 # Basic MACOS removal
 .DS_Store

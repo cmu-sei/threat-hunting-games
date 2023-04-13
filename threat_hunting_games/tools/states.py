@@ -1,7 +1,8 @@
 import os, sys, re
 
 import pyspiel
-from open_spiel.python.algorithms.get_all_states import get_all_states
+#from open_spiel.python.algorithms.get_all_states import get_all_states
+from .threat_hunting_games.algorithms.get_all_states import get_all_states
 
 def get_leaf_states(game, depth_limit=None):
     """
@@ -13,8 +14,7 @@ def get_leaf_states(game, depth_limit=None):
     if depth_limit is None:
         depth_limit = -1
     tgt_node_cnt = game.max_game_length()
-    for state in get_all_states(game, depth_limit):
-        state = tuple((int(x), int(y)) for x, y \
-                in re.findall(r"(\d+),\s+(\d+)", state))
-        if len(state) == tgt_node_cnt:
-            yield state
+    for state_str, state in get_all_states(game, depth_limit).items():
+        if not state.is_terminal():
+            continue
+        yield state

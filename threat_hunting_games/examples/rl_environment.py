@@ -243,16 +243,16 @@ class Environment(object):
     cur_rewards = self._state.rewards()
     for player_id in range(self.num_players):
       rewards.append(cur_rewards[player_id])
-      if self._use_observation:
-        print(f"CALLING observation_tensor({player_id})", type(self._state))
-      else:
-        print(f"CALLING information_state_tensor({player_id})", type(self._state))
+      #if self._use_observation:
+      #  print(f"CALLING observation_tensor({player_id})", type(self._state))
+      #else:
+      #  print(f"CALLING information_state_tensor({player_id})", type(self._state))
       observations["info_state"].append(
           self._state.observation_tensor(player_id) if self._use_observation
           else self._state.information_state_tensor(player_id))
 
       observations["legal_actions"].append(self._state.legal_actions(player_id))
-    print("info state:", observations["info_state"])
+    #print("info state:", observations["info_state"])
     observations["current_player"] = self._state.current_player()
     discounts = self._discounts
     if step_type == StepType.LAST:

@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 import random
 
-DEBUG = True
-USE_TIMEWAITS = True
-USE_CHANCE_FAIL = True
+DEBUG = False
+
+USE_TIMEWAITS = False
+USE_CHANCE_FAIL = False
 
 def debug(*args, **kwargs):
     DEBUG and print(*args, **kwargs)
@@ -312,7 +313,7 @@ def get_skirmish_pct_fail(action1, action2):
     if USE_CHANCE_FAIL:
         return pct_fail
     else:
-        return 1.0 if pct_fail >= 50 else 0
+        return 1.0 if pct_fail >= 0.5 else 0
 
 def get_skirmish_pct_win(action1, action2):
     pct_win = 0.0
@@ -322,7 +323,7 @@ def get_skirmish_pct_win(action1, action2):
     if USE_CHANCE_FAIL:
         return pct_win
     else:
-        return 1 if pct_win >= 50 else 0
+        return 1 if pct_win >= 0.5 else 0
 
 def action_faulty(action):
     # I suspect that using chance nodes in open_spiel might be a viable
@@ -343,8 +344,7 @@ def action_faulty(action):
     return not completed
 
 def action_succeeds(action1, action2):
-
-    if action1 in NoOp_Actions:
+    if action1 in NoOp_Actions or action2 in NoOp_Actions:
         # don't want to advance on a no-op action
         return None
     # skirmish fail chance

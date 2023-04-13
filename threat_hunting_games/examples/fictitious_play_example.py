@@ -14,46 +14,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# compare with open_spiel/python/examples/cfr_example.py
+"""Python XFP example."""
 
-"""Example use of the CFR algorithm on Kuhn Poker."""
-
+import sys
 from absl import app
 from absl import flags
 
-from open_spiel.python.algorithms import cfr
-from open_spiel.python.algorithms import exploitability
+#from open_spiel.python.algorithms import exploitability
+#from open_spiel.python.algorithms import fictitious_play
+from threat_hunting_games.algorithms import exploitability
+from threat_hunting_games.algorithms import fictitious_play
 import pyspiel
 
-from threat_hunting_games.current_game import game_name
+from threat_hunting_games.gameload import game_name
 
 FLAGS = flags.FLAGS
 
 flags.DEFINE_integer("iterations", 100, "Number of iterations")
 flags.DEFINE_string("game", game_name, "Name of the game")
-# pyspiel.load_game does not accept parameter "players"
-#flags.DEFINE_integer("players", 2, "Number of players")
+flags.DEFINE_integer("players", 2, "Number of players")
 flags.DEFINE_integer("print_freq", 10, "How often to print the exploitability")
 
 
 def main(_):
   #game = pyspiel.load_game(FLAGS.game, {"players": FLAGS.players})
   game = pyspiel.load_game(FLAGS.game)
-  game_name = game.get_type().short_name
-  game_type = game.get_type()
-
-  # this conversion is not in the original example
-  if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
-      game = pyspiel.load_game_as_turn_based(game_name)
-      game_type = game.get_type()
-
-  cfr_solver = cfr.CFRSolver(game)
-
+  xfp_solver = fictitious_play.XFPSolver(game)
   for i in range(FLAGS.iterations):
-    cfr_solver.evaluate_and_update_policy()
+    print("\niter:", i)
+    xfp_solver.iteration()
+    conv = exploitability.exploitability(game, xfp_solver.average_policy())
+    sys.stdout.flush()
     if i % FLAGS.print_freq == 0:
-      conv = exploitability.exploitability(game, cfr_solver.average_policy())
-      print("Iteration {} exploitability {}".format(i, conv))
+      print("Iteration: {} Conv: {}".format(i, conv))
+      sys.stdout.flush()
 
 
 if __name__ == "__main__":

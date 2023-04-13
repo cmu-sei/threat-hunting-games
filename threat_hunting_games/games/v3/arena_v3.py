@@ -8,8 +8,13 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 import random
 
-DEBUG = True
-USE_TIMEWAITS = True
+DEBUG = False
+
+USE_TIMEWAITS = False
+USE_CHANCE_FAIL = False
+
+def debug(*args, **kwargs):
+    DEBUG and print(*args, **kwargs)
 
 # I ran into difficulties trying to put attack/defend actions in their
 # own IntEnums (0, 1, 2 value for each). Pyspiel will blow up if the
@@ -162,13 +167,13 @@ class ZSUM():
 # still work.
 Utilities = {
     Actions.WAIT:                Utility(0, 0, 0),
-    Actions.IN_PROGRESS:         Utility(1, 0, 0),
-    Actions.S0_VERIFY_PRIV:      Utility(1, 3, ZSUM),
-    Actions.S0_VERIFY_PRIV_CAMO: Utility(2, 3, ZSUM),
-    Actions.S1_WRITE_EXE:        Utility(2, 4, ZSUM),
-    Actions.S1_WRITE_EXE_CAMO:   Utility(3, 4, ZSUM),
-    Actions.S2_ENCRYPT:          Utility(3, 5, ZSUM),
-    Actions.S2_ENCRYPT_CAMO:     Utility(4, 5, ZSUM),
+    Actions.IN_PROGRESS:         Utility(0, 0, 0),
+    Actions.S0_VERIFY_PRIV:      Utility(1, 2, ZSUM),
+    Actions.S0_VERIFY_PRIV_CAMO: Utility(2, 2, ZSUM),
+    Actions.S1_WRITE_EXE:        Utility(2, 3, ZSUM),
+    Actions.S1_WRITE_EXE_CAMO:   Utility(3, 3, ZSUM),
+    Actions.S2_ENCRYPT:          Utility(3, 4, ZSUM),
+    Actions.S2_ENCRYPT_CAMO:     Utility(4, 4, ZSUM),
     # defense takes away attacker reward and gains back damage
     Actions.PSGREP:              Utility(1, ZSUM, ZSUM),
     Actions.PSGREP_STRONG:       Utility(2, ZSUM, ZSUM),
@@ -290,7 +295,10 @@ infer_wins()
 
 def get_general_pct_fail(action):
     #print(f"GENERAL pct_fail: {GeneralFails.get(action, DEFAULT_FAIL)} {action_to_str(action)}")
-    return GeneralFails.get(action, DEFAULT_FAIL)
+    if USE_CHANCE_FAIL:
+        return GeneralFails.get(action, DEFAULT_FAIL)
+    else:
+        return 0
 
 def get_skirmish_pct_fail(action1, action2):
     pct_fail = 1.0
@@ -302,14 +310,20 @@ def get_skirmish_pct_fail(action1, action2):
         #if pct_fail != DEFAULT_FAIL:
         #    print("SKIRMISH in level 2 SkirmishFails")
     #print(f"SKIRMISH pct_fail: {pct_fail} {action_to_str(action1)} {action_to_str(action2)}")
-    return pct_fail
+    if USE_CHANCE_FAIL:
+        return pct_fail
+    else:
+        return 1.0 if pct_fail >= 0.5 else 0
 
 def get_skirmish_pct_win(action1, action2):
     pct_win = 0.0
     if action1 in SkirmishWins:
         # note: don't use DEFAULT_FAIL as a fallback here
         pct_win = SkirmishWins[action1].get(action2, 0.0)
-    return pct_win
+    if USE_CHANCE_FAIL:
+        return pct_win
+    else:
+        return 1 if pct_win >= 0.5 else 0
 
 def action_faulty(action):
     # I suspect that using chance nodes in open_spiel might be a viable
@@ -330,16 +344,15 @@ def action_faulty(action):
     return not completed
 
 def action_succeeds(action1, action2):
-
-    if action1 in NoOp_Actions:
+    if action1 in NoOp_Actions or action2 in NoOp_Actions:
         # don't want to advance on a no-op action
         return None
     # skirmish fail chance
+    successful = True
     if action1 in SkirmishFails:
         pct_fail = get_skirmish_pct_fail(action1, action2)
     else:
         pct_fail = 1 - get_skirmish_pct_win(action1, action2)
-    successful = True
     if pct_fail:
         chance = random.random()
         successful = chance > pct_fail
@@ -360,7 +373,7 @@ def attack_reward(action: Actions):
     assert action in Actions
     assert action in Attack_Actions
     utils = Utilities[action]
-    return utils.reward
+    return utils.reward + action_cost(action)
 
 def attack_damage(action: Actions) -> int:
     # damage dealt by attack action
@@ -389,7 +402,7 @@ def defend_reward(action: Actions, attack_action: Actions) -> int:
     if reward is ZSUM:
         raise ValueError(
             f"defend reward {action} {utils} {attack_action} {attack_utils}  ZSUM loop")
-    return reward
+    return reward + action_cost(action)
 
 def defend_damage(action: Actions, attack_action: Actions) -> int:
     # damage (typically taking back an attack reward) dealt by defend

@@ -14,10 +14,12 @@ import pyspiel  # type: ignore
 import numpy as np
 
 from absl import logging
-from absl.logging import debug
+#from absl.logging import debug
+# this gets reset somewhere mysterious
 #logging.set_verbosity(logging.DEBUG)
 
 from . import arena_v3 as arena
+from .arena_v3 import debug
 
 # Arguments to pyspiel.GameType:
 #
@@ -132,7 +134,7 @@ class ActionState:
         return bool(self.initial_turns)
 
     @property
-    def active(self) -> bool:
+    def primed(self) -> bool:
         return not self.in_progress and not self.faulty and not self.expended
 
     def take_turn(self):
@@ -252,6 +254,14 @@ class BasePlayerState:
     def last_damage(self) -> int|None:
         return self.damages[-1] if self.damages else 0
 
+    def append_util_histories(self):
+        # this has to get called during attack actions for defender
+        # since defender gets the cost reward
+        self.costs.append(0)
+        self.rewards.append(0)
+        self.damages.append(0)
+        self.utilities.append(0)
+
     def record_action(self, action: arena.Actions):
         # create action_state, maintain history
         if action in arena.NoOp_Actions:
@@ -262,10 +272,6 @@ class BasePlayerState:
             # but completed actions can be faulty
             action_state = ActionState(action, self.curr_turn)
         self.history.append(action_state)
-        self.costs.append(0)
-        self.rewards.append(0)
-        self.damages.append(0)
-        self.utilities.append(0)
 
     def increment_cost(self, inc):
         inc = abs(inc)
@@ -281,9 +287,13 @@ class BasePlayerState:
         inc = abs(inc)
         self.damages[-1] -= inc
         self.utility -= inc
+        return inc
 
     def record_utility(self):
         self.utilities[-1] = self.utility
+
+    def legal_actions(self):
+        raise NotImplementedError()
 
 
 @dataclass
@@ -295,7 +305,6 @@ class AttackerState(BasePlayerState):
     """
     available_actions: list[arena.Actions] = field(default_factory=list)
     state_pos: int = 0
-    pos: list[int] = field(default_factory=list)
     player: str = arena.player_to_str(arena.Players.ATTACKER)
 
     @property
@@ -306,7 +315,12 @@ class AttackerState(BasePlayerState):
         return self.state_pos == len(arena.Atk_Actions_By_Pos)
 
     def increment_pos(self):
-        self.pos[-1] += 1
+        self.state_pos += 1
+
+    def legal_actions(self):
+        #return [x for x in arena.Atk_Actions_By_Pos[self.state_pos]
+        #        if arena.action_cost(x) <= self.utility]
+        return arena.Atk_Actions_By_Pos[self.state_pos]
 
     def advance(self, action: arena.Actions):
         """
@@ -321,14 +335,9 @@ class AttackerState(BasePlayerState):
             self.available_actions = arena.Atk_Actions_By_Pos[self.state_pos]
 
         if action != arena.Actions.IN_PROGRESS:
-            print(f"{self.player} (turn {self.curr_turn}): selected {arena.a2s(action)}")
+            debug(f"{self.player} (turn {self.curr_turn}): selected {arena.a2s(action)}")
 
         utils = arena.Utilities[action]
-
-        # pay the cost immediately no matter which action this is
-        self.utility -= utils.cost
-        self.increment_cost(utils.cost)
-        self.pos.append(self.state_pos)
 
         def _resolve_action():
             # tally action -- the delayed source action gets its reward;
@@ -340,29 +349,18 @@ class AttackerState(BasePlayerState):
                 # action suffered a general failure determined at
                 # the outset
                 if self.state.was_delayed:
-                    print(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: faulty execution, {self.player} stays at position {self.state_pos}")
-            else:
-                if self.last_asserted_state.action not in arena.NoOp_Actions:
-                    self.state_pos += 1
-                    self.increment_pos()
-                if self.state.was_delayed:
-                    print(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: executed, {self.player} advances to position {self.state_pos}")
-            if self.state_pos >= len(arena.Atk_Actions_By_Pos):
-                self.available_actions = ()
-            else:
-                self.available_actions = \
-                        arena.Atk_Actions_By_Pos[self.state_pos]
-            print("AVAIL NOW:", self.available_actions)
+                    debug(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: faulty execution, {self.player} stays at position {self.state_pos}")
+            elif self.state.was_delayed:
+                    debug(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: executed, {self.player} advances to position {self.state_pos}")
+            self.available_actions = self.legal_actions()
 
         if action == arena.Actions.IN_PROGRESS:
             # still in the progress sequence of a completed action;
             # possibly conclude that action and reset available actions
-            print(f"{self.player} turns left: {self.last_asserted_state.turns_remaining}")
             if self.last_asserted_state.in_progress:
                 self.last_asserted_state.take_turn()
             else:
-                print(f"{self.player} WHOOPS TAKING TURN!")
-            print(f"{self.player} turns  hmm: {self.last_asserted_state.turns_remaining} {self.last_asserted_state.completed}")
+                debug(f"{self.player} WHOOPS TAKING TURN!")
             if self.last_asserted_state.completed:
                 # time to resolve the action that triggered this
                 # IN_PROGRESS sequence
@@ -385,7 +383,7 @@ class AttackerState(BasePlayerState):
                 _resolve_action()
             else:
                 self.available_actions = [arena.Actions.IN_PROGRESS]
-                print(f"{self.player} (turn {self.curr_turn}): will resolve {arena.a2s(action)} in turn {self.curr_turn + 2*turn_cnt} after {turn_cnt} {arena.a2s(arena.Actions.IN_PROGRESS)} actions")
+                debug(f"{self.player} (turn {self.curr_turn}): will resolve {arena.a2s(action)} in turn {self.curr_turn + 2*turn_cnt} after {turn_cnt} {arena.a2s(arena.Actions.IN_PROGRESS)} actions")
 
 
 @dataclass
@@ -395,6 +393,11 @@ class DefenderState(BasePlayerState):
     """
     available_actions: list[arena.Actions] = field(default_factory=list)
     player: str = arena.player_to_str(arena.Players.DEFENDER)
+
+    def legal_actions(self):
+        #return [x for x in arena.Defend_Actions
+        #        if arena.action_cost(x) <= self.utility]
+        return arena.Defend_Actions
 
     def detect(self, action: arena.Actions):
 
@@ -407,13 +410,9 @@ class DefenderState(BasePlayerState):
         self.record_action(action)
 
         if action != arena.Actions.IN_PROGRESS:
-            print(f"{self.player} (turn {self.curr_turn}): selected {arena.a2s(action)}")
+            debug(f"{self.player} (turn {self.curr_turn}): selected {arena.a2s(action)}")
 
         utils = arena.Utilities[action]
-
-        # pay the cost immediately no matter which action this is
-        self.utility -= utils.cost
-        self.increment_cost(utils.cost)
 
         def _resolve_action():
             # the defender action does *not* immediately yield a reward
@@ -422,22 +421,20 @@ class DefenderState(BasePlayerState):
             if self.state.faulty:
                 if self.state.was_delayed:
                     # action suffered a general failure at outset
-                    print(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: faulty execution")
+                    debug(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: faulty execution")
             else:
                 if self.state.was_delayed:
-                    print(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: executed")
+                    debug(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: executed")
             # back to all defend actions available
-            self.available_actions = arena.Defend_Actions
+            self.available_actions = self.legal_actions()
 
         if action == arena.Actions.IN_PROGRESS:
             # still in progress sequence
-            #print("defend progress:", self.progress)
-            print(f"{self.player} turns left: {self.last_asserted_state.turns_remaining}")
+            #debug("defend progress:", self.progress)
             if self.last_asserted_state.in_progress:
                 self.last_asserted_state.take_turn()
             else:
-                print(f"{self.player} WHOOPS TAKING TURN!")
-            print(f"{self.player} turns  hmm: {self.last_asserted_state.turns_remaining} {self.last_asserted_state.completed}")
+                debug(f"{self.player} WHOOPS TAKING TURN!")
             if self.last_asserted_state.completed:
                 _resolve_action()
         else:
@@ -456,8 +453,8 @@ class DefenderState(BasePlayerState):
                 _resolve_action()
             else:
                 # limit actions to just IN_PROGRESS for turn_cnt turns
-                self.available_actions = (arena.Actions.IN_PROGRESS,)
-                print(f"{self.player} (turn {self.curr_turn}): will resolve {arena.a2s(action)} in turn {self.curr_turn + 2*turn_cnt} after {turn_cnt} {arena.a2s(arena.Actions.IN_PROGRESS)} actions")
+                self.available_actions = [arena.Actions.IN_PROGRESS]
+                debug(f"{self.player} (turn {self.curr_turn}): will resolve {arena.a2s(action)} in turn {self.curr_turn + 2*turn_cnt} after {turn_cnt} {arena.a2s(arena.Actions.IN_PROGRESS)} actions")
 
 
 # pylint: disable=too-few-public-methods
@@ -584,7 +581,7 @@ class GameState(pyspiel.State):
                 raise ValueError(f"undefined player: {player}")
         if not (actions and actions[0] == arena.Actions.IN_PROGRESS) \
                 and self._curr_turn not in self._turns_seen:
-            print(f"\n{arena.player_to_str(self.current_player())} (turn {self._curr_turn+1}): legal actions: {', '.join([arena.a2s(x) for x in actions])}")
+            debug(f"\n{arena.player_to_str(self.current_player())} (turn {self._curr_turn+1}): legal actions: {', '.join([arena.a2s(x) for x in actions])}")
             self._turns_seen.add(self._curr_turn)
         return actions
 
@@ -619,7 +616,8 @@ class GameState(pyspiel.State):
         """
 
         #if action != arena.Actions.IN_PROGRESS:
-        print(f"{arena.player_to_str(self.current_player())}: apply action {arena.a2s(action)} now in turn {self._curr_turn+1}")
+        debug(f"{arena.player_to_str(self.current_player())}: apply action {arena.a2s(action)} now in turn {self._curr_turn+1}")
+        #print([len(self.history()), self.history()])
 
         # Asserted as invariant in sample games:
         # assert self._is_chance and not self._game_over
@@ -631,8 +629,12 @@ class GameState(pyspiel.State):
         # _curr_turn is 0-based; this value is for display purposes
         dsp_turn = self._curr_turn + 1
 
-        #print(self.history_str())
-        #print([self.history()])
+        # some bookeeping to avoid index errors
+        self._attacker.append_util_histories()
+        self._defender.append_util_histories()
+
+        #debug(self.history_str())
+        #debug([self.history()])
 
         if self._current_player is arena.Players.ATTACKER:
             # Do not terminate game here for completed action sequence,
@@ -642,9 +644,10 @@ class GameState(pyspiel.State):
             self._attacker.advance(action)
             cost = arena.action_cost(action)
             self._attacker.increment_cost(cost)
+            self._defender.increment_reward(cost)
 
             self._attack_vec[self._curr_turn] = action
-            #print(f"ATTACK({self._curr_turn}): {self._attack_vec}")
+            #debug(f"ATTACK({self._curr_turn}): {self._attack_vec}")
 
             self._current_player = arena.Players.DEFENDER
             self._curr_turn += 1
@@ -661,29 +664,22 @@ class GameState(pyspiel.State):
         self._defender.detect(action)
 
         self._defend_vec[self._curr_turn] = action
-        #print(f"DEFEND({self._curr_turn}): {self._defend_vec}")
+        #debug(f"DEFEND({self._curr_turn}): {self._defend_vec}")
 
         cost = arena.action_cost(action)
         self._defender.increment_cost(cost)
-
-        if self._attacker.state.active:
-            reward = arena.attack_reward(self._attacker.state.action)
-            damage = arena.attack_damage(self._attacker.state.action)
-            self._attacker.increment_reward(reward)
-            self._defender.increment_damage(damage)
-            self._attacker.state.expend()
+        self._attacker.increment_reward(cost)
 
         # All completed attack action states -- does not include last
         # state if it is still in progress.
-        attack_action_states = \
-                list(self._attacker.completed_history)
+        attack_action_states = list(self._attacker.completed_history)
 
         detected = False
         atk_action = None
         #if action == arena.Actions.IN_PROGRESS \
         #        and self._defender.state.completed \
         #        and attack_action_states:
-        if self._defender.state.active and attack_action_states:
+        if self._defender.state.primed and attack_action_states:
             defend_action = self._defender.state.action
             # perform action sweep of attacker history to see if *any*
             # of the attacker's past actions are detected by this
@@ -702,8 +698,8 @@ class GameState(pyspiel.State):
                     # attacker takes damage
                     reward = arena.defend_reward(defend_action, attack_action)
                     damage = arena.defend_damage(defend_action, attack_action)
-                    self._defender.increment_reward(reward)
-                    self._attacker.increment_damage(damage)
+                    dmg = self._attacker.increment_damage(damage)
+                    self._defender.increment_reward(dmg)
                     detected = True
                     atk_action = attack_action
                     break
@@ -715,6 +711,16 @@ class GameState(pyspiel.State):
         # this defend action is spent
         self._defender.state.expend()
 
+        if not detected and self._attacker.state.primed:
+            # a viable completed attack action that is undetected
+            reward = arena.attack_reward(self._attacker.state.action)
+            damage = arena.attack_damage(self._attacker.state.action)
+            dmg = self._defender.increment_damage(damage)
+            self._attacker.increment_reward(dmg)
+            if self._attacker.state.action not in arena.NoOp_Actions:
+                self._attacker.increment_pos()
+            self._attacker.state.expend()
+
         self._defender.record_utility()
         self._attacker.record_utility()
 
@@ -725,18 +731,18 @@ class GameState(pyspiel.State):
 
         if detected:
             # we are done if defender detected attack
-            print(f"\nattack action detected, game over after {dsp_turn} turns: {arena.a2s(defend_action)} detected {arena.a2s(atk_action)}\n")
+            debug(f"\nattack action detected, game over after {dsp_turn} turns: {arena.a2s(defend_action)} detected {arena.a2s(atk_action)}\n")
             self._game_over = True
         elif self._attacker.got_all_the_marbles:
             # we are done if attacker completed action escalation sequence
-            print(f"\nattacker is feeling smug, attack sequence complete: game over after {dsp_turn} turns\n")
+            debug(f"\nattacker is feeling smug, attack sequence complete: game over after {dsp_turn} turns\n")
             self._game_over = True
 
         self._curr_turn += 1
 
         # Have we reached max game length? Terminate if so.
         if not self._game_over and self._curr_turn >= self._num_turns:
-            print(f"\nmax game length reached, terminating game after {dsp_turn} turns\n")
+            debug(f"\nmax game length reached, terminating game after {dsp_turn} turns\n")
             self._game_over = True
 
 
@@ -784,55 +790,25 @@ class OmniscientObserver:
         # note: params is invariant, it can't be used to pass things
         # back and forth between states and observer
 
-        #print("OBS PARAMS:", params)
+        #debug("OBS PARAMS:", params)
         #num_turns = params["num_turns"]
 
-        # include turn 0
-        num_turns = game_max_turns
-
-        #turn_map_size = num_turns * len(arena.Actions)
-        turn_map_size = round(num_turns/2)
-        action_size = num_turns
-        cost_size = num_turns
-        reward_size = num_turns
-        damage_size = num_turns
-        util_size = num_turns
-        pos_size = turn_map_size
-        player_size = action_size + cost_size + reward_size \
-                + damage_size + util_size
-        total_size = player_size + pos_size
-        main_shape = (num_players, turn_map_size)
-        pos_shape = (pos_size,)
-        self.tensor = np.zeros(total_size, int)
+        board_size = 3 # atk_pos, atk_util, def_util
+        hist_size = game_max_turns
+        tensor_size = board_size + hist_size
+        self.tensor = np.zeros(tensor_size, int)
         self.dict = {}
         idx = 0
-        self.dict["actions"] = \
-                self.tensor[idx:idx+action_size].reshape(main_shape)
-        idx += action_size
-        self.dict["costs"] = \
-                self.tensor[idx:idx+cost_size].reshape(main_shape)
-        idx += cost_size
-        self.dict["rewards"] = \
-                self.tensor[idx:idx+reward_size].reshape(main_shape)
-        idx += reward_size
-        self.dict["damages"] = \
-                self.tensor[idx:idx+damage_size].reshape(main_shape)
-        idx += damage_size
-        self.dict["utilities"] = \
-                self.tensor[idx:idx+util_size].reshape(main_shape)
-        idx += util_size
-        self.dict["pos"] = \
-                self.tensor[idx:idx+pos_size].reshape(pos_shape)
-
-        #print("NEW TENSOR")
-        #self.tensor = np.zeros((3,), int)
-
-        ### find out what player gets passed into set_from (it's 1/0)
+        self.dict["board"] = \
+                self.tensor[idx:idx+board_size].reshape(board_size,)
+        idx += board_size
+        self.dict["history"] = \
+                self.tensor[idx:idx+hist_size].reshape(hist_size,)
 
         # algorithms.generate_playthrough, at least, expects
         # be here (can be empty...this is based on BoardObserver in
         # games/tic_tac_toe.py):
-        #self.dict = {"observation": self.tensor}
+        #self.dict["observation"] = self.tensor
 
     def set_from(self, state: GameState, player: int):  # pylint: disable=unused-argument
         """
@@ -842,42 +818,37 @@ class OmniscientObserver:
         This is an omniscient observation, so the info will be the same
         for all players.
         """
-        #print("set_from() here, turn/player:", state._curr_turn+1, player)
+        #debug("set_from() here, turn/player:", state._curr_turn+1, player)
         # Tensor values: attacker position, attacker utility, defender utility
         #self.tensor[0] = state._attacker.state_pos
         #self.tensor[1] = state._attacker.utility
         #self.tensor[2] = state._defender.utility
 
-        if player == arena.Players.ATTACKER:
-            inner_state = state._attacker
-        else:
-            inner_state = state._defender
-
-        p_len = len(inner_state.action_history)
-        self.dict["actions"][player][:p_len] = inner_state.action_history
-        self.dict["costs"][player][:p_len] = inner_state.costs
-        self.dict["rewards"][player][:p_len] = inner_state.rewards
-        self.dict["damages"][player][:p_len] = inner_state.damages
-        self.dict["utilities"][player][:p_len] = inner_state.utilities
-        self.dict["pos"][:len(state._attacker.pos)] = state._attacker.pos
+        self.dict["board"][:] = [state._attacker.state_pos,
+                state._attacker.utility,state._defender.utility]
+        hist = state.history()
+        self.dict["history"][:len(hist)] = hist
 
     def string_from(self, state, player):  # pylint: disable=unused-argument
         """
         Return a string representation of the state updated in
         `state_from`.
         """
+        return state.history_str()
         # These are concatenated into a single string. The f prefix is
         # unnecessary for all but the first, but it makes the syntax
         # highlighting work better in Emacs. :)
         turn = round(state._curr_turn/2) - 1 # this gets invoked after turn increment
-        utility = self.dict["utilities"]
+        board = self.dict["board"]
+        hist = self.dict["history"]
         return (
             #f"Attacker position: {self.tensor[0]} | "
             #f"Attacker Utility: {self.tensor[1]} | "
             #f"Defender Utility: {self.tensor[2]}"
-            f"Attacker position: {state._attacker.state_pos} | "
-            f"Attacker Utility: {utility[arena.Players.ATTACKER][turn]} | "
-            f"Defender Utility: {utility[arena.Players.DEFENDER][turn]}"
+            f"Attacker Position: {board[0]} | "
+            f"Attacker Utility: {board[1]} | "
+            f"Defender Utility: {board[2]} | "
+            f"History: {hist}"
         )
 
 
@@ -909,10 +880,10 @@ class Game(pyspiel.Game):
         using `params`.
         """
         #if iig_obs_type:
-        #    print("make_py_observer:", iig_obs_type, params)
-        #    print(dir(iig_obs_type))
-        #    print(iig_obs_type.private_info)
-        #    print(dir(iig_obs_type.private_info))
+        #    debug("make_py_observer:", iig_obs_type, params)
+        #    debug(dir(iig_obs_type))
+        #    debug(iig_obs_type.private_info)
+        #    debug(dir(iig_obs_type.private_info))
         return OmniscientObserver(params)
 
 

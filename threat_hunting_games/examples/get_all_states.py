@@ -21,7 +21,8 @@ from absl import flags
 
 # pylint: disable=unused-import
 from open_spiel.python import games
-from open_spiel.python.algorithms import get_all_states
+#from open_spiel.python.algorithms import get_all_states
+from threat_hunting_games.algorithms import get_all_states
 from open_spiel.python.mfg import games as mfg_games
 import pyspiel
 

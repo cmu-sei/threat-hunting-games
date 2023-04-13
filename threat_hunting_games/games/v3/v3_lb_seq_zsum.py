@@ -22,11 +22,6 @@ from absl import logging
 from . import arena_zsum_v3 as arena
 from .arena_zsum_v3 import debug
 
-# the following values for utilities can potentially be overridden for
-# parameter exploration; results depending on these utilities are
-# expressed as functions, so overriding the values of this map will
-# still work.
-
 # Arguments to pyspiel.GameType:
 #
 # (short_name: str,
@@ -47,10 +42,11 @@ from .arena_zsum_v3 import debug
 #  default_loadable: bool = True,
 #  provides_factored_observation_string: bool = False)
 
-game_name = "chain_game_v2_lb_seq_cnst"
-game_long_name = "Chain game version 3 Sequential Const Sum LockBit"
+game_name = "chain_game_v2_lb_seq_zsum"
+game_long_name = "Chain game version 3 Sequential Zero Sum LockBit"
 game_max_turns = 30
-game_max_turns = 10
+game_max_turns = 8
+game_max_turns = 12
 num_players = len(arena.Players)
 
 _GAME_TYPE = pyspiel.GameType(
@@ -290,7 +286,7 @@ class BasePlayerState:
         # want to return the actual damage in case the increment
         # exceeds remaining utility
         inc = abs(inc)
-        inc = self.utility if inc > self.utility else inc
+        #inc = self.utility if inc > self.utility else inc
         self.damages[-1] -= inc
         self.utility -= inc
         return inc
@@ -300,9 +296,6 @@ class BasePlayerState:
 
     def legal_actions(self):
         raise NotImplementedError()
-
-    #def is_bankrupt(self):
-    #    return all(arena.action_cost(x) == 0 for x in self.legal_actions())
 
 
 @dataclass
@@ -330,9 +323,6 @@ class AttackerState(BasePlayerState):
         #return [x for x in arena.Atk_Actions_By_Pos[self.state_pos]
         #        if arena.action_cost(x) <= self.utility]
         return arena.Atk_Actions_By_Pos[self.state_pos]
-
-    #def is_bankrupt(self):
-    #    return all(arena.action_cost(x) == 0 for x in self.legal_actions())
 
     def advance(self, action: arena.Actions):
         """
@@ -629,6 +619,7 @@ class GameState(pyspiel.State):
 
         #if action != arena.Actions.IN_PROGRESS:
         debug(f"{arena.player_to_str(self.current_player())}: apply action {arena.a2s(action)} now in turn {self._curr_turn+1}")
+        debug([len(self.history()), self.history()])
 
         # Asserted as invariant in sample games:
         # assert self._is_chance and not self._game_over
@@ -748,12 +739,6 @@ class GameState(pyspiel.State):
             # we are done if attacker completed action escalation sequence
             debug(f"\nattacker is feeling smug, attack sequence complete: game over after {dsp_turn} turns\n")
             self._game_over = True
-        #elif self._defender.is_bankrupt():
-        #    debug(f"\ndefender has gone bankrupt ({self._defender.utility} util), game terminated.")
-        #    self._game_over = True
-        #elif self._attacker.is_bankrupt():
-        #    debug(f"\nattacker has gone bankrupt ({self._attacker.utility} util), game terminated.")
-        #    self._game_over = True
 
         self._curr_turn += 1
 
@@ -810,49 +795,22 @@ class OmniscientObserver:
         #debug("OBS PARAMS:", params)
         #num_turns = params["num_turns"]
 
-        
-        turn_map_size = round(game_max_turns/2)
-        action_size = game_max_turns
-        cost_size = game_max_turns
-        reward_size = game_max_turns
-        damage_size = game_max_turns
-        util_size = game_max_turns
-        pos_size = turn_map_size
-        player_size = action_size + cost_size + reward_size \
-                + damage_size + util_size
-        total_size = player_size + pos_size
-        main_shape = (num_players, turn_map_size)
-        pos_shape = (pos_size,)
-        self.tensor = np.zeros(total_size, int)
+        board_size = 3 # atk_pos, atk_util, def_util
+        hist_size = game_max_turns
+        tensor_size = board_size + hist_size
+        self.tensor = np.zeros(tensor_size, int)
         self.dict = {}
         idx = 0
-        self.dict["actions"] = \
-                self.tensor[idx:idx+action_size].reshape(main_shape)
-        idx += action_size
-        self.dict["costs"] = \
-                self.tensor[idx:idx+cost_size].reshape(main_shape)
-        idx += cost_size
-        self.dict["rewards"] = \
-                self.tensor[idx:idx+reward_size].reshape(main_shape)
-        idx += reward_size
-        self.dict["damages"] = \
-                self.tensor[idx:idx+damage_size].reshape(main_shape)
-        idx += damage_size
-        self.dict["utilities"] = \
-                self.tensor[idx:idx+util_size].reshape(main_shape)
-        idx += util_size
-        self.dict["pos"] = \
-                self.tensor[idx:idx+pos_size].reshape(pos_shape)
-
-        #debug("NEW TENSOR")
-        #self.tensor = np.zeros((3,), int)
-
-        ### find out what player gets passed into set_from (it's 1/0)
+        self.dict["board"] = \
+                self.tensor[idx:idx+board_size].reshape(board_size,)
+        idx += board_size
+        self.dict["history"] = \
+                self.tensor[idx:idx+hist_size].reshape(hist_size,)
 
         # algorithms.generate_playthrough, at least, expects
         # be here (can be empty...this is based on BoardObserver in
         # games/tic_tac_toe.py):
-        #self.dict = {"observation": self.tensor}
+        #self.dict["observation"] = self.tensor
 
     def set_from(self, state: GameState, player: int):  # pylint: disable=unused-argument
         """
@@ -868,34 +826,31 @@ class OmniscientObserver:
         #self.tensor[1] = state._attacker.utility
         #self.tensor[2] = state._defender.utility
 
-        if player == arena.Players.ATTACKER:
-            inner_state = state._attacker
-        else:
-            inner_state = state._defender
-        p_len = len(inner_state.action_history)
-        self.dict["actions"][player][:p_len] = inner_state.action_history
-        self.dict["costs"][player][:p_len] = inner_state.costs[:p_len]
-        self.dict["rewards"][player][:p_len] = inner_state.rewards[:p_len]
-        self.dict["damages"][player][:p_len] = inner_state.damages[:p_len]
-        self.dict["utilities"][player][:p_len] = inner_state.utilities[:p_len]
+        self.dict["board"][:] = [state._attacker.state_pos,
+                state._attacker.utility,state._defender.utility]
+        hist = state.history()
+        self.dict["history"][:len(hist)] = hist
 
     def string_from(self, state, player):  # pylint: disable=unused-argument
         """
         Return a string representation of the state updated in
         `state_from`.
         """
+        return state.history_str()
         # These are concatenated into a single string. The f prefix is
         # unnecessary for all but the first, but it makes the syntax
         # highlighting work better in Emacs. :)
         turn = round(state._curr_turn/2) - 1 # this gets invoked after turn increment
-        utility = self.dict["utilities"]
+        board = self.dict["board"]
+        hist = self.dict["history"]
         return (
             #f"Attacker position: {self.tensor[0]} | "
             #f"Attacker Utility: {self.tensor[1]} | "
             #f"Defender Utility: {self.tensor[2]}"
-            f"Attacker position: {state._attacker.state_pos} | "
-            f"Attacker Utility: {utility[arena.Players.ATTACKER][turn]} | "
-            f"Defender Utility: {utility[arena.Players.DEFENDER][turn]}"
+            f"Attacker Position: {board[0]} | "
+            f"Attacker Utility: {board[1]} | "
+            f"Defender Utility: {board[2]} | "
+            f"History: {hist}"
         )
 
 

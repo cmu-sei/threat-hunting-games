@@ -1,5 +1,5 @@
 import os
-import sys
+from sys import platform
 
 from requests import get, post, put, delete
 from uuid import uuid4
@@ -7,21 +7,24 @@ import logging
 import json
 from datetime import datetime, timezone
 import random
+import toml
 
 logger_ghosts = logging.getLogger()
 
 
 def setup_logger(logger_name: str, log_file: str, format_str: str, level=logging.DEBUG):
-    l = logging.getLogger(logger_name)
+    logger = logging.getLogger(logger_name)
     formatter = logging.Formatter(format_str)
     file_handler = logging.FileHandler(log_file, mode='w')
     file_handler.setFormatter(formatter)
-    l.setLevel(level)
-    l.addHandler(file_handler)
-    return l
+    logger.setLevel(level)
+    logger.addHandler(file_handler)
+    return logger
 
 
 class GHOSTSConnection:
+    config_data = toml.load('../pyproject.toml')
+    config_data = config_data['application.config']
     SIMULATION_ID = ''
     NUM_ATTACKERS = 0
     NUM_DEFENDERS = 0
@@ -30,24 +33,28 @@ class GHOSTSConnection:
     # Matrix reads { 'system_id' : ['Machine with admin', 'machine2 with admin']
     admin_matrix = {}
     num_current_groups = 0
-    CONN_URL = 'ghosts-api:5000'
-    SIM_FILE_PATH = '/var/spool/threat-hunting-games'
-
+    CONN_URL = config_data['prod-ghosts-uri']
+    SIM_FILE_PATH = ''
     def __init__(self, num_attackers: int = 1, num_defenders: int = 1, local_session: bool = False):
         # If not being run in the threat-hunting-games container then use localhost address and port
-        ghosts_log_path = '/var/log/threat-hunting-games/GHOSTSConnection'
+        ghosts_log_path = self.config_data['unix-ghosts-path']
+        # TODO - WINDOWS SUPPORT FOR FILE LOCATION
         if local_session:
-            self.CONN_URL = 'localhost:8080'
-            self.SIM_FILE_PATH = '/tmp/'
-            ghosts_log_path = '/tmp/threat-hunting-games'
-            try:
-                os.mkdir('/tmp/threat-hunting-games')
-            except FileExistsError:
-                pass
-            try:
-                open(os.path.join(ghosts_log_path, 'GHOSTSConnection.log'), 'x')
-            except FileExistsError:
-                pass
+            self.CONN_URL = self.config_data['local-ghosts-uri']
+        if platform == "darwin":
+            self.SIM_FILE_PATH = self.config_data['unix-sim-path']
+            ghosts_log_path = self.config_data['unix-ghosts-path']
+        elif platform == 'win32' or platform == 'cygwin':
+            self.SIM_FILE_PATH = self.config_data['windows-sim-path']
+            ghosts_log_path = self.config_data['windows-ghosts-path']
+        try:
+            os.mkdir(os.path.join(self.SIM_FILE_PATH,'threat-hunting-games'))
+        except FileExistsError:
+            pass
+        try:
+            open(os.path.join(ghosts_log_path, 'GHOSTSConnection.log'), 'x')
+        except FileExistsError:
+            pass
 
         global logger_ghosts
         logger_ghosts = setup_logger(logger_name='logger_ghosts',
@@ -67,9 +74,6 @@ class GHOSTSConnection:
         self.logger_sim = setup_logger(logger_name='sim_logger',
                                        log_file=self.sim_file_loc,
                                        format_str='[%(levelname)s] %(message)s',)
-        # logging.basicConfig(filename=self.sim_file_loc,
-        #                    format='[%(levelname)s] %(message)s',
-        #                    datefmt='%Y-%m-%d %H:%M')
         self.create_machinegroup('Attackers')
         self.create_machinegroup('Defenders')
         for a in range(0, self.NUM_ATTACKERS):
@@ -146,8 +150,10 @@ class GHOSTSConnection:
                 else:
                     self.defender_Machine_Ids.append(req_data['id'])
                 return {name: str(req_data['id'])}
-            print(f"Issue creating machine {name}. {str(req_status.content.decode('utf-8'))}")
-            return {}
+            else:
+                logger_ghosts.error(msg=f"Issue creating machine {name}. {str(req_status.content.decode('utf-8'))}")
+                self.logger_sim.error(msg=f"Unable to create {name}")
+                return {}
         except Exception as e:
             logger_ghosts.error(msg=f'Unable to create machine {name}. {str(e)}')
             print(f'Unable to create machine {name}. {str(e)}')

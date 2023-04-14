@@ -12,6 +12,7 @@ authors = ["Phil Groce <pgroce@cert.org>"]
 python = "~3.10"
 open-spiel = "^1.2"
 numpy = "^1.23.2"
+toml = "^0.10.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"
@@ -51,8 +52,13 @@ max-line-length = 88
 log_cli = false
 log_cli_level = "DEBUG"
 
+[application.config]
+unix-sim-path = "./Simulations"
+windows-sim-path = ".\\Simuations"
+unix-ghosts-path = "../Containers/Logs"
+windows-ghosts-path = "..\\Containers\\Logs"
+local-ghosts-uri = "localhost:8080"
+prod-ghosts-uri = "ghosts-api:5000"
 
-# mypy: https://mypy.readthedocs.io/
 
-# No special config here, but to add, see:
-# https://mypy.readthedocs.io/en/stable/config_file.html#using-a-pyproject-toml-file
+

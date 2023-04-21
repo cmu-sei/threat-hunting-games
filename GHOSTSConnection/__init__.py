@@ -1,5 +1,5 @@
 import os
-import sys
+from sys import platform
 
 from requests import get, post, put, delete
 from uuid import uuid4
@@ -7,21 +7,28 @@ import logging
 import json
 from datetime import datetime, timezone
 import random
+import toml
+
+POST_HEADER = {
+    'Content-Type': 'application/json'
+}
 
 logger_ghosts = logging.getLogger()
 
 
 def setup_logger(logger_name: str, log_file: str, format_str: str, level=logging.DEBUG):
-    l = logging.getLogger(logger_name)
+    logger = logging.getLogger(logger_name)
     formatter = logging.Formatter(format_str)
     file_handler = logging.FileHandler(log_file, mode='w')
     file_handler.setFormatter(formatter)
-    l.setLevel(level)
-    l.addHandler(file_handler)
-    return l
+    logger.setLevel(level)
+    logger.addHandler(file_handler)
+    return logger
 
 
 class GHOSTSConnection:
+    config_data = toml.load('./pyproject.toml')
+    config_data = config_data['config']
     SIMULATION_ID = ''
     NUM_ATTACKERS = 0
     NUM_DEFENDERS = 0
@@ -29,97 +36,130 @@ class GHOSTSConnection:
     attacker_Machine_Ids = []
     # Matrix reads { 'system_id' : ['Machine with admin', 'machine2 with admin']
     admin_matrix = {}
-    num_current_groups = 0
-    CONN_URL = 'ghosts-api:5000'
-    SIM_FILE_PATH = '/var/spool/threat-hunting-games'
+    CONN_URL = config_data['prod-ghosts-uri']
+    SIM_FILE_PATH = ''
+    TEST_SESSION = False
 
-    def __init__(self, num_attackers: int = 1, num_defenders: int = 1, local_session: bool = False):
+    def __init__(self, num_attackers: int = 1, num_defenders: int = 1, local_session: bool = False,
+                 test_session: bool = False):
         # If not being run in the threat-hunting-games container then use localhost address and port
-        ghosts_log_path = '/var/log/threat-hunting-games/GHOSTSConnection'
+        ghosts_log_path = self.config_data['unix-ghosts-path']
         if local_session:
-            self.CONN_URL = 'localhost:8080'
-            self.SIM_FILE_PATH = '/tmp/'
-            ghosts_log_path = '/tmp/threat-hunting-games'
-            try:
-                os.mkdir('/tmp/threat-hunting-games')
-            except FileExistsError:
-                pass
-            try:
-                open(os.path.join(ghosts_log_path, 'GHOSTSConnection.log'), 'x')
-            except FileExistsError:
-                pass
+            self.CONN_URL = self.config_data['local-ghosts-uri']
+        if test_session:
+            self.TEST_SESSION = True
+        if platform == "darwin":
+            self.SIM_FILE_PATH = self.config_data['unix-sim-path']
+            ghosts_log_path = self.config_data['unix-ghosts-path']
+        elif platform == 'win32' or platform == 'cygwin':
+            self.SIM_FILE_PATH = self.config_data['windows-sim-path']
+            ghosts_log_path = self.config_data['windows-ghosts-path']
+        try:
+            print(os.getcwd())
+            os.mkdir(os.path.join(os.getcwd(), self.SIM_FILE_PATH))
+        except FileExistsError:
+            pass
+        try:
+            open(os.path.join(os.getcwd(), ghosts_log_path), 'x')
+        except FileExistsError:
+            pass
 
         global logger_ghosts
         logger_ghosts = setup_logger(logger_name='logger_ghosts',
-                                     log_file=os.path.join(ghosts_log_path, 'GHOSTSConnection.log'),
-                                     format_str='%(asctime)s %(filename)8s: [%(levelname)s] %(message)s')
+                                     log_file=os.path.join(os.getcwd(), ghosts_log_path),
+                                     format_str='%(asctime)s: [%(levelname)s] %(message)s')
         self.NUM_ATTACKERS = num_attackers
         self.NUM_DEFENDERS = num_defenders
         self.SIMULATION_ID = str(uuid4())[0:8]
         self.SESSION_IP = ".".join(map(str, (random.randint(0,255) for _ in range(4))))
 
         self.sim_file_loc = os.path.join(self.SIM_FILE_PATH,
-                                         f'THREAT-SIM-{self.SIMULATION_ID}_{str(datetime.now().strftime("%d_%m"))}.txt')
+                                         f'THREAT-SIM-{self.SIMULATION_ID}_{str(datetime.now().strftime("%m_%d"))}.log')
         with open(self.sim_file_loc, 'x') as sim_file:
-            sim_file.write(f"TIME OF SIMULATION: {datetime.now().time().strftime('%H:%M:%S')}\n")
-            sim_file.write(f'NUMBER OF ATTACKERS: {self.NUM_ATTACKERS}\n')
-            sim_file.write(f'NUMBER OF DEFENDERS: {self.NUM_DEFENDERS}\n')
+            sim_file.close()
+        self.sim_file_path_full = os.path.join(os.getcwd(), self.sim_file_loc)
         self.logger_sim = setup_logger(logger_name='sim_logger',
                                        log_file=self.sim_file_loc,
                                        format_str='[%(levelname)s] %(message)s',)
-        # logging.basicConfig(filename=self.sim_file_loc,
-        #                    format='[%(levelname)s] %(message)s',
-        #                    datefmt='%Y-%m-%d %H:%M')
-        self.create_machinegroup('Attackers')
-        self.create_machinegroup('Defenders')
+        self.logger_sim.info(msg=f"TIME OF SIMULATION: {datetime.now().time().strftime('%H:%M:%S')}")
+        self.logger_sim.info(msg=f'NUMBER OF ATTACKERS: {self.NUM_ATTACKERS}')
+        self.logger_sim.info(msg=f'NUMBER OF DEFENDERS: {self.NUM_DEFENDERS}')
+        self.logger_sim.info(msg='Beginning creation of Machinegroups')
+        # Begin creating machinegroups
+        attacker_group = self.create_machinegroup('Attackers')
+        if attacker_group[0] == 'Error':
+            self.end_simulation(reason=attacker_group[1])
+        else:
+            self.logger_sim.info(msg=f'Created Machinegroup Attackers: {attacker_group}')
+        defender_group = self.create_machinegroup('Defenders')
+        if defender_group[0] == 'Error':
+            self.end_simulation(reason=defender_group[0])
+        else:
+            self.logger_sim.info(msg=f'Created Machinegroup Defenders: {defender_group}')
+        self.create_attacker_machines()
+        self.create_defender_machines()
+
+    # Function to confirm the connection of the threat-hunting-games container to the GHOSTS-API container
+    def confirm_connection(self) -> bool:
+        logger_ghosts.info(f'Attempting to confirm connection to GHOSTS_API | http://{self.CONN_URL}/api/home')
+        try:
+            test_data = get(url=f'http://{self.CONN_URL}/api/home', timeout=3)
+            if test_data.status_code == 200:
+                logger_ghosts.debug(msg=f'Connection Confirmation: {str(test_data.content.decode("utf-8"))}')
+                return True
+            else:
+                logger_ghosts.debug(msg=f'Could not confirm connection to GHOSTS API {test_data.content.decode("utf-8")}')
+                return False
+        except Exception as e:
+            logger_ghosts.error(
+                msg=f'GHOSTS-API is not currently responding, check the container status. | {e}')
+            return False
+
+    # Create the specified number of attacker machines
+    def create_attacker_machines(self):
         for a in range(0, self.NUM_ATTACKERS):
+            self.logger_sim.info(f'NUM ATTACKERS {self.NUM_ATTACKERS}')
             self.logger_sim.info(f'Creating Attacker_{a}')
             ret_dict = self.create_machine(f'Attacker{a}', 'Attacker')
             if ret_dict is None:
                 self.logger_sim.error(f'Unable to create Attacker_{a}.')
+
+    # Create the specified number of defender machines
+    def create_defender_machines(self):
         for d in range(0, self.NUM_DEFENDERS):
             self.logger_sim.info(f'Creating Defender_{d}')
             ret_dict = self.create_machine(f'Defender_{d}', 'Defender')
             if ret_dict is None:
                 self.logger_sim.error(f'Unable to create Defender_{d}.')
 
-    # Function to confirm the connection of the threat-hunting-games container to the GHOSTS-API container
-    def confirm_connection(self) -> bool:
-        print('Confirming connection to GHOSTS_API....')
-        try:
-            test_data = get(url=f'http://{self.CONN_URL}/api/home')
-            logger_ghosts.debug(msg=f'Connection Confirmation: {str(test_data.content.decode("utf-8"))}')
-            return True
-        except Exception as e:
-            logger_ghosts.error(
-                msg=f'GHOSTS-API is not currently responding, check the container status. | {e}')
-            return False
-
     # Function to create a machine group within the environment
-    def create_machinegroup(self, name: str) -> str:
+    def create_machinegroup(self, name: str) -> []:
         req_status = ''
         machine_group_uuid = str(uuid4())
-        logger_ghosts.debug(msg=f'UUID of {name}: {machine_group_uuid}')
         machinegroup_req = {
             "name": name,
-            "groupMachines": [
-                {
-                    "id": 1,
-                    "groupId": self.num_current_groups,
-                    "machineId": machine_group_uuid
-                }
-            ]
+            "groupMachines": []
         }
-        logger_ghosts.debug(msg=machinegroup_req)
-        try:
-            req_status = post(url=f'http://{self.CONN_URL}/api/', data=machinegroup_req)
-            logger_ghosts.info(msg=f'Created machinegroup {name}')
-        except Exception as ex:
-            logger_ghosts.error(msg=f'Unable to create machine group. | {ex}')
-            print(f'Unable to create machine group. | {ex}')
-            exit(1)
-
-        return machine_group_uuid
+        machinegroup_req = json.dumps(machinegroup_req)
+        if self.confirm_connection():
+            try:
+                req_status = post(url=f'http://{self.CONN_URL}/api/machinegroups',
+                                  data=machinegroup_req,
+                                  headers=POST_HEADER,
+                                  timeout=3)
+                if req_status.status_code != 201:
+                    logger_ghosts.error(msg=f'Unable to create MachineGroup {name}| {req_status.content.decode("utf-8")}')
+                    return ['Error', f'Could not create machinegroup {req_status.content.decode("utf-8")}']
+                else:
+                    logger_ghosts.debug(msg=f'UUID of {name}: {machine_group_uuid}')
+                    logger_ghosts.debug(msg=machinegroup_req)
+                    self.logger_sim.info(msg=f'CREATED MACHINEGROUP {name}')
+            except Exception as ex:
+                logger_ghosts.error(msg=f'Unable to create machine group. | {ex}')
+                return ['Error', f'Unable to create machine group. | {ex}']
+        else:
+            return ['Error', 'GHOSTS API is currently not responding']
+        return ['UUID', machine_group_uuid]
 
     # Function to create a new machine within the environment
     def create_machine(self, name: str, machine_type: str) -> dict:
@@ -136,8 +176,12 @@ class GHOSTSConnection:
             "status": 0,
             "statusUp": 0
         }
+        machine_json_req = json.dumps(machine_json_req)
         try:
-            req_status = post(url=f'http://{self.CONN_URL}/api/machines', data=machine_json_req)
+            req_status = post(url=f'http://{self.CONN_URL}/api/machines',
+                              data=machine_json_req,
+                              headers=POST_HEADER,
+                              timeout=3)
             if req_status.status_code == 201:
                 req_data = json.loads(req_status.content.decode('utf-8'))
                 logger_ghosts.debug(msg=f'New Machine created with id {req_data["id"]}')
@@ -146,8 +190,10 @@ class GHOSTSConnection:
                 else:
                     self.defender_Machine_Ids.append(req_data['id'])
                 return {name: str(req_data['id'])}
-            print(f"Issue creating machine {name}. {str(req_status.content.decode('utf-8'))}")
-            return {}
+            else:
+                logger_ghosts.error(msg=f"Issue creating machine {name}. {str(req_status.content.decode('utf-8'))}")
+                self.logger_sim.error(msg=f"Unable to create {name}")
+                return {}
         except Exception as e:
             logger_ghosts.error(msg=f'Unable to create machine {name}. {str(e)}')
             print(f'Unable to create machine {name}. {str(e)}')
@@ -176,7 +222,9 @@ class GHOSTSConnection:
     def get_machine_information(self, machine_id: str) -> dict:
         try:
             test_data = get(url=f'http://{self.CONN_URL}/api/machines/{machine_id}')
-            return json.loads(test_data.content.decode('utf-8'))
+            if test_data.status_code == 200:
+                return json.loads(test_data.content.decode('utf-8'))
+            return {}
         except Exception as e:
             logger_ghosts.error(msg=f'GHOSTS-API is not currently responding, check the container status. | {str(e)}')
             return {}
@@ -185,8 +233,12 @@ class GHOSTSConnection:
     def list_machine_groups(self) -> list:
         try:
             test_data = get(url=f'http://{self.CONN_URL}/api/machinegroups')
-            logger_ghosts.debug(msg=f'List of Machine Groups: {str(test_data.content)}')
-            return json.loads(test_data.content.decode("utf-8"))
+            if test_data.status_code == 200:
+                logger_ghosts.debug(msg=f'List of Machinegroups: {test_data.content.decode("utf-8")}')
+                return json.loads(test_data.content.decode("utf-8"))
+            else:
+                logger_ghosts.error(msg=f'Unable to list Machinegroups: {test_data.content.decode("utf-8")}')
+                return {}
         except Exception as e:
             logger_ghosts.error(msg=f'GHOSTS-API is not currently responding, check the container status. | {str(e)}')
             return {}
@@ -295,7 +347,11 @@ class GHOSTSConnection:
                         ]
                     }
                 }
-                ret_data = post(url=f'http://{self.CONN_URL}/api/timelines', data=timeline_action)
+                timeline_action = json.dumps(timeline_action)
+                ret_data = post(url=f'http://{self.CONN_URL}/api/timelines',
+                                data=timeline_action,
+                                headers=POST_HEADER,
+                                timeout=3)
                 if ret_data.status_code == 200:
                     # Succeeded in adding actions
                     if action_data['Name'] == 'Gain Admin':
@@ -303,7 +359,8 @@ class GHOSTSConnection:
                     self.logger_sim.info(msg=f"Action {action_data['Name']} was run by {machine_id} on target {target_id}")
                     return True
                 else:
-                    logger_ghosts.error(f'Unable to send action {action_data["Name"]} from machine {machine_id}. {ret_data.status_code} was thrown')
+                    logger_ghosts.error(f'Unable to send action {action_data["Name"]} '
+                                        f'from machine {machine_id}. {ret_data.status_code} was thrown')
                     return False
             except Exception as e:
                 logger_ghosts.error(f'Unable to send action {action_data["Name"]} from machine {machine_id}. {str(e)}')
@@ -345,7 +402,11 @@ class GHOSTSConnection:
                         ]
                     }
                 }
-                ret_data = post(url=f'http://{self.CONN_URL}/api/timelines', data=timeline_action)
+                timeline_action = json.dumps(timeline_action)
+                ret_data = post(url=f'http://{self.CONN_URL}/api/timelines',
+                                data=timeline_action,
+                                headers=POST_HEADER,
+                                timeout=3)
                 if ret_data.status_code == 200:
                     self.logger_sim.info(msg=f"Action Stop_Machine was run on {machine_id}")
                     return True
@@ -390,7 +451,11 @@ class GHOSTSConnection:
                         ]
                     }
                 }
-                ret_data = post(url=f'http://{self.CONN_URL}/api/timelines', data=timeline_action)
+                timeline_action = json.dumps(timeline_action)
+                ret_data = post(url=f'http://{self.CONN_URL}/api/timelines',
+                                data=timeline_action,
+                                headers=POST_HEADER,
+                                timeout=3)
                 if ret_data.status_code == 200:
                     self.logger_sim.info(msg=f"Action Restart_Machine was run on {machine_id}")
                     return True
@@ -411,7 +476,8 @@ class GHOSTSConnection:
                     logger_ghosts.info(f'Successfully removed machine {machine_id}')
                     return True
                 self.logger_sim.error(f'Unable to remove machine {machine_id} from GHOSTS.')
-                logger_ghosts.error(f'Unable to remove machine {machine_id} from GHOSTS. {ret_data.content.decode("utf-8")}')
+                logger_ghosts.error(f'Unable to remove machine {machine_id} '
+                                    f'from GHOSTS. {ret_data.content.decode("utf-8")}')
                 return False
             except Exception as e:
                 self.logger_sim.error(f'Unable to remove machine {machine_id} from GHOSTS.')
@@ -427,14 +493,16 @@ class GHOSTSConnection:
         if self.confirm_connection():
             try:
                 machine_groups = self.list_machine_groups()
-                for mg in machine_groups:
-                    ret_data = delete(f'http://{self.CONN_URL}/api/machinegroups/{mg["id"]}')
-                    if ret_data.status_code == 204:
-                        self.logger_sim.info(f'Removed machinegroup {mg["name"]} from GHOSTS')
-                        logger_ghosts.info(f'Successfully removed machinegroup {mg["name"]}')
-                        return True
-                self.logger_sim.error(f'Unable to remove machinegroup {mg["name"]} from GHOSTS.')
-                logger_ghosts.error(f'Unable to remove machinegroup {mg["name"]} from GHOSTS. {ret_data.content.decode("utf-8")}')
+                if len(machine_groups) > 0:
+                    for mg in machine_groups:
+                        ret_data = delete(f'http://{self.CONN_URL}/api/machinegroups/{mg["id"]}')
+                        if ret_data.status_code == 204:
+                            self.logger_sim.info(f'Removed machinegroup {mg["name"]} from GHOSTS')
+                            logger_ghosts.info(f'Successfully removed machinegroup {mg["name"]}')
+                            return True
+                    self.logger_sim.error(f'Unable to remove machinegroup {mg["name"]} from GHOSTS.')
+                    logger_ghosts.error(f'Unable to remove machinegroup {mg["name"]} '
+                                        f'from GHOSTS. {ret_data.content.decode("utf-8")}')
                 return False
             except Exception as e:
                 self.logger_sim.error(f'Unable to remove all machinegroups from GHOSTS.')
@@ -446,11 +514,12 @@ class GHOSTSConnection:
             return False
 
     # End the simulation due to either error or completion
-    def end_simulation(self, reason: str = "", maintain_env: bool = False, save_file: bool = True):
+    def end_simulation(self, reason: str = "End of Simulation", maintain_env: bool = False, save_file: bool = True):
         success_teardown = True
-        self.logger_sim.error(msg=f'Ending SIMUATION {self.SIMULATION_ID} due to the following reason: {reason}')
+        self.logger_sim.error(msg=f'ENDING SIMULATION {self.SIMULATION_ID} due to the following reason: {reason}')
         if not maintain_env:
-            self.remove_machinegroups()
+            if not self.remove_machinegroups():
+                success_teardown = False
             for d in self.defender_Machine_Ids:
                 if not self.remove_machine(d):
                     success_teardown = False
@@ -459,11 +528,14 @@ class GHOSTSConnection:
                 if not self.remove_machine(a):
                     success_teardown = False
                 self.attacker_Machine_Ids.remove(a)
-            if not success_teardown:
-                logger_ghosts.error(msg='WARNING: Teardown was not 100% successful, there may be remaining machines/machinegroups')
-        if not save_file:
-            os.remove(self.sim_file_loc)
-        self.logger_sim.info(msg='SIMULATION ENDING')
+        if not success_teardown:
+            logger_ghosts.error(msg='WARNING: Teardown was not 100% successful, '
+                                    'there may be remaining machines/machinegroups')
+        if not save_file or self.TEST_SESSION:
+            os.remove(self.sim_file_path_full)
+        self.logger_sim.info(F'=-=-=-=-= END OF SIMULATION {self.SIMULATION_ID} -=-=-=-=-=-')
+        if reason != "End of Simulation":
+            exit(reason)
 
 # TODO - Implement timer into logging to be able to see time duration
 # TODO - Figure out how to add machine to machinegroups correctly either via createMachine or in create_machinegroup

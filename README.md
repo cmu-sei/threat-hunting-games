@@ -90,3 +90,17 @@ consideration, by making local exceptions.
 The main runtime dependency is the
 [OpenSpiel](https://pypi.org/project/open-spiel/) game simulation
 framework.
+
+## Custom Configuration
+Configuration information can be found in the `pyproject.toml` file in the root directory
+of the project under `[application.config]`. This contains the locations for the saving of the GHOSTSConnection.log as
+well as the simulation files. URI connections can also be changed there as well if you happen to 
+change the port for the Docker container for GHOSTS
+
+## Testing 
+The threat-hunting-games project uses pytest in order to test functionality. \
+`pytest tests [--local] [--test]` \
+The --local flag is used if you are running the tests on a local system rather than within the 
+threat-hunting-games container. \
+The --test flag is used if you are running test cases thus the simulation files are not saved.
+

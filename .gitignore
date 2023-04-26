@@ -15,8 +15,9 @@
 # For the virtual environment
 venv
 # For Data files from spinning up the containers
-GHOSTS_Environment/Environment_Data/*
-!GHOSTS_Environment/Environment_Data/.keep
+Containers/Environment_Data/*
+!Containers/Environment_Data/dashboards
+!Containers/Environment_Data/datasources
 # Basic MACOS removal
 .DS_Store
 

@@ -4,18 +4,17 @@ hunting.
 
 # Toolchain
 
-## Docker Container Environment 
-### Build threat-hunting-games and stand up environment
-*This will build the threat-hunting-games container along with ghosts-spectre*
-- **VPN Build**:
-`/bin/sh /build_docker_containers.sh vpn`
- - **Non-VPN Build**:
-`/bin/sh /build_docker_containers.sh non-vpn`
+## Docker Container Environment (Encouraged)
+### Command to Build the Containers
+`/bin/sh /build_docker_containers.sh`
 
-*For any of the commands above you can use the `-d` flag to run the environment in detached mode* \
-*If any of the containers seem to be throwing errors with their databases use the `--reset` flag (at the end of the command) to 
-reset the databases*
-## Pyenv and pyenv-virtualenv (optional, encouraged)
+### Flags
+- **-d**: Run the environment in detached mode \
+- **-r**: Reset the databases of the GHOSTS, POSTGRES, and GHOSTS-SPECTRE containers \
+- **-v**: Configure the containers to run in the VPN configuration (SEI Zscaler)
+
+## Local Environment
+### Pyenv and pyenv-virtualenv (optional)
 
 The Python version being targeted is 3.10.\*. This is not a carefully
 chosen version, except that some features landed in 3.10 that the
@@ -41,7 +40,7 @@ pyenv and virtualenv are placed in ~/.bashrc.
 Poetry also has tools for selecting environments for the project, which
 you may prefer to use. These directions will mostly assume
 
-## Poetry
+### Poetry
 
 All other dependencies are managed via
 [Poetry](https://python-poetry.org/). Poetry\'s main virtue is managing
@@ -58,7 +57,7 @@ When you have your virtualenv active, `poetry install`{.verbatim} in the
 top-level directory should download the dependencies from pypi and
 install them.
 
-## Other Packages
+### Other Packages
 
 Some of the examples and algorithms use the following python modules:
 
@@ -81,7 +80,7 @@ system packages:
 
   * [lrsnash](https://manpages.ubuntu.com/manpages/jammy/man1/lrsnash.1.html) (`apt install lrsnash`)
 
-## Additional build dependencies
+### Additional build dependencies
 
 To keep code quality high and catch mistakes early, this project uses
 several code analysis tools. Links are to the PyPI page unless noted;
@@ -102,7 +101,7 @@ Jedi is optional, but developers should run the rest and seek to make
 the code warning-clean, either by fixing problems or, after careful
 consideration, by making local exceptions.
 
-## openspiel
+### openspiel
 
 The main runtime dependency is the
 [OpenSpiel](https://pypi.org/project/open-spiel/) game simulation

@@ -40,9 +40,10 @@ COPY ../poetry.lock pyproject.toml ./
 RUN $VENV_PATH/bin/pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org poetry==$POETRY_VERSION certifi requests
 # Copy over code base files
 RUN mkdir /src
-COPY ../tests /src/tests
-COPY ../threat_hunting_games /src/threat_hunting_games
-COPY Test_API_Requests.py /src/Test_API_Requests.py
+COPY /tests /src/tests
+COPY /threat_hunting_games /src/threat_hunting_games
+COPY /Docker_Container/Create_GHOSTS_Env.py /src/Create_GHOSTS_Env.py
+COPY /Docker_Container/Logs/api-calls.log /src/Logs/api-calls.log
 
 
 # Certificate work

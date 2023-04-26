@@ -5,15 +5,18 @@ networks:
 services:
     threat-hunting-game:
       build:
-        context: ..
-        target: non-vpn
-      image: threat-hunting-game:non-vpn
+        context: ../
+        target: "vpn"
+        dockerfile: Containers/Dockerfile
+      image: threat-hunting-game:vpn
       container_name: threat-hunting-game-vpn
       ports:
         - '5433:5433'
       networks:
         - ghosts-network
-      restart: always
+      tty: true
+      volumes:
+        - ../Containers/Logs:/var/log/threat-hunting-games
 
     postgres:
       image: postgres
@@ -23,8 +26,8 @@ services:
         POSTGRES_USER: ghosts
         POSTGRES_PASSWORD: scotty@1
       volumes:
-        - ./GHOSTS_Environment/Environment_Data/db_data:/var/lib/postgresql/data
-        - ./GHOSTS_Environment/Environment_Data/spectre_data:/tmp
+        - ../Containers/Environment_Data/db_data:/var/lib/postgresql/data
+        - ../Containers/Environment_Data/spectre_data:/tmp
       logging:
         options:
           max-size: '100m'
@@ -63,19 +66,20 @@ services:
         - ghosts-network
       restart: always
       volumes:
-        - ./GHOSTS_Environment/Environment_Data/g_data:/var/lib/grafana
-        - ../../configuration/grafana/datasources:/etc/grafana/provisioning/datasources
-        - ../../configuration/grafana/dashboards:/etc/grafana/provisioning/dashboards
+        - ../Containers/Environment_Data/g_data:/var/lib/grafana
+        - ../Containers/Environment_Data/datasources:/etc/grafana/provisioning/datasources
+        - ../Containers/Environment_Data/dashboards:/etc/grafana/provisioning/dashboards
 
     ghosts-spectre:
       build:
-        context: ../GHOSTS_Environment/GHOSTS-SPECTRE/src
-        target: "non-vpn"
+        context: ../Containers/GHOSTS-SPECTRE/src
+        target: "vpn"
       container_name: ghosts-spectre
       ports:
-        - '5002:8080'
+        - '5002:5002'
       networks:
         - ghosts-network
       restart: always
       volumes:
-        - ./GHOSTS_Environment/Environment_Data/spectre_data:/app/config
+        - ../Containers/Environment_Data/spectre_data:/app/config
+      command: tail -F anything

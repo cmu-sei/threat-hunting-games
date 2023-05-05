@@ -34,7 +34,6 @@ def test_sim_file_deletion(local):
     ghosts_connect = GHOSTSConnection(num_attackers=0, num_defenders=0, local_session=local, test_session=True)
     ghosts_connect.end_simulation()
     assert not os.path.exists(ghosts_connect.sim_file_path_full)
-    assert len(ghosts_connect.list_machine_groups()) == 0
 
 
 # Test that the data is correctly being written to the file
@@ -52,46 +51,32 @@ def test_sim_file_write(local):
             f.close()
 
 
-# Confirm that end simulation removes all of the groups
-def test_all_groups_removed(local):
-    ghosts_connect = GHOSTSConnection(0, 0, local_session=local, test_session=True)
-    ghosts_connect.end_simulation()
-    assert len(ghosts_connect.list_machine_groups()) == 0
-
-
-
 # Test that an attacker machine is created via method call with the correct specifications
 def test_attacker_machine_created(local):
     ghosts_connect = GHOSTSConnection(num_defenders=0, num_attackers=1, local_session=local, test_session=True)
     machine_list = ghosts_connect.list_machines()
     assert len(machine_list) == 1
-    machine_group_lists = ghosts_connect.list_machinegroup_machines()
-    assert len(machine_group_lists['Attackers']) == 1
     ghosts_connect.end_simulation()
-'''
 
 # Test that a defender machine is created via method call with the correct specifications
 def test_defender_machine_created(local):
     ghosts_connect = GHOSTSConnection(num_defenders=1, num_attackers=0, local_session=local, test_session=True)
     machine_list = ghosts_connect.list_machines()
     assert len(machine_list) == 1
-    machine_group_lists = ghosts_connect.list_machinegroup_machines()
-    assert len(machine_group_lists['Defenders']) == 1
     ghosts_connect.end_simulation()
+    assert len(machine_list) == 0
 
 
 def test_multiple_machines_created(local):
     ghosts_connect = GHOSTSConnection(num_defenders=1, num_attackers=1, local_session=local, test_session=True)
     machine_list = ghosts_connect.list_machines()
     assert len(machine_list) == 2
-    machine_group_lists = ghosts_connect.list_machinegroup_machines()
-    assert len(machine_group_lists['Defenders']) == 1
-    assert len(machine_group_lists['Attackers']) == 1
     ghosts_connect.end_simulation()
+    assert len(machine_list) == 0
 
 # ACTION TESTING PORTION
 
-
+'''
 # Check that the privilege matrix is correctly updated after an action
 def test_attacker_gained_privileges(local):
     ghosts_connect = GHOSTSConnection(num_attackers=2, num_defenders=2, local_session=local, test_session=True)

@@ -18,6 +18,10 @@ venv
 Containers/Environment_Data/*
 !Containers/Environment_Data/dashboards
 !Containers/Environment_Data/datasources
+
 # Basic MACOS removal
 .DS_Store
-
+# Don't save the simulation files
+GHOSTSConnection/Simulations
+# Don't save GHOSTSConnection log
+GHOSTSConnection/Logs/GHOSTSConnection.log

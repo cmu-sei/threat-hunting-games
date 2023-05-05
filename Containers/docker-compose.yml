@@ -67,15 +67,3 @@ services:
         - ../Containers/Environment_Data/datasources:/etc/grafana/provisioning/datasources
         - ../Containers/Environment_Data/dashboards:/etc/grafana/provisioning/dashboards
 
-    ghosts-spectre:
-      build:
-        context: ../Containers/GHOSTS-SPECTRE/src
-        target: "non-vpn"
-      container_name: ghosts-spectre
-      ports:
-        - '5002:8080'
-      networks:
-        - ghosts-network
-      restart: always
-      volumes:
-        - ../Containers/Environment_Data/spectre_data:/app/config

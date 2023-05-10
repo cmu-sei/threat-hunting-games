@@ -99,14 +99,6 @@ change the port for the Docker container for GHOSTS
 
 ## Testing 
 The threat-hunting-games project uses pytest in order to test functionality. \
-<<<<<<< HEAD
-`pytest tests [--local]` \
-The --local flag is used if you are running the tests on a local system rather than within the 
-threat-hunting-games container 
-=======
-`pytest tests [--local] [--test]` \
 The --local flag is used if you are running the tests on a local system rather than within the 
 threat-hunting-games container. \
 The --test flag is used if you are running test cases thus the simulation files are not saved.
-
->>>>>>> 504b47ff51ca3feee8f2a004bc9112b9be611767

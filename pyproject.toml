@@ -52,11 +52,19 @@ max-line-length = 88
 log_cli = false
 log_cli_level = "DEBUG"
 
+<<<<<<< HEAD
 [application.config]
 unix-sim-path = "./Simulations"
 windows-sim-path = ".\\Simuations"
 unix-ghosts-path = "../Containers/Logs"
 windows-ghosts-path = "..\\Containers\\Logs"
+=======
+[config]
+unix-sim-path = "GHOSTSConnection/Simulations/"
+windows-sim-path = "GHOSTSConnection\\Simuations\\"
+unix-ghosts-path = "GHOSTSConnection/Logs/GHOSTSConnection.log"
+windows-ghosts-path = "GHOSTSConnection\\Logs\\GHOSTSConnection.log"
+>>>>>>> 504b47ff51ca3feee8f2a004bc9112b9be611767
 local-ghosts-uri = "localhost:8080"
 prod-ghosts-uri = "ghosts-api:5000"
 

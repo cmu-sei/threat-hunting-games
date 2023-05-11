@@ -84,10 +84,32 @@ class IndependentIntervalsPolicy(Policy):
     `player_intervals` should be a dict with players as keys and a pair
     of defined action intervals (a dict of actions to intervals) and
     (can be None) initial values for the action timers (beats).
+
+    ...
+
+    For simulating in the game testing platform, we will want to encode
+    a strategy in this type by imposing an order on all the detection
+    actions available to the defender, then assigning to each detection
+    action a period. At each time interval, execute the highest-priority
+    detection action with a period that divides the time index.
+
+    Useful constraints will be ensuring all detection types can trigger
+    without always being over-ridden by a detection of higher priority,
+    since such cases degenerate into assignment of zero period (never
+    check) for the lower-priority detections.
+
+    Alternatively, a tiebreaker could be decided based on a memory as
+    described in aggregate history randomized, where the decision
+    among multiple actions that are scheduled to co-occur is made
+    based on which of the targeted detection actions has been taken
+    least recently.
+
+    sisk note: currently not triggering based on div of time -- this was
+    under the assumption that WAIT would also be in legal actions...
+
     """
 
     def __init__(self, game, player_intervals=None):
-        """Initializes a uniform random policy for all players in the game."""
         all_players = list(range(game.num_players()))
         super().__init__(game, all_players)
         # dict of Action -> defined interval per player

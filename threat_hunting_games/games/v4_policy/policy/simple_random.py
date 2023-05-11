@@ -14,6 +14,24 @@ class SimpleRandomPolicy(Policy):
     probabilities of length ∥Ω∥. (Note that this could be extended
     to subsets of variables if needed). In the simple form of this type
     of strategy the queries for each bit are also independent.
+
+    ...
+    
+    For simulating in the game testing platform, we will want to encode
+    a strategy in this type by assigning a probability to each detect
+    action. Since we will sample from all actions, this need not be a
+    probability distribution, but we will want to have as part of the
+    strategy either an ordering on the detect actions to iterate through
+    until one is chosen for detection or the list is consumed, or choose
+    to sample randomly without replacement.
+
+    Useful constraints will be identifying a threshold probability for
+    the likelihood any detect action is chosen, and if we order the
+    detect actions, some probability threshold for the least likely
+    action to be chosen.
+
+    sisk note: we are not sampling without replacement as of yet
+
     """
 
     def __init__(self, game, player_action_probs=None):
@@ -49,9 +67,9 @@ class SimpleRandomPolicy(Policy):
                 probs[action] = all_probs.get(action, 0)
             # if legal_actions are a subset of all actions, scale
             # probabilities sum to 1.0 accordingly
-            scale = 1 / sum(probs.values())
+            psum = sum(probs.values()) or (len(probs) / 100)
             for action in probs:
-                probs[action] *= scale
+                probs[action] *= (1 / psum)
         else:
             probs = all_probs
         if not probs:

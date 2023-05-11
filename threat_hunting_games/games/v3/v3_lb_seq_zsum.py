@@ -42,7 +42,7 @@ from .arena_zsum_v3 import debug
 #  default_loadable: bool = True,
 #  provides_factored_observation_string: bool = False)
 
-game_name = "chain_game_v2_lb_seq_zsum"
+game_name = "chain_game_v3_lb_seq_zsum"
 game_long_name = "Chain game version 3 Sequential Zero Sum LockBit"
 game_max_turns = 30
 game_max_turns = 8

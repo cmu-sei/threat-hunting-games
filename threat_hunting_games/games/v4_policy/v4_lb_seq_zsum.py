@@ -1,5 +1,6 @@
 """
-Model of version 2 of the threat hunt statechain game.
+Model of version 2 of the threat hunt statechain game, sequential,
+constant sum. (action cost is the opposing players gain)
 """
 
 # pylint: disable=c-extension-no-member missing-class-docstring missing-function-docstring
@@ -10,6 +11,7 @@ from typing import NamedTuple, Mapping, Any, List
 from enum import IntEnum
 from dataclasses import dataclass, field
 from open_spiel.python.observation import IIGObserverForPublicInfoGame
+from open_spiel.python.policy import Policy
 import pyspiel  # type: ignore
 import numpy as np
 
@@ -18,8 +20,9 @@ from absl import logging
 # this gets reset somewhere mysterious
 #logging.set_verbosity(logging.DEBUG)
 
-from . import arena_v3 as arena
-from .arena_v3 import debug
+from . import arena_zsum_v4 as arena
+from . import policy
+from .arena_zsum_v4 import debug
 
 # Arguments to pyspiel.GameType:
 #
@@ -41,10 +44,11 @@ from .arena_v3 import debug
 #  default_loadable: bool = True,
 #  provides_factored_observation_string: bool = False)
 
-game_name = "chain_game_v3_seq_lockbit"
-game_long_name = "Chain game version 3 Sequential LockBit"
+game_name = "chain_game_v4_lb_seq_zsum"
+game_long_name = "Chain game version 4 Sequential Zero Sum LockBit with Policies"
 game_max_turns = 30
-#game_max_turns = 6
+game_max_turns = 8
+game_max_turns = 12
 num_players = len(arena.Players)
 
 _GAME_TYPE = pyspiel.GameType(
@@ -53,7 +57,8 @@ _GAME_TYPE = pyspiel.GameType(
     dynamics=pyspiel.GameType.Dynamics.SEQUENTIAL,
     chance_mode=pyspiel.GameType.ChanceMode.DETERMINISTIC,
     information=pyspiel.GameType.Information.PERFECT_INFORMATION,
-    utility=pyspiel.GameType.Utility.GENERAL_SUM,
+    #utility=pyspiel.GameType.Utility.CONSTANT_SUM,
+    utility=pyspiel.GameType.Utility.ZERO_SUM,
     # The other option here is REWARDS, which supports model-based
     # Markov decision processes. (See spiel.h)
     reward_model=pyspiel.GameType.RewardModel.TERMINAL,
@@ -73,17 +78,15 @@ _GAME_TYPE = pyspiel.GameType(
     # tuples, lists, and others don't work
     parameter_specification={
         "num_turns": game_max_turns,
+        "attacker_policy": None,
+        "defender_policy": None,
     }
 )
 
-def make_game_info(num_turns: int) -> pyspiel.GameInfo:
-    # The most expensive strategy is for D to always wait while A
-    # always advances. An advance is worth 2 to A and -2 to D, so the
-    # minimum utility is for D, and it's -2 * num_turns
+def make_game_info(num_turns: int, policy: Policy) -> pyspiel.GameInfo:
+    # In this constant sum game, each player starts with 30 utility, so
+    # max is 60
     min_utility = arena.min_utility() * num_turns
-    # Max utility is for A to always advance while D defends. A spends
-    # 1 to get 2 (or 2 to get 3 for stealth), for a net utility of 1
-    # each turn. Hence:
     max_utility = arena.max_utility() * num_turns
 
     # Arguments to pyspiel.GameInfo:
@@ -166,12 +169,14 @@ class BasePlayerState:
     """
     utility: int = 0
     history: list[ActionState] = field(default_factory=list)
+    policy: Policy = None
     available_actions: list[arena.Actions] = field(default_factory=list)
     costs: list[int] = field(default_factory=list)
     rewards: list[int] = field(default_factory=list)
     damages: list[int] = field(default_factory=list)
     utilities: list[int] = field(default_factory=list)
     curr_turn: int = 0
+    player_id: int = None
     player: str = None
 
     @property
@@ -284,13 +289,26 @@ class BasePlayerState:
         self.utility += inc
 
     def increment_damage(self, inc):
+        # want to return the actual damage in case the increment
+        # exceeds remaining utility
         inc = abs(inc)
+        #inc = self.utility if inc > self.utility else inc
         self.damages[-1] -= inc
         self.utility -= inc
         return inc
 
     def record_utility(self):
         self.utilities[-1] = self.utility
+
+    def select_policy_action(self, state):
+        assert self.policy, "no policy present"
+        action_probs = self.policy.action_probabilities(state, self.player_id)
+        action_list = list(action_probs.keys())
+        if not any(action_list):
+            #return pyspiel.INVALID_ACTION
+            return None
+        action = np.random.choice(action_list, p=list(action_probs.values()))
+        return action
 
     def legal_actions(self):
         raise NotImplementedError()
@@ -305,6 +323,7 @@ class AttackerState(BasePlayerState):
     """
     available_actions: list[arena.Actions] = field(default_factory=list)
     state_pos: int = 0
+    player_id: int = arena.Players.ATTACKER
     player: str = arena.player_to_str(arena.Players.ATTACKER)
 
     @property
@@ -322,7 +341,7 @@ class AttackerState(BasePlayerState):
         #        if arena.action_cost(x) <= self.utility]
         return arena.Atk_Actions_By_Pos[self.state_pos]
 
-    def advance(self, action: arena.Actions):
+    def advance(self, action: arena.Actions, state: pyspiel.State):
         """
         Attacker attempts to make their move.
         """
@@ -352,7 +371,11 @@ class AttackerState(BasePlayerState):
                     debug(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: faulty execution, {self.player} stays at position {self.state_pos}")
             elif self.state.was_delayed:
                     debug(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: executed, {self.player} advances to position {self.state_pos}")
-            self.available_actions = self.legal_actions()
+            if self.policy:
+                next_action = self.select_policy_action(state)
+                self.available_actions = [next_action] if next_action else []
+            else:
+                self.available_actions = self.legal_actions()
 
         if action == arena.Actions.IN_PROGRESS:
             # still in the progress sequence of a completed action;
@@ -392,6 +415,7 @@ class DefenderState(BasePlayerState):
     Track all state and history for the defender.
     """
     available_actions: list[arena.Actions] = field(default_factory=list)
+    player_id: int = arena.Players.DEFENDER
     player: str = arena.player_to_str(arena.Players.DEFENDER)
 
     def legal_actions(self):
@@ -399,7 +423,7 @@ class DefenderState(BasePlayerState):
         #        if arena.action_cost(x) <= self.utility]
         return arena.Defend_Actions
 
-    def detect(self, action: arena.Actions):
+    def detect(self, action: arena.Actions, state: pyspiel.State):
 
         if not self.available_actions:
             self.available_actions = arena.Defend_Actions
@@ -426,7 +450,11 @@ class DefenderState(BasePlayerState):
                 if self.state.was_delayed:
                     debug(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: executed")
             # back to all defend actions available
-            self.available_actions = self.legal_actions()
+            if self.policy:
+                next_action = self.select_policy_action(state)
+                self.available_actions = [next_action] if next_action else []
+            else:
+                self.available_actions = self.legal_actions()
 
         if action == arena.Actions.IN_PROGRESS:
             # still in progress sequence
@@ -466,19 +494,24 @@ class GameState(pyspiel.State):
         assert not (game_info.max_game_length % 2), \
             "game length must have even number of turns"
         self._num_turns = game_info.max_game_length
+        if game_info.attacker_policy:
+            self._attacker_policy = \
+                    policy.get_policy(game_info.attacker_policy)
+        else:
+            self._attacker_policy = None
+        if game_info.defender_policy:
+            self._defender_policy = \
+                    policy.get_policy(game_info.defender_policy)
+        else:
+            self._defender_policy = None
         self._curr_turn = 0
         # _turns_seen is just for display purposes in _legal_actions()
         self._turns_seen = set()
         # GameState._legal_actions gets called before available actions
         # can be popuated in AttackerState and DefenderState...so
         # initiaize available actions here.
-        self._attacker = AttackerState()
-        self._defender = DefenderState()
-        #self._attacker = \
-        #        AttackerState(available_actions=arena.Atk_Actions_By_Pos[0])
-        #self._defender = \
-        #        DefenderState(available_actions=arena.Defend_Actions)
-        #self._turns_seen = set()
+        self._attacker = AttackerState(policy=self._attacker_policy)
+        self._defender = DefenderState(policy=self._defender_policy)
 
         # attacker always moves first
         self._current_player = arena.Players.ATTACKER
@@ -617,7 +650,7 @@ class GameState(pyspiel.State):
 
         #if action != arena.Actions.IN_PROGRESS:
         debug(f"{arena.player_to_str(self.current_player())}: apply action {arena.a2s(action)} now in turn {self._curr_turn+1}")
-        #print([len(self.history()), self.history()])
+        debug([len(self.history()), self.history()])
 
         # Asserted as invariant in sample games:
         # assert self._is_chance and not self._game_over
@@ -641,7 +674,7 @@ class GameState(pyspiel.State):
             # defender still has a chance to detect. Game will not
             # terminate here by reaching self._num_turns either because
             # defender always gets the last action.
-            self._attacker.advance(action)
+            self._attacker.advance(action, self)
             cost = arena.action_cost(action)
             self._attacker.increment_cost(cost)
             self._defender.increment_reward(cost)
@@ -661,7 +694,7 @@ class GameState(pyspiel.State):
 
         # register cost of action, add to history, initiate IN_PROGRESS
         # sequences, etc
-        self._defender.detect(action)
+        self._defender.detect(action, self)
 
         self._defend_vec[self._curr_turn] = action
         #debug(f"DEFEND({self._curr_turn}): {self._defend_vec}")
@@ -864,7 +897,7 @@ class Game(pyspiel.Game):
         instance.
         """
         self.game_type = _GAME_TYPE
-        self.game_info = make_game_info(params["num_turns"])
+        self.game_info = make_game_info(params["num_turns"], params["policy"])
         super().__init__(self.game_type, self.game_info, params)
 
     def new_initial_state(self):

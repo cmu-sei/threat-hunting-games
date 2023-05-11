@@ -38,10 +38,26 @@ class IntervalActions:
                 else:
                     break
             assert beat_choices, "no actions"
+            # An alternative to the pure random choice below, from the
+            # writeup:
+            #
+            #   Useful constraints will be ensuring all detection types
+            #   can trigger without always being over-ridden by a
+            #   detection of higher priority, since such cases
+            #   degenerate into assignment of zero period (never check)
+            #   for the lower-priority detections.
+            #
+            #   Alternatively, a tiebreaker could be decided based on a
+            #   memory as described in aggregate history randomized,
+            #   where the decision among multiple actions that are
+            #   scheduled to co-occur is made based on which of the
+            #   targeted detection actions has been taken least
+            #   recently.
             beat = random.choice(beat_choices)
             # reset the interval timer for this action
             action = beat[1]
             beat[0] = self._action_intervals[action]
+            # restore canonical order
             self._beats.sort()
         return action
 

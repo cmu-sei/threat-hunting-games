@@ -1,3 +1,5 @@
+import random
+
 from open_spiel.python.policy import Policy
 
 

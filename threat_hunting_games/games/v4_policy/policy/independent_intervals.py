@@ -104,9 +104,12 @@ class IndependentIntervalsPolicy(Policy):
     based on which of the targeted detection actions has been taken
     least recently.
 
-    sisk note: currently not triggering based on div of time -- this was
-    under the assumption that WAIT would also be in legal actions...
-
+    sisk note: currently not triggering based on div of time exactly --
+    this was under the assumption that WAIT would also be in legal
+    actions... currently just picking "most stale" first where the
+    countdown resets to the seed interval after the action is selected.
+    Note that negative counts can possibly accumulate but those vaules
+    still indicate the magnitude of staleness for that action.
     """
 
     def __init__(self, game, player_intervals=None):

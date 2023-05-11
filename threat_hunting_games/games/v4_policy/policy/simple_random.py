@@ -44,8 +44,9 @@ class SimpleRandomPolicy(Policy):
             self._player_action_probs = paprobs = {}
             for player, probs in player_action_probs.items():
                 probs = dict(probs)
-                assert sum(probs.values()) == 1.0, \
-                        "probabilities do not sum to zero"
+                psum = sum(probs.values) or (len(probs) / 100)
+                for action in probs:
+                    probs[action] *= (1 / psum)
                 paprobs[player] = probs
         else:
             self._player_action_probs = {}

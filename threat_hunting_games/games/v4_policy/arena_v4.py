@@ -26,24 +26,6 @@ class Players(IntEnum):
     ATTACKER = 0
     DEFENDER = 1
 
-#class Actions(IntEnum):
-#    # both players; auto() starts at 1
-#    WAIT                = auto()
-#    IN_PROGRESS         = auto()
-#    # attacker
-#    S0_VERIFY_PRIV      = auto()
-#    S0_VERIFY_PRIV_CAMO = auto()
-#    S1_WRITE_EXE        = auto()
-#    S1_WRITE_EXE_CAMO   = auto()
-#    S2_ENCRYPT          = auto()
-#    S2_ENCRYPT_CAMO     = auto()
-#    # defender
-#    PSGREP              = auto()
-#    PSGREP_STRONG       = auto()
-#    SMB_LOGS            = auto()
-#    SMB_LOGS_STRONG     = auto()
-#    FF_SEARCH           = auto()
-#    FF_SEARCH_STRONG    = auto()
 
 class Actions(IntEnum):
     # both players; auto() starts at 1
@@ -111,6 +93,21 @@ Atk_Actions_By_Pos = (
       Actions.S2_ENCRYPT_CAMO,
     ),
 )
+
+# for use by the independent intervals policy, if used. For parameter
+# sweeps can modify this directly or later on load these values from a
+# config file
+Defend_Action_Intervals = {}
+Defend_Interval_Clock_Seed = 0
+for i, action in enumerate(Defend_Actions):
+    if action is Actions.WAIT:
+        continue
+    else:
+        Defend_Action_Intervals[action] = i
+
+def load_defender_independent_intervals():
+    # could load from json here
+    return (dict(Defend_Action_Intervals), Defend_Interval_Clock_Seed)
 
 def player_to_str(player: Actions) -> str:
     # call the enum in case player is an int

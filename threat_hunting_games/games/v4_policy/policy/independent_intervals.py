@@ -4,42 +4,33 @@ from open_spiel.python.policy import Policy
 
 class IntervalActions:
 
-    def __init__(self, action_intervals, beat_seeds=None):
-        if not beat_seeds:
-            # init timers to max interval per action (lowest intervals
-            # go first)
-            beat_seeds = {}
-        self._action_intervals = dict(action_intervals)
-        self._beats = []
-        for action, interval in self._action_intervals.items():
-            self._beats.append([beat_seeds.get(action, interval), action])
-        self._beats.sort()
+    def __init__(self, action_intervals, clock_seed=None):
+        self._beats = {}
+        for action, interval in dict(action_intervals).items():
+            if not interval:
+                continue
+            self._beats[int(action)] = interval
+        self._clock = clock_seed if clock_seed else 0
+        self._action_queue = []
 
     def take_action(self, selected_actions=None):
-        # select the most stale action -- if more than one action has
-        # been languishing for the same amount of time, pick a random
-        # one of them
-        if selected_actions:
-            beats = []
-            for beat in self._beats:
-                if beat[1] in selected_actions:
-                    beats.append(beat)
-        else:
-            beats = self._beats
-        for beat in beats:
-            beat[0] -= 1
+        if not selected_actions:
+            selected_actions = self._beats.keys()
+        selected_actions = [int(x) for x in selected_actions]
         action = None
-        lowest_count = beats[0][0]
-        if lowest_count <= 0:
-            beat_choices = []
-            for beat in beats:
-                if beat[0] == lowest_count:
-                    beat_choices.append(beat)
-                else:
-                    break
-            assert beat_choices, "no actions"
-            # An alternative to the pure random choice below, from the
-            # writeup:
+        for action in selected_actions:
+            if action not in self._beats:
+                continue
+            if not self._clock % self._beats[action]:
+                # should we put multiple actions of the same type in
+                # primed actions?
+                if action not in self._action_queue:
+                    self._action_queue.append(action)
+        if self._action_queue:
+            # could do random.choice(primed_actions)...but we do
+            # FIFO for now
+            #
+            # also, from the writeup:
             #
             #   Useful constraints will be ensuring all detection types
             #   can trigger without always being over-ridden by a
@@ -53,19 +44,16 @@ class IntervalActions:
             #   scheduled to co-occur is made based on which of the
             #   targeted detection actions has been taken least
             #   recently.
-            beat = random.choice(beat_choices)
-            # reset the interval timer for this action
-            action = beat[1]
-            beat[0] = self._action_intervals[action]
-            # restore canonical order
-            self._beats.sort()
+            action, self._action_queue[:] = \
+                    self._action_queue[0], self._action_queue[1:]
+        self._clock += 1
         return action
 
     def action_intervals(self):
-        return self._action_intervals
+        return dict(self._beats)
 
-    def action_beats(self):
-        return self._beats
+    def __str__(self):
+        return f"clock: {self._clock} beats: {self._beats}"
 
 
 class IndependentIntervalsPolicy(Policy):
@@ -108,32 +96,34 @@ class IndependentIntervalsPolicy(Policy):
     this was under the assumption that WAIT would also be in legal
     actions... currently just picking "most stale" first where the
     countdown resets to the seed interval after the action is selected.
-    Note that negative counts can possibly accumulate but those vaules
+    Note that negative counts can possibly accumulate but those values
     still indicate the magnitude of staleness for that action.
     """
 
-    def __init__(self, game, player_intervals=None):
+    def __init__(self, game, player_intervals, clock_seed=None):
         all_players = list(range(game.num_players()))
         super().__init__(game, all_players)
-        # dict of Action -> defined interval per player
         self._intervals = {}
-        if player_intervals:
-            for player, (intervals, beat_seeds) in player_intervals.items():
-                self._intervals[player] = \
-                        IntervalActions(intervals, beat_seeds=beat_seeds)
+        for player, intervals in player_intervals.items():
+            self._intervals[int(player)] = \
+                IntervalActions(intervals, clock_seed=clock_seed)
+        assert not set(self._intervals).difference(all_players), \
+                "unknown players in intervals"
 
     def action_probabilities(self, state, player_id=None):
-        legal_actions = (
-            state.legal_actions()
-            if player_id is None else state.legal_actions(player_id))
+        if player_id:
+            player_id = int(player_id)
+        legal_actions = state.legal_actions() if player_id is None \
+                else state.legal_actions(player_id)
         if not legal_actions:
             return { 0: 1.0 }
-        if len(legal_actions) == 1:
-            return { legal_actions[0]: 1.0 }
+        #if len(legal_actions) == 1:
+        #    return { legal_actions[0]: 1.0 }
         intervals = self._intervals.get(player_id)
         if intervals:
             action = intervals.take_action(legal_actions)
         else:
+            print("intervals using random choice legal actions")
             action = random.choice(legal_actions)
         if not action:
             return { 0: 1.0 }

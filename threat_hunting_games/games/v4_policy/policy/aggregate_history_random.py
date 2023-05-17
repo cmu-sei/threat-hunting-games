@@ -1,4 +1,4 @@
-import random
+import numpy as np
 
 from open_spiel.python.policy import Policy
 
@@ -30,11 +30,11 @@ class ActionPicker:
                 probs[action] = self._running_probs[action]
         else:
             probs = self._running_probs
-        psum = sum(probs.values) or (len(probs) / 100)
+        psum = sum(probs.values()) or (len(probs) / 100)
         for action in probs:
             probs[action] *= (1 / psum)
         selected_action = \
-                random.choice(list(probs.keys()), p=list(probs.values()))
+                np.random.choice(list(probs.keys()), p=list(probs.values()))
         # this increments all actions, even those not in
         # selected_actions...
         for action in self._running_probs:
@@ -45,8 +45,8 @@ class ActionPicker:
         self._running_probs[selected_action] = \
                 self._seed_probs[selected_action]
         psum = sum(self._running_probs.values())
-        for action in self._running_probs::
-            self._running_probs *= (1 / psum)
+        for action in self._running_probs:
+            self._running_probs[action] *= (1 / psum)
         return action
 
 
@@ -104,7 +104,7 @@ class AggregateHistoryPolicy(Policy):
         if len(legal_actions) == 1:
             return { legal_actions[0]: 1.0 }
         if player_id not in self._action_pickers:
-            action = random.choice(legal_actions)
+            action = np.random.choice(legal_actions)
         else:
             action = self._action_pickers[player_id].take_action(legal_actions)
         return { action: 1.0 }

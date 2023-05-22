@@ -41,7 +41,9 @@ services:
       restart: always
 
     ghosts-api:
-      image: dustinupdyke/ghosts
+      build:
+        context: ../Containers/GHOSTS/src
+        dockerfile: Dockerfile-api
       container_name: ghosts-api
       depends_on:
         - postgres

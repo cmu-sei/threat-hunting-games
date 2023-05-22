@@ -5,18 +5,15 @@ networks:
 services:
     threat-hunting-game:
       build:
-        context: ../
-        target: "vpn"
-        dockerfile: Containers/dockerfile
-      image: threat-hunting-game:vpn
+        context: ..
+        target: non-vpn
+      image: threat-hunting-game:non-vpn
       container_name: threat-hunting-game-vpn
       ports:
         - '5433:5433'
       networks:
         - ghosts-network
-      tty: true
-      volumes:
-        - ../Containers/Logs:/var/log/threat-hunting-games
+      restart: always
 
     postgres:
       image: postgres
@@ -46,6 +43,7 @@ services:
     ghosts-api:
       build:
         context: ../Containers/GHOSTS/src
+        dockerfile: Dockerfile-api
       container_name: ghosts-api
       depends_on:
         - postgres
@@ -54,3 +52,20 @@ services:
       networks:
         - ghosts-network
       restart: always
+
+    grafana:
+      image: grafana/grafana
+      container_name: ghosts-grafana
+      user: root
+      depends_on:
+        - postgres
+      ports:
+        - '3000:3000'
+      networks:
+        - ghosts-network
+      restart: always
+      volumes:
+        - ../Containers/Environment_Data/g_data:/var/lib/grafana
+        - ../Containers/Environment_Data/datasources:/etc/grafana/provisioning/datasources
+        - ../Containers/Environment_Data/dashboards:/etc/grafana/provisioning/dashboards
+

@@ -1,0 +1,34 @@
+{
+  "Actions List" : [
+    {
+      "Name" : "Search Log Files",
+      "Requires Admin": "",
+      "Command": "$search = \"hyper\" Get-EventLog -LogName system -after (Get-Date).AddDays(-1) | Where-Object { $_.Category.ToLower().Contains($search.ToLower()) -or $_.Message.ToLower().Contains($search.ToLower()) -or $_.Source.ToLower().Contains($search.ToLower())} | Format-Table -AutoSize -Wrap",
+      "CommandArgs": [
+        ""
+      ],
+      "DelayAfter": 10,
+      "DelayBefore": 10000
+    },
+    {
+      "Name": "",
+      "Requires Admin": "False",
+      "Action": {
+        "Command": "",
+        "CommandArgs": [],
+        "DelayAfter": 10,
+        "DelayBefore": 10000
+      }
+    },
+    {
+      "Name": "",
+      "Requires Admin": "False",
+      "Action": {
+        "Command": "",
+        "CommandArgs": [],
+        "DelayAfter": 10,
+        "DelayBefore": 10000
+      }
+    }
+  ]
+}

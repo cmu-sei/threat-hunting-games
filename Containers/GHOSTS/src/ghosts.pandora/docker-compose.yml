@@ -1,0 +1,15 @@
+# Copyright 2017 Carnegie Mellon University. All Rights Reserved. See LICENSE.md file for terms.
+
+version: "3"
+services: 
+  pandora:
+    restart: always
+    container_name: ghosts-pandora
+    image: dustinupdyke/ghosts-pandora:0.5.7
+    ports:
+      - "80:80"
+      - "8081:8081"
+      - "1935:1935"
+      - "443:443"
+    volumes:
+      - "./_config:/usr/src/app/config"

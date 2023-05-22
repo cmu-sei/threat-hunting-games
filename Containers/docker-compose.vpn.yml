@@ -7,7 +7,7 @@ services:
       build:
         context: ../
         target: "vpn"
-        dockerfile: Containers/Dockerfile
+        dockerfile: Containers/dockerfile
       image: threat-hunting-game:vpn
       container_name: threat-hunting-game-vpn
       ports:
@@ -44,7 +44,8 @@ services:
       restart: always
 
     ghosts-api:
-      image: dustinupdyke/ghosts
+      build:
+        context: ../Containers/GHOSTS/src
       container_name: ghosts-api
       depends_on:
         - postgres
@@ -53,33 +54,3 @@ services:
       networks:
         - ghosts-network
       restart: always
-
-    grafana:
-      image: grafana/grafana
-      container_name: ghosts-grafana
-      user: root
-      depends_on:
-        - postgres
-      ports:
-        - '3000:3000'
-      networks:
-        - ghosts-network
-      restart: always
-      volumes:
-        - ../Containers/Environment_Data/g_data:/var/lib/grafana
-        - ../Containers/Environment_Data/datasources:/etc/grafana/provisioning/datasources
-        - ../Containers/Environment_Data/dashboards:/etc/grafana/provisioning/dashboards
-
-    ghosts-spectre:
-      build:
-        context: ../Containers/GHOSTS-SPECTRE/src
-        target: "vpn"
-      container_name: ghosts-spectre
-      ports:
-        - '5002:5002'
-      networks:
-        - ghosts-network
-      restart: always
-      volumes:
-        - ../Containers/Environment_Data/spectre_data:/app/config
-      command: tail -F anything

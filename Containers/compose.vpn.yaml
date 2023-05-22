@@ -7,7 +7,7 @@ services:
       build:
         context: ../
         target: "vpn"
-        dockerfile: Containers/dockerfile
+        dockerfile: Containers/Dockerfile
       image: threat-hunting-game:vpn
       container_name: threat-hunting-game-vpn
       ports:

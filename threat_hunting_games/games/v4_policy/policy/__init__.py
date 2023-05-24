@@ -1,4 +1,4 @@
-from open_spiel.python.policy import UniformRandomPolicy
+from open_spiel.python.policy import UniformRandomPolicy, FirstActionPolicy
 
 from . import arena_v4 as arena
 
@@ -7,7 +7,10 @@ from .independent_intervals import IndependentIntervalsPolicy
 from .aggregate_history_random import AggregateHistoryPolicy
 
 _policies = {
+    # from open_spiel
     "uniform random": UniformRandomPolicy,
+    "first action": FirstActionPolicy,
+    # our policies
     "independent intervals": IndependentIntervalsPolicy,
     "simple random": SimpleRandomPolicy,
     "aggregate history": AggregateHistoryPolicy,

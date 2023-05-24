@@ -78,11 +78,13 @@ _GAME_TYPE = pyspiel.GameType(
     # tuples, lists, and others don't work
     parameter_specification={
         "num_turns": game_max_turns,
+        # if playing using bots, policies must be None
         "attacker_policy": None,
         #"defender_policy": "uniform random",
         #"defender_policy": "simple random",
         #"defender_policy": "independent intervals",
-        "defender_policy": "aggregate history",
+        #"defender_policy": "aggregate history",
+        "defender_policy": None,
         #"attacker_policy": None,
         #"defender_policy": None,
     }

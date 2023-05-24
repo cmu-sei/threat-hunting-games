@@ -94,21 +94,6 @@ Atk_Actions_By_Pos = (
     ),
 )
 
-# for use by the independent intervals policy, if used. For parameter
-# sweeps can modify this directly or later on load these values from a
-# config file
-Defend_Action_Intervals = {}
-Defend_Interval_Clock_Seed = 0
-for i, action in enumerate(Defend_Actions):
-    if action is Actions.WAIT:
-        continue
-    else:
-        Defend_Action_Intervals[action] = i
-
-def load_defender_independent_intervals():
-    # could load from json here
-    return (dict(Defend_Action_Intervals), Defend_Interval_Clock_Seed)
-
 def player_to_str(player: Actions) -> str:
     # call the enum in case player is an int
     if player is not None:

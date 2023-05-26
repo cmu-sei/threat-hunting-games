@@ -1,10 +1,9 @@
+import math
 
-import itertools
-from typing import Iterable
-from copy import deepcopy
-
+import pyspiel
 from open_spiel.python.policy import Policy
 
+from .util import normalize_action_probs
 
 class SimpleRandomPolicy(Policy):
     """
@@ -43,27 +42,27 @@ class SimpleRandomPolicy(Policy):
             assert not \
                 set(player_action_probs.keys()).difference(all_players), \
                     "unkown player_ids in action probabilities"
-            self._player_action_probs = dict(player_action_probs)
         else:
             self._player_action_probs = {}
-        all_players = list(range(game.num_players()))
-        for player_id, pprobs in self._player_action_probs.items():
-            psum = sum(pprobs.values())
-            if psum:
-                if psum != 1.0:
-                    print("scaling probs")
-                    for action in pprobs:
-                        pprobs[action] *= (1 / psum)
+        for player_id in self._player_action_probs:
+            psum = sum(self._player_action_probs[player_id].values())
+            if not math.isclose(psum, 1.0):
+                print("scaling probs")
+                self._player_action_probs[player_id] = \
+                    normalize_action_probs(
+                            self._player_action_probs[player_id])
             else:
                 print("probs set to uniform random")
-                for action in pprobs:
+                pprobs = {}
+                for action in self._player_action_probs[player_id]:
                     pprobs[action] = 1 / psum
+                self._player_action_probs[player_id] = pprobs
 
     def action_probabilities(self, state, player_id=None):
         legal_actions = set(state.legal_actions() if player_id is None \
                 else state.legal_actions(player_id))
         if not legal_actions:
-            return { 0: 1.0 }
+            return { pyspiel.ILLEGAL_ACTION: 1.0 }
         if len(legal_actions) == 1:
             return { legal_actions.pop(): 1.0 }
         probs = dict(self._player_action_probs.get(player_id, {}))
@@ -71,21 +70,10 @@ class SimpleRandomPolicy(Policy):
             # total sum already == 1.0
             if legal_actions.difference(probs.keys()):
                 print("calculating subset of action probs for", player_id)
-                print(probs)
-                print(legal_actions)
                 new_probs = {}
                 for action in legal_actions:
                     new_probs[action] = probs[action]
-                psum = sum(new_probs.values())
-                if psum:
-                    if psum != 1.0:
-                        print("scaling probs")
-                        for action in new_probs:
-                            new_probs[action] *= (1 / psum)
-                else:
-                    print("probs set to uniform random")
-                    new_probs = { x: 1/psum for x in new_probs }
-                probs = new_probs
+                probs = normalize_action_probs(probs)
         else:
             print("probs set to uniform random")
             scale = 1 / len(legal_actions)

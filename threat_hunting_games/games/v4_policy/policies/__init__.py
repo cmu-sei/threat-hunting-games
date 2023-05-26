@@ -1,6 +1,6 @@
 from open_spiel.python.policy import UniformRandomPolicy, FirstActionPolicy
 
-from . import arena_v4 as arena
+from . import arena_zsum_v4 as arena
 
 from .simple_random import SimpleRandomPolicy
 from .independent_intervals import IndependentIntervalsPolicy
@@ -8,12 +8,12 @@ from .aggregate_history_random import AggregateHistoryPolicy
 
 _policies = {
     # from open_spiel
-    "uniform random": UniformRandomPolicy,
-    "first action": FirstActionPolicy,
+    "uniform_random": UniformRandomPolicy,
+    "first_action": FirstActionPolicy,
     # our policies
-    "independent intervals": IndependentIntervalsPolicy,
-    "simple random": SimpleRandomPolicy,
-    "aggregate history": AggregateHistoryPolicy,
+    "independent_intervals": IndependentIntervalsPolicy,
+    "simple_random": SimpleRandomPolicy,
+    "aggregate_history": AggregateHistoryPolicy,
 }
 
 def get_policy_class(name):
@@ -22,7 +22,7 @@ def get_policy_class(name):
     else:
         return _policies[name]
 
-def available_policy_classes():
+def available_policies():
     return list(_policies.keys())
 
 def policy_classes():
@@ -66,8 +66,8 @@ def load_defender_aggregate_history_args():
 
 _arg_loaders = {
     arena.Players.DEFENDER: {
-        "independent intervals": load_defender_independent_intervals_args,
-        "aggregate history": load_defender_aggregate_history_args
+        "independent_intervals": load_defender_independent_intervals_args,
+        "aggregate_history": load_defender_aggregate_history_args
     },
 }
 for player, loaders in _arg_loaders.items():

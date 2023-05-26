@@ -1,5 +1,6 @@
 import random
 
+import pyspiel
 from open_spiel.python.policy import Policy
 
 class IntervalActions:
@@ -116,9 +117,7 @@ class IndependentIntervalsPolicy(Policy):
         legal_actions = state.legal_actions() if player_id is None \
                 else state.legal_actions(player_id)
         if not legal_actions:
-            return { 0: 1.0 }
-        #if len(legal_actions) == 1:
-        #    return { legal_actions[0]: 1.0 }
+            return { pyspiel.ILLEGAL_ACTION: 1.0 }
         intervals = self._intervals.get(player_id)
         if intervals:
             action = intervals.take_action(legal_actions)
@@ -126,6 +125,6 @@ class IndependentIntervalsPolicy(Policy):
             print("intervals using random choice legal actions")
             action = random.choice(legal_actions)
         if not action:
-            return { 0: 1.0 }
+            return { pyspiel.ILLEGAL_ACTION: 1.0 }
         else:
             return { action: 1.0 }

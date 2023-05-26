@@ -20,8 +20,9 @@ from absl import logging
 # this gets reset somewhere mysterious
 #logging.set_verbosity(logging.DEBUG)
 
+from threat_hunting_games import gameload
 from . import arena_zsum_v4 as arena
-from . import policy
+from . import policies
 from .arena_zsum_v4 import debug
 
 # Arguments to pyspiel.GameType:
@@ -80,13 +81,11 @@ _GAME_TYPE = pyspiel.GameType(
         "num_turns": game_max_turns,
         # if playing using bots, policies must be None
         "attacker_policy": None,
-        #"defender_policy": "uniform random",
-        #"defender_policy": "simple random",
-        #"defender_policy": "independent intervals",
-        #"defender_policy": "aggregate history",
+        #"defender_policy": "uniform_random",
+        #"defender_policy": "simple_random",
+        #"defender_policy": "independent_intervals",
+        #"defender_policy": "aggregate_history",
         "defender_policy": None,
-        #"attacker_policy": None,
-        #"defender_policy": None,
     }
 )
 
@@ -311,7 +310,7 @@ class BasePlayerState:
 
     def select_policy_action(self, game_state):
         assert self.policy, "no policy present"
-        action_probs = self.policy.action_probabilities(
+        action_probs = self.policies.action_probabilities(
                 game_state, int(self.player_id))
         print("AP ACTIONS:", self.player_id, action_probs)
         action_list = list(action_probs.keys())
@@ -542,25 +541,26 @@ class GameState(pyspiel.State):
             "game length must have even number of turns"
         game_params = game.get_parameters()
         self._num_turns = game_params["num_turns"]
+        self._turns_exhausted = False
         # if policies are None, actions are random choice out of
         # legal actions
         if game_params["defender_policy"]:
             policy_name = game_params["defender_policy"]
-            policy_class = policy.get_policy_class(policy_name)
-            policy_args = policy.get_player_policy_args(
+            policy_class = policies.get_policy_class(policy_name)
+            policy_args = policies.get_player_policy_args(
                     arena.Players.DEFENDER, policy_name)
-            print("POLICY CLASS:", policy_class)
-            print("POLICY ARGS:", policy_args)
+            #print("DEFENDER POLICY CLASS:", policy_class)
+            #print("DEFENDER POLICY ARGS:", policy_args)
             self._defender_policy = policy_class(game, *policy_args)
         else:
             self._defender_policy = None
         if game_params["attacker_policy"]:
             policy_name = game_params["attacker_policy"]
-            policy_class = policy.get_policy_class(policy_name)
-            policy_args = policy.get_player_policy_args(
+            policy_class = policies.get_policy_class(policy_name)
+            policy_args = policies.get_player_policy_args(
                     arena.Players.ATTACKER, policy_name)
-            print("POLICY CLASS:", policy_class)
-            print("POLICY ARGS:", policy_args)
+            #print("ATTACKER POLICY CLASS:", policy_class)
+            #print("ATTACKER POLICY ARGS:", policy_args)
             self._attacker_policy = policy_class(game, *policy_args)
         else:
             self._attacker_policy = None
@@ -836,6 +836,7 @@ class GameState(pyspiel.State):
         # Have we reached max game length? Terminate if so.
         if not self._game_over and self._curr_turn >= self._num_turns:
             debug(f"\nmax game length reached, terminating game after {dsp_turn} turns\n")
+            self._turns_exhausted = True
             self._game_over = True
 
 
@@ -863,6 +864,13 @@ class GameState(pyspiel.State):
         """Total reward for each player over the course of the game so
         far."""
         return [self._attacker.utility, self._defender.utility]
+
+    def turns_exhausted(self):
+        """
+        Indicates whether the game maxed out turns rather than either
+        player having a conclusive victory.
+        """
+        return self._turns_exhausted
 
     def __str__(self):
         """String for debugging. No particular semantics."""

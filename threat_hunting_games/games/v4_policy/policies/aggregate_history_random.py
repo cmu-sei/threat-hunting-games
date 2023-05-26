@@ -1,7 +1,9 @@
 import numpy as np
 
+import pyspiel
 from open_spiel.python.policy import Policy
 
+from .util import normalize_action_probs
 
 class ActionPicker:
 
@@ -18,7 +20,9 @@ class ActionPicker:
             for action in action_seed_probs:
                 probs[action] = pct
             action_seed_probs = probs
-        self._seed_probs = dict(action_seed_probs)
+        action_seed_probs = dict(action_seed_probs)
+        action_seed_probs = normalize_action_probs(action_seed_probs)
+        self._seed_probs = action_seed_probs
         self._running_probs = dict(self._seed_probs)
 
     def take_action(self, selected_actions=None):
@@ -30,9 +34,9 @@ class ActionPicker:
                 probs[action] = self._running_probs[action]
         else:
             probs = self._running_probs
-        psum = sum(probs.values()) or (len(probs) / 100)
-        for action in probs:
-            probs[action] *= (1 / psum)
+        if not probs:
+            return pyspiel.ILLEGAL_ACTION
+        probs = normalize_action_probs(probs)
         selected_action = \
                 np.random.choice(list(probs.keys()), p=list(probs.values()))
         # this increments all actions, even those not in
@@ -44,10 +48,8 @@ class ActionPicker:
         # other actions
         self._running_probs[selected_action] = \
                 self._seed_probs[selected_action]
-        psum = sum(self._running_probs.values())
-        for action in self._running_probs:
-            self._running_probs[action] *= (1 / psum)
-        return action
+        self._running_probs = normalize_action_probs(self._running_probs)
+        return selected_action
 
 
 class AggregateHistoryPolicy(Policy):
@@ -100,7 +102,7 @@ class AggregateHistoryPolicy(Policy):
             state.legal_actions()
             if player_id is None else state.legal_actions(player_id))
         if not legal_actions:
-            return { 0: 1.0 }
+            return { pyspiel.ILLEGAL_ACTION, 1.0 }
         if len(legal_actions) == 1:
             return { legal_actions[0]: 1.0 }
         if player_id not in self._action_pickers:

@@ -8,7 +8,9 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 import random
 
-DEBUG = False
+import pyspiel
+
+DEBUG = True
 
 USE_TIMEWAITS = False
 USE_CHANCE_FAIL = False
@@ -45,24 +47,43 @@ class Players(IntEnum):
 #    FF_SEARCH           = auto()
 #    FF_SEARCH_STRONG    = auto()
 
+#class Actions(IntEnum):
+#    # both players; auto() starts at 1
+#    WAIT                = 0
+#    IN_PROGRESS         = 1
+#    # attacker
+#    S0_VERIFY_PRIV      = 2
+#    S0_VERIFY_PRIV_CAMO = 3
+#    S1_WRITE_EXE        = 4
+#    S1_WRITE_EXE_CAMO   = 5
+#    S2_ENCRYPT          = 6
+#    S2_ENCRYPT_CAMO     = 7
+#    # defender
+#    PSGREP              = 8
+#    PSGREP_STRONG       = 9
+#    SMB_LOGS            = 10
+#    SMB_LOGS_STRONG     = 11
+#    FF_SEARCH           = 12
+#    FF_SEARCH_STRONG    = 13
+
 class Actions(IntEnum):
     # both players; auto() starts at 1
-    WAIT                = 0
-    IN_PROGRESS         = 1
+    WAIT                = auto()
+    IN_PROGRESS         = auto()
     # attacker
-    S0_VERIFY_PRIV      = 2
-    S0_VERIFY_PRIV_CAMO = 3
-    S1_WRITE_EXE        = 4
-    S1_WRITE_EXE_CAMO   = 5
-    S2_ENCRYPT          = 6
-    S2_ENCRYPT_CAMO     = 7
+    S0_VERIFY_PRIV      = auto()
+    S0_VERIFY_PRIV_CAMO = auto()
+    S1_WRITE_EXE        = auto()
+    S1_WRITE_EXE_CAMO   = auto()
+    S2_ENCRYPT          = auto()
+    S2_ENCRYPT_CAMO     = auto()
     # defender
-    PSGREP              = 8
-    PSGREP_STRONG       = 9
-    SMB_LOGS            = 10
-    SMB_LOGS_STRONG     = 11
-    FF_SEARCH           = 12
-    FF_SEARCH_STRONG    = 13
+    PSGREP              = auto()
+    PSGREP_STRONG       = auto()
+    SMB_LOGS            = auto()
+    SMB_LOGS_STRONG     = auto()
+    FF_SEARCH           = auto()
+    FF_SEARCH_STRONG    = auto()
 
 Attack_Actions = tuple(sorted([
     # do not include IN_PROGRESS
@@ -122,13 +143,15 @@ def player_to_str(player: Actions) -> str:
 def action_to_str(action: Actions) -> str:
     # call the enum in case action is an int
     if action is not None:
-        return Actions(action).name.title()
+        if action == pyspiel.INVALID_ACTION:
+            return "Invalid_Action"
+        else:
+            return Actions(action).name.title()
     else:
         return "None"
 
-def a2s(action: Actions) -> str:
-    # shorthand option
-    return action_to_str(action)
+# shorthand option
+a2s = action_to_str
 
 
 class Utility(NamedTuple):

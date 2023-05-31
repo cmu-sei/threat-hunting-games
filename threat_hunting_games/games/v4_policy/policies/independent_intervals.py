@@ -112,6 +112,11 @@ class IndependentIntervalsPolicy(Policy):
                 "unknown players in intervals"
 
     def action_probabilities(self, state, player_id=None):
+        """
+        Primary interface to a Policy. Returns a dict of actions with
+        their associated probabilities. In this particular case this
+        will be a single action with probability of 1.0.
+        """
         if player_id:
             player_id = int(player_id)
         legal_actions = state.legal_actions() if player_id is None \

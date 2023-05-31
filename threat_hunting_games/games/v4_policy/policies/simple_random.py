@@ -59,6 +59,10 @@ class SimpleRandomPolicy(Policy):
                 self._player_action_probs[player_id] = pprobs
 
     def action_probabilities(self, state, player_id=None):
+        """
+        Primary interface to a Policy. Returns a dict of actions with
+        their assosciated probabilities.
+        """
         legal_actions = set(state.legal_actions() if player_id is None \
                 else state.legal_actions(player_id))
         if not legal_actions:

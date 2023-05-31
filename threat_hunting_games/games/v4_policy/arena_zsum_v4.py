@@ -16,6 +16,12 @@ USE_TIMEWAITS = False
 USE_CHANCE_FAIL = False
 
 def debug(*args, **kwargs):
+    '''
+    Logging module tends to obliterate log levels when set at the outset
+    of module load, so, we roll our own. Strings passed to this will be
+    already interpolated, so keep that in mind if the {interpolation} is
+    calling methods/functions.
+    '''
     DEBUG and print(*args, **kwargs)
 
 # I ran into difficulties trying to put attack/defend actions in their
@@ -28,46 +34,13 @@ class Players(IntEnum):
     ATTACKER = 0
     DEFENDER = 1
 
-#class Actions(IntEnum):
-#    # both players; auto() starts at 1
-#    WAIT                = auto()
-#    IN_PROGRESS         = auto()
-#    # attacker
-#    S0_VERIFY_PRIV      = auto()
-#    S0_VERIFY_PRIV_CAMO = auto()
-#    S1_WRITE_EXE        = auto()
-#    S1_WRITE_EXE_CAMO   = auto()
-#    S2_ENCRYPT          = auto()
-#    S2_ENCRYPT_CAMO     = auto()
-#    # defender
-#    PSGREP              = auto()
-#    PSGREP_STRONG       = auto()
-#    SMB_LOGS            = auto()
-#    SMB_LOGS_STRONG     = auto()
-#    FF_SEARCH           = auto()
-#    FF_SEARCH_STRONG    = auto()
-
-#class Actions(IntEnum):
-#    # both players; auto() starts at 1
-#    WAIT                = 0
-#    IN_PROGRESS         = 1
-#    # attacker
-#    S0_VERIFY_PRIV      = 2
-#    S0_VERIFY_PRIV_CAMO = 3
-#    S1_WRITE_EXE        = 4
-#    S1_WRITE_EXE_CAMO   = 5
-#    S2_ENCRYPT          = 6
-#    S2_ENCRYPT_CAMO     = 7
-#    # defender
-#    PSGREP              = 8
-#    PSGREP_STRONG       = 9
-#    SMB_LOGS            = 10
-#    SMB_LOGS_STRONG     = 11
-#    FF_SEARCH           = 12
-#    FF_SEARCH_STRONG    = 13
 
 class Actions(IntEnum):
-    # both players; auto() starts at 1
+    '''
+    Both players; auto() starts at 1; some OpenSpiel
+    examples/algorithms test truthiness on action policies, so don't
+    start action counts at 0
+    '''
     WAIT                = auto()
     IN_PROGRESS         = auto()
     # attacker
@@ -86,7 +59,7 @@ class Actions(IntEnum):
     FF_SEARCH_STRONG    = auto()
 
 Attack_Actions = tuple(sorted([
-    # do not include IN_PROGRESS
+    # Do not include IN_PROGRESS
     Actions.WAIT,
     Actions.S0_VERIFY_PRIV,
     Actions.S0_VERIFY_PRIV_CAMO,
@@ -97,7 +70,7 @@ Attack_Actions = tuple(sorted([
 ]))
 
 Defend_Actions = tuple(sorted([
-    # do not include IN_PROGRESS
+    # Do not include IN_PROGRESS
     Actions.WAIT,
     Actions.PSGREP,
     Actions.PSGREP_STRONG,
@@ -112,6 +85,10 @@ NoOp_Actions = tuple(sorted([
     Actions.IN_PROGRESS,
 ]))
 
+# Attacker is operating off of a kill chain -- at any given point in the
+# chain, the attacker will have three options: next action, next action
+# (camo), and WAIT. IN_PROGRESS actions are injected and handled by
+# GameState.
 Atk_Actions_By_Pos = (
     (
       # pos 0
@@ -134,14 +111,18 @@ Atk_Actions_By_Pos = (
 )
 
 def player_to_str(player: Actions) -> str:
-    # call the enum in case player is an int
+    '''
+    Call the enum in case given player is an int
+    '''
     if player is not None:
         return Players(player).name.title()
     else:
         return "None"
 
 def action_to_str(action: Actions) -> str:
-    # call the enum in case action is an int
+    '''
+    Call the enum in case given action is an int
+    '''
     if action is not None:
         if action == pyspiel.INVALID_ACTION:
             return "Invalid_Action"
@@ -155,6 +136,10 @@ a2s = action_to_str
 
 
 class Utility(NamedTuple):
+    '''
+    This is one way to look at utilities; right now there is typically
+    equivalence between reward/damage.
+    '''
     cost:    int # utility cost
     reward:  int # action success reward (only attacker for now)
     damage:  int # cost to opposition if successful action
@@ -208,6 +193,9 @@ Utilities = {
 
 
 class TimeWait(NamedTuple):
+    '''
+    Min/Max, inclusive.
+    '''
     min: int
     max: int
 
@@ -322,6 +310,10 @@ def get_general_pct_fail(action):
         return GeneralFails.get(action, DEFAULT_FAIL)
     else:
         return 0
+
+# There is probably a way to use skirmish failure rates to model the
+# confidence scores we've been discussing that get returned by
+# the oracle in GHOSTS land.
 
 def get_skirmish_pct_fail(action1, action2):
     pct_fail = 1.0
@@ -453,7 +445,12 @@ class MinMaxUtil(NamedTuple):
 _min_max_util = MinMaxUtil(None, None)
 
 def max_utility() -> int:
-    # per turn
+    '''
+    Max utility per turn...maybe. Without knowing the total number of
+    IN_PROGRESS actions it's not really possible to nail this down
+    precisely. But it gets used in the game info/game definition for
+    OpenSpiel.
+    '''
     if _min_max_util.max is not None:
         return _min_max_util.max
     max_util = 0
@@ -480,7 +477,9 @@ def max_utility() -> int:
     return max_util
 
 def min_utility() -> int:
-    # per turn
+    '''
+    Per turn -- see description for max_utility()
+    '''
     if _min_max_util.min is not None:
         return _min_max_util.min
     min_util = 0
@@ -576,6 +575,10 @@ def assert_arena_parameters():
 
 def matrix_args():
     """
+    Not currently being used, but retained here for illustrative
+    purposes. Matrix games are single-turn if I'm understanding
+    correctly.
+
     Return the last four arguments required by MatrixGame():
 
       pyspiel.MatrixGame(
@@ -586,7 +589,6 @@ def matrix_args():
           row_utilities,
           col_utilities
       )
-
     """
 
     # row/attack POV

@@ -6,6 +6,9 @@ from open_spiel.python.policy import Policy
 from .util import normalize_action_probs
 
 class ActionPicker:
+    """
+    Keeps track of the running probabilities for available actions.
+    """
 
     pct_per_interval = 0.10
 
@@ -26,8 +29,12 @@ class ActionPicker:
         self._running_probs = dict(self._seed_probs)
 
     def take_action(self, selected_actions=None):
-        # select an action and increment the percentages of the rest of
-        # the actions
+        """
+        Select an action and increment the percentages of the remaining
+        actions; the selected action's percentage gets reset to its seed
+        probability.
+        """
+
         if selected_actions:
             probs = {}
             for action in selected_actions:
@@ -98,6 +105,11 @@ class AggregateHistoryPolicy(Policy):
                     ActionPicker(player_seed_probs[player])
 
     def action_probabilities(self, state, player_id=None):
+        """
+        This is the primary interface to Policies; return a dict of
+        actions and their assosciated probabilities. In this particular
+        case this will be a single action with a probability of 1.0.
+        """
         legal_actions = (
             state.legal_actions()
             if player_id is None else state.legal_actions(player_id))

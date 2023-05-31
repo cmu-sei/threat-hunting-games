@@ -15,3 +15,7 @@ Using both methods simultaneously is not supported.
 An example of a bot that uses a policy is
 open_spiel.python.bots.policy.PolicyBot
 
+bot_playthrough.py is a bot-based event loop. The OpenSpiel stock
+example playthrough.py, on the other hand, just takes a game and so
+policies must be defined in the game definition if they are to be used
+in non-bot scenarios.

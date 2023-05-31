@@ -794,6 +794,8 @@ class GameState(pyspiel.State):
                     dmg = self._attacker.increment_damage(damage)
                     self._defender.increment_reward(dmg)
                     detected = True
+                    # atk_action is merely used for debug
+                    # statements below
                     atk_action = attack_action
                     break
                 else:

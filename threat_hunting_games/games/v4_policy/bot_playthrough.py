@@ -6,8 +6,8 @@ import collections
 import numpy as np
 
 import pyspiel
-#from open_spiel.python.bots.policy import PolicyBot
-from policy import PolicyBot
+from open_spiel.python.bots.policy import PolicyBot
+#from policy import PolicyBot
 
 import policies
 import arena_zsum_v4 as arena
@@ -16,13 +16,15 @@ from threat_hunting_games import gameload
 default_game = "chain_game_v4_lb_seq_zsum"
 default_iterations = 1
 
+# Need to include loading policy of choice in our parameterization
+# efforts.
 default_defender_policy = "simple_random"
 #default_defender_policy = "independent_intervals"
 #default_defender_policy = "aggregate_history"
 
-# attacker will always have a two actions (whatever the next action in
+# Attacker will always have a two actions (whatever the next action in
 # the chain is plus its CAMO version) plus WAIT...so randomly choose one
-# of the three
+# of the three; uniform random comes stock with OpenSpiel
 default_attacker_policy = "uniform_random"
 
 def get_player_policy(game, player, policy_name):

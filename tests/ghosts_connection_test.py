@@ -17,7 +17,6 @@ def test_api_connection(local):
         assert ghosts_connect.confirm_connection() == True
     finally:
         ghosts_connect.end_simulation()
-        print('Ran End Simulation Code')
 
 
 # Test that a GHOSTSConnection object is correctly created

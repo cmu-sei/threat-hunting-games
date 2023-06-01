@@ -29,8 +29,6 @@ def setup_logger(logger_name: str, log_file: str, format_str: str, level=logging
 
 
 class GHOSTSConnection:
-    config_data = toml.load('./pyproject.toml')
-    config_data = config_data['config']
     SIMULATION_ID = ''
     NUM_ATTACKERS = 0
     NUM_DEFENDERS = 0
@@ -38,24 +36,31 @@ class GHOSTSConnection:
     attacker_Machine_Ids = []
     # Matrix reads { 'system_id' : ['Machine with admin', 'machine2 with admin']
     admin_matrix = {}
-    CONN_URL = config_data['prod-ghosts-uri']
+    CONN_URL = ''
     SIM_FILE_PATH = ''
     TEST_SESSION = False
+    config_data = {}
 
     def __init__(self, num_attackers: int = 1, num_defenders: int = 1, local_session: bool = False,
                  test_session: bool = False):
-        # If not being run in the threat-hunting-games container then use localhost address and port
-        ghosts_log_path = self.config_data['unix-ghosts-path']
         if local_session:
-            self.CONN_URL = self.config_data['local-ghosts-uri']
+            self.config_data = toml.load('./pyproject.toml')
+            self.CONN_URL = self.config_data['config']['local-ghosts-uri']
+        else:
+            self.config_data = toml.load('/opt/pysetup/pyproject.toml')
+            self.CONN_URL = self.config_data['config']['prod-ghosts-uri']
+
+        # If not being run in the threat-hunting-games container then use localhost address and port
+        ghosts_log_path = self.config_data['config']['unix-ghosts-path']
+
         if test_session:
             self.TEST_SESSION = True
         if platform == "darwin":
-            self.SIM_FILE_PATH = self.config_data['unix-sim-path']
-            ghosts_log_path = self.config_data['unix-ghosts-path']
+            self.SIM_FILE_PATH = self.config_data['config']['unix-sim-path']
+            ghosts_log_path = self.config_data['config']['unix-ghosts-path']
         elif platform == 'win32' or platform == 'cygwin':
-            self.SIM_FILE_PATH = self.config_data['windows-sim-path']
-            ghosts_log_path = self.config_data['windows-ghosts-path']
+            self.SIM_FILE_PATH = self.config_data['config']['windows-sim-path']
+            ghosts_log_path = self.config_data['config']['windows-ghosts-path']
         try:
             print(os.getcwd())
             os.mkdir(os.path.join(os.getcwd(), self.SIM_FILE_PATH))

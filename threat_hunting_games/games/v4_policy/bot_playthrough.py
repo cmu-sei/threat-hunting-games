@@ -90,28 +90,27 @@ def main(game_name=default_game,
     game_num = 0
     try:
         for game_num in range(iterations):
-            dump = {
-                "defender_policy": defender_policy,
-                "attacker_policy": attacker_policy,
-            }
             returns, history, turns_played, turns_exhausted \
                     = play_game(game, bots)
-            dump["returns"] = returns
-            dump["history"] = history
-            dump["max_turns"] = game.get_parameters()["num_turns"]
-            dump["turns_played"] = turns_played
-            dump["turns_exhausted"] = turns_exhausted
             histories[" ".join(str(int(x)) for x in history)] += 1
             for i, v in enumerate(returns):
                 overall_returns[i] += v
                 if v > 0:
                     overall_wins[i] += 1
             if dump_dir:
-                print("DUMPING:")
-                print(dump)
+                dump = {
+                    "defender_policy": defender_policy,
+                    "attacker_policy": attacker_policy,
+                    "returns": returns,
+                    "history": history,
+                    "max_turns": game.get_parameters()["num_turns"],
+                    "turns_played": turns_played,
+                    "turns_exhausted": turns_exhausted,
+                }
                 df = os.path.join(dump_dir, f"%0{iter_fmt}d.json" % game_num)
                 with open(df, 'w') as dfh:
                     json.dump(dump, dfh, indent=2)
+                print("Dumped results to:", df)
     except (KeyboardInterrupt, EOFError):
         game_num -= 1
         print("Game iterations aborted")

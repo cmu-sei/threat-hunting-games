@@ -867,6 +867,10 @@ class GameState(pyspiel.State):
         far."""
         return [self._attacker.utility, self._defender.utility]
 
+    def turns_played(self):
+        """Number of turns played thus far."""
+        return self._curr_turn
+
     def turns_exhausted(self):
         """
         Indicates whether the game maxed out turns rather than either

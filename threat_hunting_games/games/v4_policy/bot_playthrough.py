@@ -1,9 +1,10 @@
 #!/bin/env python3
 
-import os, sys
+import os, sys, json
 import argparse
 import collections
 import numpy as np
+from datetime import datetime
 
 import pyspiel
 from open_spiel.python.bots.policy import PolicyBot
@@ -50,16 +51,20 @@ def play_game(game, bots):
         player_str = arena.player_to_str(player)
         action_str = arena.a2s(action)
         print(f"Player {player_str} sampled action: {action_str}")
-        history.append(action)
+        # convert to int; json.dump() can't dump int64
+        history.append(int(action))
         state.apply_action(action)
     returns = state.returns()
     print("Returns:", " ".join(map(str, returns)))
-    return returns, history
+    return returns, history, state.turns_played(), state.turns_exhausted()
 
 def main(game_name=default_game,
         iterations=default_iterations,
         defender_policy=default_defender_policy,
-        attacker_policy=default_attacker_policy):
+        attacker_policy=default_attacker_policy,
+        dump_dir=None):
+    if not iterations:
+        iterations = default_iterations
     game = pyspiel.load_game(game_name)
     def_bot = get_player_bot(game, arena.Players.DEFENDER, defender_policy)
     atk_bot = get_player_bot(game, arena.Players.ATTACKER, attacker_policy)
@@ -76,21 +81,47 @@ def main(game_name=default_game,
         arena.Players.DEFENDER: 0,
         arena.Players.ATTACKER: 0,
     }
+    if dump_dir:
+        dump_dir = os.path.join(dump_dir, str(datetime.now()))
+        if not os.path.exists(dump_dir):
+            os.makedirs(dump_dir)
+    iter_fmt = len(str(iterations))
     num_games_maxed = 0
     game_num = 0
     try:
         for game_num in range(iterations):
-            returns, history = play_game(game, bots)
+            dump = {
+                "defender_policy": defender_policy,
+                "attacker_policy": attacker_policy,
+            }
+            returns, history, turns_played, turns_exhausted \
+                    = play_game(game, bots)
+            dump["returns"] = returns
+            dump["history"] = history
+            dump["max_turns"] = game.get_parameters()["num_turns"]
+            dump["turns_played"] = turns_played
+            dump["turns_exhausted"] = turns_exhausted
             histories[" ".join(str(int(x)) for x in history)] += 1
             for i, v in enumerate(returns):
                 overall_returns[i] += v
                 if v > 0:
                     overall_wins[i] += 1
+            if dump_dir:
+                print("DUMPING:")
+                print(dump)
+                df = os.path.join(dump_dir, f"%0{iter_fmt}d.json" % game_num)
+                with open(df, 'w') as dfh:
+                    json.dump(dump, dfh, indent=2)
     except (KeyboardInterrupt, EOFError):
         game_num -= 1
         print("Game iterations aborted")
+    print(f"Defender policy: {defender_policy}")
+    print(f"Attacker policy: {attacker_policy}")
     print("Number of games played:", game_num + 1)
     print("Number of distinct games played:", len(histories))
+    if dump_dir:
+        print(f"Dumped {game_num + 1} game playthroughs into: {dump_dir}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -111,14 +142,24 @@ if __name__ == "__main__":
             help=f"Attacker policy ({default_attacker_policy})")
     parser.add_argument("-l", "--list_policies", action="store_true",
             help="List available policies")
+    default_dump_dir = os.path.join(os.path.dirname(
+        os.path.abspath(__file__)), "dump")
+    parser.add_argument("-p", "--dump_dir",
+            default=default_dump_dir,
+            help=f"Directory in which to dump game states over iterations of the game. ({default_dump_dir})")
+    parser.add_argument("-n", "--no_dump", action="store_true",
+            help="Disable logging of game playthroughs")
     args = parser.parse_args()
     if args.list_policies:
         for policy_name in policies.available_policies():
             print("  ", policy_name)
         sys.exit()
+    if args.no_dump:
+        args.dump_dir = None
     main(
         game_name=default_game,
         iterations=args.iterations,
         defender_policy=args.defender_policy,
         attacker_policy=args.attacker_policy,
+        dump_dir = args.dump_dir,
     )

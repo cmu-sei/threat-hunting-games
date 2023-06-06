@@ -874,7 +874,9 @@ class GameState(pyspiel.State):
     def turns_exhausted(self):
         """
         Indicates whether the game maxed out turns rather than either
-        player having a conclusive victory.
+        player having a conclusive victory. This is not necessarily
+        equivalent to max turns having been reached since the final turn
+        might have been a success for either player.
         """
         return self._turns_exhausted
 

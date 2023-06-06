@@ -110,7 +110,6 @@ def main(game_name=default_game,
                 df = os.path.join(dump_dir, f"%0{iter_fmt}d.json" % game_num)
                 with open(df, 'w') as dfh:
                     json.dump(dump, dfh, indent=2)
-                print("Dumped results to:", df)
     except (KeyboardInterrupt, EOFError):
         game_num -= 1
         print("Game iterations aborted")

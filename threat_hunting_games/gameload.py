@@ -9,6 +9,7 @@ try:
     from .games.v3 import v3_lockbit_seq
     from .games.v3 import v3_lb_seq_zsum
     from .games.v4_policy import v4_lb_seq_zsum
+    from .games.v5_ghosts import v5_policy
 except (ModuleNotFoundError, ImportError):
     # for scripts living in top level ./threat_hunting_games
     from games.v0 import v0
@@ -20,12 +21,14 @@ except (ModuleNotFoundError, ImportError):
     from games.v3 import v3_lockbit_seq
     from games.v3 import v3_lb_seq_zsum
     from games.v4_policy import v4_lb_seq_zsum
+    from .games.v5_ghosts import v5_policy
 
 #current_game = v2
 #current_game = v2_seq
 #current_game = v2_tensormod
 #current_game = v2_matrix
 #current_game = v3_lockbit_seq
-current_game = v4_lb_seq_zsum
+#current_game = v4_lb_seq_zsum
+current_game = v5_policy
 
 game_name = current_game.game_name

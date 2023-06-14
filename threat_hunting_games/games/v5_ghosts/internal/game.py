@@ -10,109 +10,19 @@ import sys
 from typing import NamedTuple, Mapping, Any, List
 from enum import IntEnum
 from dataclasses import dataclass, field
-from open_spiel.python.observation import IIGObserverForPublicInfoGame
-from open_spiel.python.policy import Policy
-import pyspiel  # type: ignore
 import numpy as np
 
-from absl import logging
-#from absl.logging import debug
-# this gets reset somewhere mysterious
-#logging.set_verbosity(logging.DEBUG)
-
 from threat_hunting_games import gameload
-from . import arena_zsum_v4 as arena
+from . import arena_zsum as arena
 from . import policies
-from .arena_zsum_v4 import debug
+from .arena_zsum import debug
 
-# Arguments to pyspiel.GameType:
-#
-# (short_name: str,
-#  long_name: str,
-#  dynamics: open_spiel::GameType::Dynamics,
-#  chance_mode: open_spiel::GameType::ChanceMode,
-#  information: open_spiel::GameType::Information,
-#  utility: open_spiel::GameType::Utility,
-#  reward_model: open_spiel::GameType::RewardModel,
-#  max_num_players: int,
-#  min_num_players: int,
-#  provides_information_state_string: bool,
-#  provides_information_state_tensor: bool,
-#  provides_observation_string: bool,
-#  provides_observation_tensor: bool,
-#  parameter_specification: Dict[str,
-#                                GameParameter] = {},
-#  default_loadable: bool = True,
-#  provides_factored_observation_string: bool = False)
-
-game_name = "chain_game_v4_lb_seq_zsum"
-game_long_name = "Chain game version 4 Sequential Zero Sum LockBit with Policies"
+game_name = "chain_game_v5_lb_seq_zsum"
+game_long_name = "Chain game version 5 Sequential Zero Sum LockBit with Policies"
 game_max_turns = 30
 game_max_turns = 8
 game_max_turns = 12
 num_players = len(arena.Players)
-
-_GAME_TYPE = pyspiel.GameType(
-    short_name=game_name,
-    long_name=game_long_name,
-    dynamics=pyspiel.GameType.Dynamics.SEQUENTIAL,
-    chance_mode=pyspiel.GameType.ChanceMode.DETERMINISTIC,
-    information=pyspiel.GameType.Information.PERFECT_INFORMATION,
-    #utility=pyspiel.GameType.Utility.CONSTANT_SUM,
-    utility=pyspiel.GameType.Utility.ZERO_SUM,
-    # The other option here is REWARDS, which supports model-based
-    # Markov decision processes. (See spiel.h)
-    reward_model=pyspiel.GameType.RewardModel.TERMINAL,
-    # Note again: num_players doesn't count Chance
-    max_num_players=num_players,
-    min_num_players=num_players,
-    provides_information_state_string=True,
-    provides_information_state_tensor=True,
-    provides_observation_string=True,
-    provides_observation_tensor=True,
-    default_loadable=True,
-    provides_factored_observation_string=False,
-    # parameter_specification valid value types (see game_parameters.h)
-    #
-    #  int, float, str, bytes, dict (can embed other dicts)
-    #
-    # tuples, lists, and others don't work
-    parameter_specification={
-        "num_turns": game_max_turns,
-        # if playing using bots, policies must be None
-        "attacker_policy": None,
-        #"defender_policy": "uniform_random",
-        #"defender_policy": "simple_random",
-        #"defender_policy": "independent_intervals",
-        #"defender_policy": "aggregate_history",
-        "defender_policy": None,
-    }
-)
-
-def make_game_info(num_turns: int) -> pyspiel.GameInfo:
-    # In this constant sum game, each player starts with 30 utility, so
-    # max is 60
-    min_utility = arena.min_utility() * num_turns
-    max_utility = arena.max_utility() * num_turns
-
-    # Arguments to pyspiel.GameInfo:
-    # (num_distinct_actions: int,
-    #  max_chance_outcomes: int,
-    #  num_players: int,
-    #  min_utility: float,
-    #  max_utility: float,
-    #  utility_sum: float = 0,
-    #  max_game_length: int)
-
-    return pyspiel.GameInfo(
-        num_distinct_actions=len(arena.Actions),
-        max_chance_outcomes=0,
-        num_players=num_players,
-        min_utility=float(min_utility),
-        max_utility=float(max_utility),
-        utility_sum=0.0,
-        max_game_length=num_turns,
-    )
 
 
 @dataclass
@@ -175,7 +85,7 @@ class BasePlayerState:
     """
     utility: int = 0
     history: list[ActionState] = field(default_factory=list)
-    policy: Policy = None
+    policy: policies.Policy = None
     policy_args: field(default_factory=list) = None
     policy_stash: list[arena.Actions] = field(default_factory=list)
     available_actions: list[arena.Actions] = field(default_factory=list)
@@ -310,7 +220,7 @@ class BasePlayerState:
 
     def select_policy_action(self, game_state):
         assert self.policy, "no policy present"
-        action_probs = self.policies.action_probabilities(
+        action_probs = self.policy.action_probabilities(
                 game_state, int(self.player_id))
         print("AP ACTIONS:", self.player_id, action_probs)
         action_list = list(action_probs.keys())
@@ -369,7 +279,7 @@ class AttackerState(BasePlayerState):
         #        if arena.action_cost(x) <= self.utility]
         return arena.Atk_Actions_By_Pos[self.state_pos]
 
-    def advance(self, action: arena.Actions, game_state: pyspiel.State):
+    def advance(self, action: arena.Actions, game_state):
         """
         Attacker attempts to make their move.
         """
@@ -460,7 +370,7 @@ class DefenderState(BasePlayerState):
         #        if arena.action_cost(x) <= self.utility]
         return arena.Defend_Actions
 
-    def detect(self, action: arena.Actions, game_state: pyspiel.State):
+    def detect(self, action: arena.Actions, game_state):
 
         if self.policy and self.policy_stash:
             # embedded policy works by limiting available actions to
@@ -531,20 +441,37 @@ class DefenderState(BasePlayerState):
                 debug(f"{self.player} (turn {self.curr_turn}): will resolve {arena.a2s(action)} in turn {self.curr_turn + 2*turn_cnt} after {turn_cnt} {arena.a2s(arena.Actions.IN_PROGRESS)} actions")
 
 
-# pylint: disable=too-few-public-methods
-class GameState(pyspiel.State):
+class FakeGame:
+    """
+    Mock game for passing into policies if required.
+    """
+
+    def __init__(self, game_params=None):
+        self.game_params = game_params or {}
+
+    def get_parameters(self):
+        return dict(self.game_params)
+
+    def num_players(self):
+        return len(arena.Players)
+
+
+class GameState:
     """Game state, and also action resolution for some reason."""
 
-    def __init__(self, game, game_info):
-        super().__init__(game)
-        assert not (game_info.max_game_length % 2), \
-            "game length must have even number of turns"
+    def __init__(self, game_params=None):
+        # we do some trickery here with a fake game in order to be able
+        # to pass game into a policy if policies are being used (in
+        # non-bot mode)
+        game = FakeGame(game_params)
         game_params = game.get_parameters()
-        self._num_turns = game_params["num_turns"]
+        self._num_turns = game_params.get("num_turns", game_max_turns)
+        assert not (self._num_turns % 2), \
+            "game length must have even number of turns"
         self._turns_exhausted = False
         # if policies are None, actions are random choice out of
         # legal actions
-        if game_params["defender_policy"]:
+        if game_params.get("defender_policy"):
             policy_name = game_params["defender_policy"]
             policy_class = policies.get_policy_class(policy_name)
             policy_args = policies.get_player_policy_args(
@@ -554,7 +481,7 @@ class GameState(pyspiel.State):
             self._defender_policy = policy_class(game, *policy_args)
         else:
             self._defender_policy = None
-        if game_params["attacker_policy"]:
+        if game_params.get("attacker_policy"):
             policy_name = game_params["attacker_policy"]
             policy_class = policies.get_policy_class(policy_name)
             policy_args = policies.get_player_policy_args(
@@ -630,7 +557,7 @@ class GameState(pyspiel.State):
         and a valid player ID (in games with sequential turns).
         """
         if self._game_over:
-            return pyspiel.PlayerId.TERMINAL
+            return None
         else:
             return self._current_player
 
@@ -648,7 +575,7 @@ class GameState(pyspiel.State):
     # twitching over redefining Python methods with leading
     # underscores.
 
-    def _legal_actions(self, player) -> list[arena.Actions]:
+    def legal_actions(self, player) -> list[arena.Actions]:
         """
         Returns a list of legal actions, sorted in \"ascending\"
         order. (The underlying structure in the c++ is
@@ -678,7 +605,7 @@ class GameState(pyspiel.State):
             self._turns_seen.add(self._curr_turn)
         return actions
 
-    def _apply_actions(self, actions: List[int]):
+    def apply_actions(self, actions: List[int]):
         """
         Apply actions of all players in simultaneous-move games.
 
@@ -700,7 +627,7 @@ class GameState(pyspiel.State):
 
         raise NotImplementedError()
 
-    def _apply_action(self, action):
+    def apply_action(self, action):
         """
         Apply the actions of a single player in sequential-move
         games. In all stochastic games, _apply_action is called to
@@ -710,7 +637,7 @@ class GameState(pyspiel.State):
 
         #if action != arena.Actions.IN_PROGRESS:
         debug(f"{arena.player_to_str(self.current_player())}: apply action {arena.a2s(action)} now in turn {self._curr_turn+1}")
-        debug([len(self.history()), self.history()])
+        #debug([len(self.history()), self.history()])
 
         # Asserted as invariant in sample games:
         # assert self._is_chance and not self._game_over
@@ -846,7 +773,7 @@ class GameState(pyspiel.State):
     ### implemented in sample games. We should probably do some
     ### logging/error injection to figure this out.
 
-    def _action_to_string(self, player, action):
+    def action_to_string(self, player, action):
         """Convert an action to a string representation, presumably
         for logging."""
         player_str = arena.player_to_str(player)
@@ -883,118 +810,3 @@ class GameState(pyspiel.State):
     def __str__(self):
         """String for debugging. No particular semantics."""
         return f"Attacker pos at Turn {self._curr_turn+1}: {self._attacker.state_pos}"
-
-
-class OmniscientObserver:
-    """
-    Observer, conforming to the PyObserver interface (see
-    open_spiel/python/observation.py).
-
-    Observers are created and used via pyspiel.observation which is
-    used in a harness around games. The primary interface for observers
-    is algorithms.generate_playthrough. See examples/playthrough.py.
-    """
-
-    def __init__(self, params):  # pylint: disable=unused-argument
-        # note: params is invariant, it can't be used to pass things
-        # back and forth between states and observer
-
-        #debug("OBS PARAMS:", params)
-        #num_turns = params["num_turns"]
-
-        board_size = 3 # atk_pos, atk_util, def_util
-        hist_size = game_max_turns
-        tensor_size = board_size + hist_size
-        self.tensor = np.zeros(tensor_size, int)
-        self.dict = {}
-        idx = 0
-        self.dict["board"] = \
-                self.tensor[idx:idx+board_size].reshape(board_size,)
-        idx += board_size
-        self.dict["history"] = \
-                self.tensor[idx:idx+hist_size].reshape(hist_size,)
-
-        # algorithms.generate_playthrough, at least, expects
-        # be here (can be empty...this is based on BoardObserver in
-        # games/tic_tac_toe.py):
-        #self.dict["observation"] = self.tensor
-
-    def set_from(self, state: GameState, player: int):  # pylint: disable=unused-argument
-        """
-        Update the observer state to reflect `state` from the POV
-        of `player`.
-
-        This is an omniscient observation, so the info will be the same
-        for all players.
-        """
-        #debug("set_from() here, turn/player:", state._curr_turn+1, player)
-        # Tensor values: attacker position, attacker utility, defender utility
-        #self.tensor[0] = state._attacker.state_pos
-        #self.tensor[1] = state._attacker.utility
-        #self.tensor[2] = state._defender.utility
-
-        self.dict["board"][:] = [state._attacker.state_pos,
-                state._attacker.utility,state._defender.utility]
-        hist = state.history()
-        self.dict["history"][:len(hist)] = hist
-
-    def string_from(self, state, player):  # pylint: disable=unused-argument
-        """
-        Return a string representation of the state updated in
-        `state_from`.
-        """
-        return state.history_str()
-        # These are concatenated into a single string. The f prefix is
-        # unnecessary for all but the first, but it makes the syntax
-        # highlighting work better in Emacs. :)
-        turn = round(state._curr_turn/2) - 1 # this gets invoked after turn increment
-        board = self.dict["board"]
-        hist = self.dict["history"]
-        return (
-            #f"Attacker position: {self.tensor[0]} | "
-            #f"Attacker Utility: {self.tensor[1]} | "
-            #f"Defender Utility: {self.tensor[2]}"
-            f"Attacker Position: {board[0]} | "
-            f"Attacker Utility: {board[1]} | "
-            f"Defender Utility: {board[2]} | "
-            f"History: {hist}"
-        )
-
-
-class Game(pyspiel.Game):
-    """Game"""
-
-    def __init__(self, params: Mapping[str, Any]):
-        """
-        Constructor.
-
-        Minimum requirement for the constructor is that it can be
-        called with a single argument of the parameters for this game
-        instance.
-        """
-        self.game_type = _GAME_TYPE
-        self.game_info = make_game_info(params["num_turns"])
-        super().__init__(self.game_type, self.game_info, params)
-        print("\ngame params:\n", self.get_parameters(), "\n")
-
-    def new_initial_state(self):
-        """Return a new GameState object"""
-        return GameState(self, self.game_info)
-
-    #def make_py_observer(self, iig_obs_type=None, params=None):
-    #    return OmniscientObserver(params)
-
-    def make_py_observer(self, iig_obs_type=None, params=None):
-        """
-        Create an observer object of type `iig_obs_type`, configured
-        using `params`.
-        """
-        #if iig_obs_type:
-        #    debug("make_py_observer:", iig_obs_type, params)
-        #    debug(dir(iig_obs_type))
-        #    debug(iig_obs_type.private_info)
-        #    debug(dir(iig_obs_type.private_info))
-        return OmniscientObserver(params)
-
-
-pyspiel.register_game(_GAME_TYPE, Game)

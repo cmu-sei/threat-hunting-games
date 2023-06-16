@@ -1,3 +1,12 @@
+This is a refactoring of our game that carves out the essential pieces
+of GameState and Policies without their dependency on the OpenSpiel
+library. This is so that these excised parts, all of with live in the
+./internal directory, can be exported for use in the GHOSTS environment.
+There are OpenSpiel shims in the primary directory that still utilize
+these internal parts.
+
+---
+
 The use of policies with this game can applied via a bot, as is
 traditional, *or* from within the game state, which is unconventional.
 If the former is desired, pass the name of the policy (as defined in

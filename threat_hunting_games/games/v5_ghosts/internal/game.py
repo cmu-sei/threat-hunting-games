@@ -12,10 +12,16 @@ from enum import IntEnum
 from dataclasses import dataclass, field
 import numpy as np
 
-from threat_hunting_games import gameload
-from . import arena_zsum as arena
-from . import policies
-from .arena_zsum import debug
+try:
+    # if invoked from top level (OpenSpiel dependencies)
+    from . import arena_zsum as arena
+    from . import policies
+    from .arena_zsum import debug
+except (ModuleNotFoundError, ImportError):
+    # invoked from this level (internal, no OpenSpiel dependencies)
+    import arena_zsum as arena
+    import policies
+    from arena_zsum import debug
 
 game_name = "chain_game_v5_lb_seq_zsum"
 game_long_name = "Chain game version 5 Sequential Zero Sum LockBit with Policies"
@@ -441,34 +447,16 @@ class DefenderState(BasePlayerState):
                 debug(f"{self.player} (turn {self.curr_turn}): will resolve {arena.a2s(action)} in turn {self.curr_turn + 2*turn_cnt} after {turn_cnt} {arena.a2s(arena.Actions.IN_PROGRESS)} actions")
 
 
-class FakeGame:
-    """
-    Mock game for passing into policies if required.
-    """
-
-    def __init__(self, game_params=None):
-        self.game_params = game_params or {}
-
-    def get_parameters(self):
-        return dict(self.game_params)
-
-    def num_players(self):
-        return len(arena.Players)
-
-
 class GameState:
     """Game state, and also action resolution for some reason."""
 
-    def __init__(self, game_params=None):
-        # we do some trickery here with a fake game in order to be able
-        # to pass game into a policy if policies are being used (in
-        # non-bot mode)
-        game = FakeGame(game_params)
+    def __init__(self, game):
         game_params = game.get_parameters()
         self._num_turns = game_params.get("num_turns", game_max_turns)
         assert not (self._num_turns % 2), \
             "game length must have even number of turns"
         self._turns_exhausted = False
+        self._winner = None
         # if policies are None, actions are random choice out of
         # legal actions
         if game_params.get("defender_policy"):
@@ -755,10 +743,12 @@ class GameState:
             # we are done if defender detected attack
             debug(f"\nattack action detected, game over after {dsp_turn} turns: {arena.a2s(defend_action)} detected {arena.a2s(atk_action)}\n")
             self._game_over = True
+            self._winner = arena.Players.DEFENDER
         elif self._attacker.got_all_the_marbles:
             # we are done if attacker completed action escalation sequence
             debug(f"\nattacker is feeling smug, attack sequence complete: game over after {dsp_turn} turns\n")
             self._game_over = True
+            self._winner = arena.Players.ATTACKER
 
         self._curr_turn += 1
 
@@ -807,6 +797,32 @@ class GameState:
         """
         return self._turns_exhausted
 
+    def winner(self):
+        """
+        Indicates the defender if detection happened or the attacker if
+        action sequence was completed before max_turns was reached. This
+        does not reflect the rewards for each player.
+        """
+        return self._winner
+
     def __str__(self):
         """String for debugging. No particular semantics."""
         return f"Attacker pos at Turn {self._curr_turn+1}: {self._attacker.state_pos}"
+
+
+class FakeGame:
+    """
+    Mock game for passing into this non-openspiel GameState.
+    """
+
+    def __init__(self, game_params=None):
+        self.game_params = game_params or { "num_turns": game_max_turns }
+
+    def get_parameters(self):
+        return dict(self.game_params)
+
+    def num_players(self):
+        return len(arena.Players)
+
+    def new_initial_state(self):
+        return GameState(self)

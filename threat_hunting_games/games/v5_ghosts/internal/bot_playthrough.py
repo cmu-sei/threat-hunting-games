@@ -12,14 +12,11 @@ import collections
 import numpy as np
 from datetime import datetime
 
-import pyspiel
-from open_spiel.python.bots.policy import PolicyBot
-#from policy import PolicyBot
-
 import policies
-import internal.arena_zsum as arena
-from threat_hunting_games import gameload
-from internal import arena_zsum as arena
+import arena_zsum as arena
+from game import FakeGame, game_max_turns
+from pyspiel_policy_bot import PolicyBot
+
 
 default_game = "chain_game_v5_lb_seq_zsum"
 default_iterations = 1
@@ -66,14 +63,14 @@ def play_game(game, bots):
     return returns, history, state.turns_played(), \
             state.turns_exhausted(), state.winner()
 
-def main(game_name=default_game,
-        iterations=default_iterations,
+def main(iterations=default_iterations,
         defender_policy=default_defender_policy,
         attacker_policy=default_attacker_policy,
         dump_dir=None):
     if not iterations:
         iterations = default_iterations
-    game = pyspiel.load_game(game_name)
+    game = FakeGame()
+    print("GAME:", game)
     def_bot = get_player_bot(game, arena.Players.DEFENDER, defender_policy)
     atk_bot = get_player_bot(game, arena.Players.ATTACKER, attacker_policy)
     bots = {
@@ -119,7 +116,8 @@ def main(game_name=default_game,
                     "returns": returns,
                     "history": history,
                     "history_str": history_strings,
-                    "max_turns": game.get_parameters()["num_turns"],
+                    "max_turns": game.get_parameters().get(
+                        "num_turns", game_max_turns),
                     "turns_played": turns_played,
                     "turns_exhausted": turns_exhausted,
                     "winner": int(winner) if winner else None,
@@ -147,8 +145,6 @@ if __name__ == "__main__":
         description=f"Play through {default_game} using player "
                      "bots with policies"
     )
-    #parser.add_argument("-g", "--game", default=default_game,
-    #        description="Name of game to play"
     parser.add_argument("-i", "--iterations", default=default_iterations,
             type=int,
             help=f"Number of games to play ({default_iterations})")
@@ -175,7 +171,6 @@ if __name__ == "__main__":
     if args.no_dump:
         args.dump_dir = None
     main(
-        game_name=default_game,
         iterations=args.iterations,
         defender_policy=args.defender_policy,
         attacker_policy=args.attacker_policy,

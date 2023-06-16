@@ -112,9 +112,7 @@ class GameState(pyspiel.State):
 
     def __init__(self, game, game_info):
         super().__init__(game)
-        game_params = game.get_parameters()
-        print("PARAMS:", game_params)
-        self.internal = internal.game.GameState(game_params=game_params)
+        self.internal = internal.game.GameState(game)
 
     def current_player(self):
         """
@@ -221,6 +219,14 @@ class GameState(pyspiel.State):
           might have been a success for either player.
           """
           return self.internal.turns_exhausted()
+
+    def winner(self):
+        """
+        Indicates the defender if detection happened or the attacker if
+        action sequence was completed before max_turns was reached. This
+        does not reflect the rewards for each player.
+        """
+        return self.internal.winner()
 
     def __str__(self):
         """String for debugging. No particular semantics."""

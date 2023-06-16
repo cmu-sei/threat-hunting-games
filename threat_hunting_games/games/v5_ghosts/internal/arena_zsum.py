@@ -131,8 +131,9 @@ def action_to_str(action: Actions) -> str:
     else:
         return "None"
 
-# shorthand option
+# shorthand options
 a2s = action_to_str
+p2s = player_to_str
 
 
 class Utility(NamedTuple):

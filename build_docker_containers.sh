@@ -15,7 +15,7 @@ while getopts "drv" arg; do
       exit 1
   esac
 done
-
+echo $VPN
 if [ $RESET -eq 1 ]
 then
   echo "RESETTING ENVIRONMENT DATA..."

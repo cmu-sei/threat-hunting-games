@@ -251,7 +251,7 @@ class GHOSTSConnection:
                     with open('Attacker_Actions.json') as json_f:
                         attacker_actions_json = json.load(json_f)
                         if action_name not in attacker_actions_json["Actions List"]:
-                            ghosts_logger.info(msg=f"{action_name} does exist in list of attacker actions")
+                            ghosts_logger.info(msg=f"{action_name} does not exist in list of attacker actions")
                         # Check that the action exists in the action set from the .json file
                         for a in attacker_actions_json["Actions List"]:
                             if a["Name"] == action_name:
@@ -274,7 +274,7 @@ class GHOSTSConnection:
         machines = self.list_machines()
         if machine_id in machines:
             try:
-                with open('Defender_Actions.json.json') as json_f:
+                with open('Defender_Actions.json') as json_f:
                     defender_actions_json = json.load(json_f)
                     if action_name not in defender_actions_json["Actions List"]:
                         ghosts_logger.info(msg=f"{action_name} does exist in list of defender actions")

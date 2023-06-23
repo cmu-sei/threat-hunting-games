@@ -70,6 +70,7 @@ RUN echo "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-15 main" > /
     for f in /usr/lib/llvm-15/bin/*; do ln -sf "$f" /usr/bin; done &&   \
     rm -rf /var/lib/apt/lists/*
 RUN poetry install --no-interaction --no-ansi
+SHELL ["/bin/bash", "-c"]
 WORKDIR /src
 
 

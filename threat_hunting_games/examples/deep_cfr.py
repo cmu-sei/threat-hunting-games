@@ -44,11 +44,11 @@ def main(unused_argv):
   logging.info("Loading %s", FLAGS.game_name)
   game = pyspiel.load_game(FLAGS.game_name)
 
-  game_type = game.get_type()
-  if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
-      print(f"Converting {game_name} from simultaneous to turn-based")
-      game = pyspiel.load_game_as_turn_based(game_name)
-      game_type = game.get_type()
+  #game_type = game.get_type()
+  #if game_type.dynamics == pyspiel.GameType.Dynamics.SIMULTANEOUS:
+  #    print(f"Converting {game_name} from simultaneous to turn-based")
+  #    game = pyspiel.load_game_as_turn_based(game_name)
+  #    game_type = game.get_type()
 
   with tf.Session() as sess:
     deep_cfr_solver = deep_cfr.DeepCFRSolver(

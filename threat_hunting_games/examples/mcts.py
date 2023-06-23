@@ -24,7 +24,8 @@ from absl import app
 from absl import flags
 import numpy as np
 
-from open_spiel.python.algorithms import mcts
+#from open_spiel.python.algorithms import mcts
+from threat_hunting_games.algorithms import mcts
 from open_spiel.python.algorithms.alpha_zero import evaluator as az_evaluator
 from open_spiel.python.algorithms.alpha_zero import model as az_model
 from open_spiel.python.bots import gtp

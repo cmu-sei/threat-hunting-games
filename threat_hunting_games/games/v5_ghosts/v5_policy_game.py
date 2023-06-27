@@ -114,6 +114,14 @@ class GameState(pyspiel.State):
         super().__init__(game)
         self.internal = internal.game.GameState(game)
 
+    @property
+    def attacker_state(self):
+        return self.internal.attacker_state
+
+    @property
+    def defender_state(self):
+        return self.internal.defender_state
+
     def current_player(self):
         """
         Returns id of the next player to move. TERMINAL indicates
@@ -251,7 +259,7 @@ class OmniscientObserver:
         #num_turns = params["num_turns"]
 
         board_size = 3 # atk_pos, atk_util, def_util
-        hist_size = internal.game_max_turns
+        hist_size = internal.game.game_max_turns
         tensor_size = board_size + hist_size
         self.tensor = np.zeros(tensor_size, int)
         self.dict = {}
@@ -281,8 +289,8 @@ class OmniscientObserver:
         #self.tensor[1] = state._attacker.utility
         #self.tensor[2] = state._defender.utility
 
-        self.dict["board"][:] = [state._attacker.state_pos,
-                state._attacker.utility,state._defender.utility]
+        self.dict["board"][:] = [state.attacker_state.state_pos,
+                state.attacker_state.utility,state.defender_state.utility]
         hist = state.history()
         self.dict["history"][:len(hist)] = hist
 

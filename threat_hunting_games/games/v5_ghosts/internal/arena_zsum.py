@@ -34,29 +34,42 @@ class Players(IntEnum):
     ATTACKER = 0
     DEFENDER = 1
 
+ZERO_BASED_ACTIONS = True
+
+def _action_idx(val):
+    # note: cant use auto()-1 because auto() returns an enum.auto which
+    # cannot interact with ints or be converted to one. <shrug>
+    assert val > 0
+    return val-1 if ZERO_BASED_ACTIONS else val
 
 class Actions(IntEnum):
     '''
     Both players; auto() starts at 1; some OpenSpiel
     examples/algorithms test truthiness on action policies, so don't
     start action counts at 0
+
+    On the other hand, algorithms/random_agent.py assigns even
+    distributions using numpy array slices, which fail unless the
+    indices of actions start with 0.
+
+    Hence the ZERO_BASED_ACTIONS flag for picking which you need.
     '''
-    WAIT                = auto()
-    IN_PROGRESS         = auto()
+    WAIT                = _action_idx(1)
+    IN_PROGRESS         = _action_idx(2)
     # attacker
-    S0_VERIFY_PRIV      = auto()
-    S0_VERIFY_PRIV_CAMO = auto()
-    S1_WRITE_EXE        = auto()
-    S1_WRITE_EXE_CAMO   = auto()
-    S2_ENCRYPT          = auto()
-    S2_ENCRYPT_CAMO     = auto()
+    S0_VERIFY_PRIV      = _action_idx(3)
+    S0_VERIFY_PRIV_CAMO = _action_idx(4)
+    S1_WRITE_EXE        = _action_idx(5)
+    S1_WRITE_EXE_CAMO   = _action_idx(6)
+    S2_ENCRYPT          = _action_idx(7)
+    S2_ENCRYPT_CAMO     = _action_idx(8)
     # defender
-    PSGREP              = auto()
-    PSGREP_STRONG       = auto()
-    SMB_LOGS            = auto()
-    SMB_LOGS_STRONG     = auto()
-    FF_SEARCH           = auto()
-    FF_SEARCH_STRONG    = auto()
+    PSGREP              = _action_idx(9)
+    PSGREP_STRONG       = _action_idx(10)
+    SMB_LOGS            = _action_idx(11)
+    SMB_LOGS_STRONG     = _action_idx(12)
+    FF_SEARCH           = _action_idx(13)
+    FF_SEARCH_STRONG    = _action_idx(14)
 
 Attack_Actions = tuple(sorted([
     # Do not include IN_PROGRESS

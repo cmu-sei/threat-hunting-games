@@ -31,7 +31,7 @@ from open_spiel.python.algorithms import tabular_qlearner
 
 import pyspiel
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 
 FLAGS = flags.FLAGS
 

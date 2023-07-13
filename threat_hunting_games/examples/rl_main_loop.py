@@ -23,7 +23,7 @@ from absl import flags
 from open_spiel.python import rl_environment
 from open_spiel.python.algorithms import random_agent
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 
 FLAGS = flags.FLAGS
 

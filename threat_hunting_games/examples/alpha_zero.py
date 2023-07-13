@@ -23,7 +23,7 @@ from open_spiel.python.algorithms.alpha_zero import alpha_zero
 from open_spiel.python.algorithms.alpha_zero import model as model_lib
 from open_spiel.python.utils import spawn
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 
 flags.DEFINE_string("game", game_name, "Name of the game.")
 flags.DEFINE_integer("uct_c", 2, "UCT's exploration constant.")

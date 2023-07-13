@@ -122,7 +122,7 @@ class AttackerState(NamedTuple):
 
         #print("ATTACK old_utility:", self.utility)
 
-        utils = arena.utilities[action]
+        utils = arena.Utilities[action]
 
         new_utility = self.utility - utils.cost
         new_state = self.state_pos
@@ -155,7 +155,7 @@ class DefenderState(NamedTuple):
 
         #print("DEFEND old_utility:", self.utility)
 
-        utils = arena.utilities[action]
+        utils = arena.Utilities[action]
 
         new_utility = self.utility - utils.cost
 

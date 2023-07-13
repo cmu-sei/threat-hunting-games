@@ -26,7 +26,7 @@ from threat_hunting_games.algorithms import get_all_states
 from open_spiel.python.mfg import games as mfg_games
 import pyspiel
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 
 FLAGS = flags.FLAGS
 

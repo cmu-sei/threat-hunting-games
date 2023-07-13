@@ -53,7 +53,7 @@ from open_spiel.python.algorithms import matrix_nash
 from open_spiel.python.egt import utils
 import pyspiel
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 #import iterated_prisoners_dilemma
 
 FLAGS = flags.FLAGS

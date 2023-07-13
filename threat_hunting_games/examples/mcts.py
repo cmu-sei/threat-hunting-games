@@ -33,7 +33,7 @@ from open_spiel.python.bots import human
 from open_spiel.python.bots import uniform_random
 import pyspiel
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 
 _KNOWN_PLAYERS = [
     # A generic Monte Carlo Tree Search agent.

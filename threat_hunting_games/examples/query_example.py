@@ -23,7 +23,7 @@ import pyspiel
 
 FLAGS = flags.FLAGS
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 
 flags.DEFINE_string("game", game_name, "Name of the game")
 

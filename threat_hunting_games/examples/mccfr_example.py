@@ -24,7 +24,7 @@ from open_spiel.python.algorithms import external_sampling_mccfr as external_mcc
 from open_spiel.python.algorithms import outcome_sampling_mccfr as outcome_mccfr
 import pyspiel
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 
 FLAGS = flags.FLAGS
 

@@ -26,7 +26,7 @@ import numpy as np
 import pyspiel
 from open_spiel.python.utils import file_utils
 
-from threat_hunting_games.gameload import current_game
+from threat_hunting_games.games import current_game
 
 def _manually_create_game():
   """Creates the game manually from the spiel building blocks."""

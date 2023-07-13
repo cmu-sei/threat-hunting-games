@@ -26,7 +26,7 @@ import numpy as np
 from open_spiel.python.algorithms import response_graph_ucb
 from open_spiel.python.algorithms import response_graph_ucb_utils as utils
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 
 FLAGS = flags.FLAGS
 

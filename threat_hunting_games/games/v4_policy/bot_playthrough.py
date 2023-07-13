@@ -12,7 +12,7 @@ from open_spiel.python.bots.policy import PolicyBot
 
 import policies
 import arena_zsum_v4 as arena
-from threat_hunting_games import gameload
+from threat_hunting_games import games
 
 default_game = "chain_game_v4_lb_seq_zsum"
 default_iterations = 1

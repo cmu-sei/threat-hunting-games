@@ -20,7 +20,7 @@ from absl import logging
 # this gets reset somewhere mysterious
 #logging.set_verbosity(logging.DEBUG)
 
-from threat_hunting_games import gameload
+from threat_hunting_games import games
 from . import arena_zsum_v4 as arena
 from . import policies
 from .arena_zsum_v4 import debug

@@ -28,7 +28,7 @@ from open_spiel.python import rl_environment
 from open_spiel.python.algorithms import exploitability
 from open_spiel.python.algorithms import policy_aggregator
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string("game_name", game_name, "Game name")

@@ -24,7 +24,7 @@ from open_spiel.python.bots import scenarios
 from open_spiel.python.bots import uniform_random
 import pyspiel
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string("game_name", game_name, "Game to play scenarios for.")

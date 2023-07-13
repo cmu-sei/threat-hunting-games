@@ -40,7 +40,7 @@ from absl import flags
 from open_spiel.python.algorithms import jpsro
 import pyspiel
 
-from threat_hunting_games.gameload import game_name as thg_game_name
+from threat_hunting_games.games import game_name as thg_game_name
 
 GAMES = (
     thg_game_name,

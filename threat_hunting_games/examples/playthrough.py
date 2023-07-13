@@ -37,7 +37,7 @@ from absl import logging
 # using a slightly modified generate_playthrough.py one for debugging
 from threat_hunting_games.algorithms import generate_playthrough
 
-from threat_hunting_games.gameload import game_name
+from threat_hunting_games.games import game_name
 #import v2_matrix as mod
 
 FLAGS = flags.FLAGS

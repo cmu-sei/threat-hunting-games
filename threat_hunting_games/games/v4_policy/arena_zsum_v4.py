@@ -4,7 +4,6 @@
 # into matrix form.
 
 from typing import NamedTuple, Mapping, Any, List
-from dataclasses import dataclass
 from enum import IntEnum, auto
 import random
 

@@ -47,12 +47,12 @@ class SimpleRandomPolicy(Policy):
         for player_id in self._player_action_probs:
             psum = sum(self._player_action_probs[player_id].values())
             if not math.isclose(psum, 1.0):
-                print("scaling probs")
+                #print("scaling probs")
                 self._player_action_probs[player_id] = \
                     normalize_action_probs(
                             self._player_action_probs[player_id])
             else:
-                print("probs set to uniform random")
+                #print("probs set to uniform random")
                 pprobs = {}
                 for action in self._player_action_probs[player_id]:
                     pprobs[action] = 1 / psum
@@ -73,13 +73,13 @@ class SimpleRandomPolicy(Policy):
         if probs:
             # total sum already == 1.0
             if legal_actions.difference(probs.keys()):
-                print("calculating subset of action probs for", player_id)
+                #print("calculating subset of action probs for", player_id)
                 new_probs = {}
                 for action in legal_actions:
                     new_probs[action] = probs[action]
                 probs = normalize_action_probs(probs)
         else:
-            print("probs set to uniform random")
+            #print("probs set to uniform random")
             scale = 1 / len(legal_actions)
             probs = { x: scale for x in legal_actions }
         return probs

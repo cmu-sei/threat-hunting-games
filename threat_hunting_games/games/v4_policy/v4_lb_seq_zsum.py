@@ -11,7 +11,7 @@ from typing import NamedTuple, Mapping, Any, List
 from enum import IntEnum
 from dataclasses import dataclass, field
 from open_spiel.python.observation import IIGObserverForPublicInfoGame
-from open_spiel.python.policy import Policy
+#from open_spiel.python.policy import Policy
 import pyspiel  # type: ignore
 import numpy as np
 
@@ -80,12 +80,12 @@ _GAME_TYPE = pyspiel.GameType(
     parameter_specification={
         "num_turns": game_max_turns,
         # if playing using bots, policies must be None
-        "attacker_policy": None,
+        #"attacker_policy": None,
         #"defender_policy": "uniform_random",
         #"defender_policy": "simple_random",
         #"defender_policy": "independent_intervals",
         #"defender_policy": "aggregate_history",
-        "defender_policy": None,
+        #"defender_policy": None,
     }
 )
 
@@ -175,9 +175,9 @@ class BasePlayerState:
     """
     utility: int = 0
     history: list[ActionState] = field(default_factory=list)
-    policy: Policy = None
-    policy_args: field(default_factory=list) = None
-    policy_stash: list[arena.Actions] = field(default_factory=list)
+    #policy: Policy = None
+    #policy_args: field(default_factory=list) = None
+    #policy_stash: list[arena.Actions] = field(default_factory=list)
     available_actions: list[arena.Actions] = field(default_factory=list)
     costs: list[int] = field(default_factory=list)
     rewards: list[int] = field(default_factory=list)
@@ -308,35 +308,35 @@ class BasePlayerState:
     def record_utility(self):
         self.utilities[-1] = self.utility
 
-    def select_policy_action(self, game_state):
-        assert self.policy, "no policy present"
-        action_probs = self.policies.action_probabilities(
-                game_state, int(self.player_id))
-        print("AP ACTIONS:", self.player_id, action_probs)
-        action_list = list(action_probs.keys())
-        if not action_list:
-            print("no action probabilities returned from policy")
-            #return pyspiel.INVALID_ACTION
-            return None
-        psum = sum(action_probs.values())
-        if psum:
-            if psum != 1.0:
-                print(f"scaling probability sums ({psum})")
-                for action in action_probs:
-                    action_probs[action] *= 1 / psum
-        else:
-            print("no probability sum")
-            scale = 1 / len(action_list)
-            action_probs = { x: scale for x in action_list }
-        action = np.random.choice(action_list, p=list(action_probs.values()))
-        return action
-
-    def restore_actions_from_policy_stash(self):
-        assert self.policy_stash, "no policy stash actions present"
-        assert self.available_actions != [arena.Actions.IN_PROGRESS], \
-                "attempted action restore while IN_PROGRESS"
-        self.available_actions = self.policy_stash
-        self.policy_stash = []
+#    def select_policy_action(self, game_state):
+#        assert self.policy, "no policy present"
+#        action_probs = self.policies.action_probabilities(
+#                game_state, int(self.player_id))
+#        print("AP ACTIONS:", self.player_id, action_probs)
+#        action_list = list(action_probs.keys())
+#        if not action_list:
+#            print("no action probabilities returned from policy")
+#            #return pyspiel.INVALID_ACTION
+#            return None
+#        psum = sum(action_probs.values())
+#        if psum:
+#            if psum != 1.0:
+#                print(f"scaling probability sums ({psum})")
+#                for action in action_probs:
+#                    action_probs[action] *= 1 / psum
+#        else:
+#            print("no probability sum")
+#            scale = 1 / len(action_list)
+#            action_probs = { x: scale for x in action_list }
+#        action = np.random.choice(action_list, p=list(action_probs.values()))
+#        return action
+#
+#    def restore_actions_from_policy_stash(self):
+#        assert self.policy_stash, "no policy stash actions present"
+#        assert self.available_actions != [arena.Actions.IN_PROGRESS], \
+#                "attempted action restore while IN_PROGRESS"
+#        self.available_actions = self.policy_stash
+#        self.policy_stash = []
 
     def legal_actions(self):
         raise NotImplementedError()
@@ -378,11 +378,11 @@ class AttackerState(BasePlayerState):
 
         self.record_action(action)
 
-        if self.policy and self.policy_stash:
-            # embedded policy works by limiting available actions to
-            # this current action, so restore action choices if policy
-            # is present
-            self.restore_actions_from_policy_stash()
+#        if self.policy and self.policy_stash:
+#            # embedded policy works by limiting available actions to
+#            # this current action, so restore action choices if policy
+#            # is present
+#            self.restore_actions_from_policy_stash()
         if not self.available_actions:
             self.available_actions = arena.Atk_Actions_By_Pos[self.state_pos]
 
@@ -404,15 +404,16 @@ class AttackerState(BasePlayerState):
                     debug(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: faulty execution, {self.player} stays at position {self.state_pos}")
             elif self.state.was_delayed:
                     debug(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: executed, {self.player} advances to position {self.state_pos}")
-            if self.policy:
-                next_action = self.select_policy_action(game_state)
-                if next_action:
-                    self.policy_stash = self.available_actions
-                    self.available_actions = [next_action]
-                else:
-                    self.available_actions = []
-            else:
-                self.available_actions = self.legal_actions()
+#            if self.policy:
+#                next_action = self.select_policy_action(game_state)
+#                if next_action:
+#                    self.policy_stash = self.available_actions
+#                    self.available_actions = [next_action]
+#                else:
+#                    self.available_actions = []
+#            else:
+#                self.available_actions = self.legal_actions()
+            self.available_actions = self.legal_actions()
 
         if action == arena.Actions.IN_PROGRESS:
             # still in the progress sequence of a completed action;
@@ -462,11 +463,11 @@ class DefenderState(BasePlayerState):
 
     def detect(self, action: arena.Actions, game_state: pyspiel.State):
 
-        if self.policy and self.policy_stash:
-            # embedded policy works by limiting available actions to
-            # this current action, so restore action choices if policy
-            # is present
-            self.restore_actions_from_policy_stash()
+#        if self.policy and self.policy_stash:
+#            # embedded policy works by limiting available actions to
+#            # this current action, so restore action choices if policy
+#            # is present
+#            self.restore_actions_from_policy_stash()
         if not self.available_actions:
             self.available_actions = arena.Defend_Actions
 
@@ -492,15 +493,16 @@ class DefenderState(BasePlayerState):
                 if self.state.was_delayed:
                     debug(f"\n{self.player} (turn {self.curr_turn}): resolved {arena.a2s(self.state.action)} from turn {self.state.from_turn}: executed")
             # back to all defend actions available
-            if self.policy:
-                next_action = self.select_policy_action(game_state)
-                if next_action:
-                    self.policy_stash = self.available_actions
-                    self.available_actions = [next_action]
-                else:
-                    self.available_actions = []
-            else:
-                self.available_actions = self.legal_actions()
+#            if self.policy:
+#                next_action = self.select_policy_action(game_state)
+#                if next_action:
+#                    self.policy_stash = self.available_actions
+#                    self.available_actions = [next_action]
+#                else:
+#                    self.available_actions = []
+#            else:
+#                self.available_actions = self.legal_actions()
+            self.available_actions = self.legal_actions()
 
         if action == arena.Actions.IN_PROGRESS:
             # still in progress sequence
@@ -544,34 +546,36 @@ class GameState(pyspiel.State):
         self._turns_exhausted = False
         # if policies are None, actions are random choice out of
         # legal actions
-        if game_params["defender_policy"]:
-            policy_name = game_params["defender_policy"]
-            policy_class = policies.get_policy_class(policy_name)
-            policy_args = policies.get_player_policy_args(
-                    arena.Players.DEFENDER, policy_name)
-            #print("DEFENDER POLICY CLASS:", policy_class)
-            #print("DEFENDER POLICY ARGS:", policy_args)
-            self._defender_policy = policy_class(game, *policy_args)
-        else:
-            self._defender_policy = None
-        if game_params["attacker_policy"]:
-            policy_name = game_params["attacker_policy"]
-            policy_class = policies.get_policy_class(policy_name)
-            policy_args = policies.get_player_policy_args(
-                    arena.Players.ATTACKER, policy_name)
-            #print("ATTACKER POLICY CLASS:", policy_class)
-            #print("ATTACKER POLICY ARGS:", policy_args)
-            self._attacker_policy = policy_class(game, *policy_args)
-        else:
-            self._attacker_policy = None
+#        if game_params["defender_policy"]:
+#            policy_name = game_params["defender_policy"]
+#            policy_class = policies.get_policy_class(policy_name)
+#            policy_args = policies.get_player_policy_args(
+#                    arena.Players.DEFENDER, policy_name)
+#            #print("DEFENDER POLICY CLASS:", policy_class)
+#            #print("DEFENDER POLICY ARGS:", policy_args)
+#            self._defender_policy = policy_class(game, *policy_args)
+#        else:
+#            self._defender_policy = None
+        #if game_params["attacker_policy"]:
+        #    policy_name = game_params["attacker_policy"]
+        #    policy_class = policies.get_policy_class(policy_name)
+        #    policy_args = policies.get_player_policy_args(
+        #            arena.Players.ATTACKER, policy_name)
+        #    #print("ATTACKER POLICY CLASS:", policy_class)
+        #    #print("ATTACKER POLICY ARGS:", policy_args)
+        #    self._attacker_policy = policy_class(game, *policy_args)
+        #else:
+        #    self._attacker_policy = None
         self._curr_turn = 0
         # _turns_seen is just for display purposes in _legal_actions()
         self._turns_seen = set()
         # GameState._legal_actions gets called before available actions
         # can be popuated in AttackerState and DefenderState...so
         # initiaize available actions here.
-        self._attacker = AttackerState(policy=self._attacker_policy)
-        self._defender = DefenderState(policy=self._defender_policy)
+        #self._attacker = AttackerState(policy=self._attacker_policy)
+        #self._defender = DefenderState(policy=self._defender_policy)
+        self._attacker = AttackerState()
+        self._defender = DefenderState()
 
         # attacker always moves first
         self._current_player = arena.Players.ATTACKER
@@ -975,7 +979,7 @@ class Game(pyspiel.Game):
         self.game_type = _GAME_TYPE
         self.game_info = make_game_info(params["num_turns"])
         super().__init__(self.game_type, self.game_info, params)
-        print("\ngame params:\n", self.get_parameters(), "\n")
+        #print("\ngame params:\n", self.get_parameters(), "\n")
 
     def new_initial_state(self):
         """Return a new GameState object"""

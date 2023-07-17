@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Note: extracted from python/examples/roshambo_population_example.py
+###
+### Note: extracted from python/examples/roshambo_population_example.py
+###
 
 import numpy as np
 

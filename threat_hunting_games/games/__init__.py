@@ -28,7 +28,7 @@ except (ModuleNotFoundError, ImportError):
 #current_game = v2_tensormod
 #current_game = v2_matrix
 #current_game = v3_lockbit_seq
-#current_game = v4_lb_seq_zsum
-current_game = v5_policy_game
+current_game = v4_lb_seq_zsum
+#current_game = v5_policy_game
 
 game_name = current_game.game_name

@@ -24,7 +24,7 @@ Timbers et al. '20 (https://arxiv.org/abs/2004.09677), but only using RL
 directly rather than RL+Search.
 """
 
-import os, sys
+import os, sys, json
 import argparse
 import numpy as np
 import tensorflow.compat.v1 as tf
@@ -41,8 +41,9 @@ from open_spiel.python.bots.policy import PolicyBot
 
 from threat_hunting_games.games import game_name
 import arena_zsum_v4 as arena
-import policies
+import policies 
 from bot_agent import BotAgent
+from pathmanager import PathManager
 
 
 @dataclass
@@ -156,7 +157,7 @@ def train(
         game_name=DEFAULTS.game,
         defender_policy=DEFAULTS.defender_policy,
         attacker_policy=DEFAULTS.attacker_policy,
-        checkpoint_dir=None,
+        checkpoint_base_dir=None,
         no_checkpoint_dir=False,
         save_every=DEFAULTS.save_every,
         num_train_episodes=DEFAULTS.num_train_episodes,
@@ -168,12 +169,23 @@ def train(
         seed=DEFAULTS.seed,
         window_size=DEFAULTS.window_size
         ):
-  if not checkpoint_dir and not no_checkpoint_dir:
-    timestamp = datetime.now().isoformat(timespec="seconds")
-    stub = f"{defender_policy}-{attacker_policy}-{timestamp}"
-    checkpoint_dir = os.path.join(DEFAULTS.dat_dir, stub)
-  if checkpoint_dir and not os.path.exists(checkpoint_dir):
-    os.makedirs(checkpoint_dir)
+  if not checkpoint_base_dir and not no_checkpoint_dir:
+      checkpoint_base_dir = DEFAULTS.dat_dir
+  cp_pm = None
+  if not no_checkpoint_dir:
+      cp_pm = PathManager(base_dir=checkpoint_base_dir,
+              game_name=game_name,
+              attacker_policy=attacker_policy,
+              defender_policy=defender_policy,
+              model="dqn")
+  kwargs_file = None
+  if cp_pm:
+    for d in cp_pm.checkpoint_dirs:
+      if not os.path.exists(d):
+        os.makedirs(d)
+    kwargs_file = f"{cp_pm.path(ext='.json')}"
+  if os.path.exists(kwargs_file):
+      os.remove(kwargs_file)
   if isinstance(hidden_layers_sizes, str):
       hidden_layers_sizes = [int(x) for x in hidden_layers_sizes.split(',')]
   assert len(hidden_layers_sizes) == 3
@@ -236,15 +248,21 @@ def train(
                    ep + 1, r_mean, value, rolling_value, rolling_value_p0,
                    rolling_value_p1, avg_value))
 
-      # We're only interested in training a defender (player 1) agent
-      # currently, so skip attacker training
-
       agents_round1 = [learning_agents[0], exploitee_agents[1]]
       agents_round2 = [exploitee_agents[0], learning_agents[1]]
 
-      if checkpoint_dir and (ep + 1) % save_every == 0:
-        print("Saving checkpoint...")
-        learning_agents[1].save(checkpoint_dir)
+      if cp_pm and (ep + 1) % save_every == 0:
+        print("Saving checkpoints...")
+        for i, agent in enumerate(learning_agents):
+            agent.save(cp_pm.checkpoint_dirs[i])
+        if not os.path.exists(kwargs_file):
+          json.dump({
+              "num_actions": num_actions,
+              "info_state_size": info_state_size,
+              "hidden_layers_sizes": hidden_layers_sizes,
+              "replay_buffer_capacity": replay_buffer_capacity,
+              "batch_size": batch_size,
+              }, open(kwargs_file, 'w'), indent=2)
 
       for agents in [agents_round1, agents_round2]:
         time_step = env.reset()
@@ -264,8 +282,8 @@ def train(
         for agent in agents:
           agent.step(time_step)
 
-    if checkpoints_dir:
-      print(f"Checkpoints saved  into: {checkpoints_dir}")
+    if cp_pm:
+      print(f"Checkpoints saved  into: {cp_pm.path}")
 
 
 def main():
@@ -284,8 +302,8 @@ def main():
             help="List available policies")
 
     # Training parameters
-    parser.add_argument("--checkpoint_dir",
-            help=f"Directory in which save/load the agent models (dat/game/def_policy-atk_policy-timestamp)")
+    parser.add_argument("--checkpoint_base_dir",
+            help=f"Base directory in which save/load the agent models ({DEFAULTS.dat_dir})")
     parser.add_argument("--save_every", default=DEFAULTS.save_every, type=int,
             help=f"Episode frequency at which the DQN agent models are saved. ({DEFAULTS.save_every})")
     parser.add_argument("--no-checkpoint-dir", action="store_true",
@@ -329,7 +347,7 @@ def main():
         game_name=DEFAULTS.game,
         defender_policy=args.defender_policy,
         attacker_policy=args.attacker_policy,
-        checkpoint_dir=args.checkpoint_dir,
+        checkpoint_base_dir=args.checkpoint_base_dir,
         no_checkpoint_dir=args.no_checkpoint_dir,
         save_every=args.save_every,
         num_train_episodes=args.num_train_episodes,

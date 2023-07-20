@@ -5,38 +5,38 @@ import argparse
 import collections
 import numpy as np
 from datetime import datetime
+from dataclasses import dataclass
 
 import pyspiel
 from open_spiel.python.bots.policy import PolicyBot
 #from policy import PolicyBot
 
-import policies
+import policies, util
 import arena_zsum_v4 as arena
 from threat_hunting_games import games
 
-default_game = "chain_game_v4_lb_seq_zsum"
-default_iterations = 1
 
-# Need to include loading policy of choice in our parameterization
-# efforts.
-default_defender_policy = "simple_random"
-#default_defender_policy = "independent_intervals"
-#default_defender_policy = "aggregate_history"
+@dataclass
+class Defaults:
+    game: str = "chain_game_v4_lb_seq_zsum"
+    iterations: int = 1
 
-# Attacker will always have a two actions (whatever the next action in
-# the chain is plus its CAMO version) plus WAIT...so randomly choose one
-# of the three; uniform random comes stock with OpenSpiel
-default_attacker_policy = "uniform_random"
+    # Need to include loading policy of choice in our parameterization
+    # efforts.
+    defender_policy: str = "simple_random"
+    #default_defender_policy = "independent_intervals"
+    #default_defender_policy = "aggregate_history"
 
-def get_player_policy(game, player, policy_name):
-    policy_class = policies.get_policy_class(policy_name)
-    policy_args = policies.get_player_policy_args(player, policy_name)
-    return policy_class(game, *policy_args)
+    # Attacker will always have a two actions (whatever the next action
+    # in the chain is plus its CAMO version) plus WAIT...so randomly
+    # choose one of the three; uniform random comes stock with OpenSpiel
+    attacker_policy: str = "uniform_random"
 
-def get_player_bot(game, player, policy_name):
-    policy = get_player_policy(game, player, policy_name)
-    bot = PolicyBot(player, np.random, policy)
-    return bot
+    dump_dir: str = os.path.join(os.path.dirname(
+        os.path.abspath(__file__)), "dump")
+
+DEFAULTS = Defaults()
+
 
 def play_game(game, bots):
     # play one game
@@ -58,16 +58,18 @@ def play_game(game, bots):
     print("Returns:", " ".join(map(str, returns)))
     return returns, history, state.turns_played(), state.turns_exhausted()
 
-def main(game_name=default_game,
-        iterations=default_iterations,
-        defender_policy=default_defender_policy,
-        attacker_policy=default_attacker_policy,
+def main(game_name=DEFAULTS.game,
+        iterations=DEFAULTS.iterations,
+        defender_policy=DEFAULTS.defender_policy,
+        attacker_policy=DEFAULTS.attacker_policy,
         dump_dir=None):
     if not iterations:
-        iterations = default_iterations
+        iterations = DEFAULTS.iterations
     game = pyspiel.load_game(game_name)
-    def_bot = get_player_bot(game, arena.Players.DEFENDER, defender_policy)
-    atk_bot = get_player_bot(game, arena.Players.ATTACKER, attacker_policy)
+    def_bot = util.get_player_bot(game, arena.Players.DEFENDER,
+            defender_policy)
+    atk_bot = util.get_player_bot(game, arena.Players.ATTACKER,
+            attacker_policy)
     bots = {
         arena.Players.DEFENDER: def_bot,
         arena.Players.ATTACKER: atk_bot,
@@ -81,10 +83,13 @@ def main(game_name=default_game,
         arena.Players.DEFENDER: 0,
         arena.Players.ATTACKER: 0,
     }
+    dump_pm = None
     if dump_dir:
+        dump_pm = util.PathManager(base_dir=dump_dir, game_name=game_name,
+            attacker_policy=attacker_policy, defender_policy=defender_policy)
         dump_dir = os.path.join(dump_dir, str(datetime.now()))
-        if not os.path.exists(dump_dir):
-            os.makedirs(dump_dir)
+        if not os.path.exists(dump_pm.path()):
+            os.makedirs(dump_pm.path())
     iter_fmt = len(str(iterations))
     num_games_maxed = 0
     game_num = 0
@@ -97,7 +102,7 @@ def main(game_name=default_game,
                 overall_returns[i] += v
                 if v > 0:
                     overall_wins[i] += 1
-            if dump_dir:
+            if dump_pm:
                 dump = {
                     "defender_policy": defender_policy,
                     "attacker_policy": attacker_policy,
@@ -107,7 +112,7 @@ def main(game_name=default_game,
                     "turns_played": turns_played,
                     "turns_exhausted": turns_exhausted,
                 }
-                df = os.path.join(dump_dir, f"%0{iter_fmt}d.json" % game_num)
+                df = dump_pm.path(ext="json")
                 with open(df, 'w') as dfh:
                     json.dump(dump, dfh, indent=2)
     except (KeyboardInterrupt, EOFError):
@@ -117,34 +122,32 @@ def main(game_name=default_game,
     print(f"Attacker policy: {attacker_policy}")
     print("Number of games played:", game_num + 1)
     print("Number of distinct games played:", len(histories))
-    if dump_dir:
-        print(f"Dumped {game_num + 1} game playthroughs into: {dump_dir}")
+    if dump_pm:
+        print(f"Dumped {game_num + 1} game playthroughs into: {dump_pm.path()}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="Bot Policy Playthrough",
-        description=f"Play through {default_game} using player "
+        description=f"Play through {DEFAULTS.game} using player "
                      "bots with policies"
     )
-    #parser.add_argument("-g", "--game", default=default_game,
+    #parser.add_argument("-g", "--game", default=DEFAULTS.game,
     #        description="Name of game to play"
-    parser.add_argument("-i", "--iterations", default=default_iterations,
+    parser.add_argument("-i", "--iterations", default=DEFAULTS.iterations,
             type=int,
-            help=f"Number of games to play ({default_iterations})")
+            help=f"Number of games to play ({DEFAULTS.iterations})")
     parser.add_argument("--defender_policy", "--dp",
-            default=default_defender_policy,
-            help=f"Defender policy ({default_defender_policy})")
+            default=DEFAULTS.defender_policy,
+            help=f"Defender policy ({DEFAULTS.defender_policy})")
     parser.add_argument("--attacker_policy", "--ap",
-            default=default_attacker_policy,
-            help=f"Attacker policy ({default_attacker_policy})")
+            default=DEFAULTS.attacker_policy,
+            help=f"Attacker policy ({DEFAULTS.attacker_policy})")
     parser.add_argument("-l", "--list_policies", action="store_true",
             help="List available policies")
-    default_dump_dir = os.path.join(os.path.dirname(
-        os.path.abspath(__file__)), "dump")
     parser.add_argument("-p", "--dump_dir",
-            default=default_dump_dir,
-            help=f"Directory in which to dump game states over iterations of the game. ({default_dump_dir})")
+            default=DEFAULTS.dump_dir,
+            help=f"Directory in which to dump game states over iterations of the game. ({DEFAULTS.dump_dir})")
     parser.add_argument("-n", "--no_dump", action="store_true",
             help="Disable logging of game playthroughs")
     args = parser.parse_args()
@@ -155,7 +158,7 @@ if __name__ == "__main__":
     if args.no_dump:
         args.dump_dir = None
     main(
-        game_name=default_game,
+        game_name=DEFAULTS.game,
         iterations=args.iterations,
         defender_policy=args.defender_policy,
         attacker_policy=args.attacker_policy,

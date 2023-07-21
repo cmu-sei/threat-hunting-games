@@ -41,9 +41,8 @@ from open_spiel.python.bots.policy import PolicyBot
 
 from threat_hunting_games.games import game_name
 import arena_zsum_v4 as arena
-import policies 
+import policies, util
 from bot_agent import BotAgent
-from pathmanager import PathManager
 
 
 @dataclass
@@ -73,6 +72,10 @@ class Defaults:
     window_size: int = 30
 
 DEFAULTS = Defaults()
+
+# For development/debugging; scale all of the default iterations by
+# this factor
+ITER_SCALE = 100
 
 def get_player_policy(game, player, policy_name):
     policy_class = policies.get_policy_class(policy_name)
@@ -169,11 +172,18 @@ def train(
         seed=DEFAULTS.seed,
         window_size=DEFAULTS.window_size
         ):
+  if ITER_SCALE:
+      # for development/debugging to save time
+      print(f"\nSCALING ITERATIONS by a factor of 1/{ITER_SCALE}\n")
+      save_every = int(save_every/ITER_SCALE)
+      num_train_episodes = int(num_train_episodes/ITER_SCALE)
+      eval_every = int(eval_every/ITER_SCALE)
+      eval_episodes = int(eval_episodes/ITER_SCALE)
   if not checkpoint_base_dir and not no_checkpoint_dir:
       checkpoint_base_dir = DEFAULTS.dat_dir
   cp_pm = None
   if not no_checkpoint_dir:
-      cp_pm = PathManager(base_dir=checkpoint_base_dir,
+      cp_pm = util.PathManager(base_dir=checkpoint_base_dir,
               game_name=game_name,
               attacker_policy=attacker_policy,
               defender_policy=defender_policy,
@@ -183,7 +193,7 @@ def train(
     for d in cp_pm.checkpoint_dirs:
       if not os.path.exists(d):
         os.makedirs(d)
-    kwargs_file = f"{cp_pm.path(ext='.json')}"
+    kwargs_file = f"{cp_pm.path(ext='json')}"
   if os.path.exists(kwargs_file):
       os.remove(kwargs_file)
   if isinstance(hidden_layers_sizes, str):
@@ -227,6 +237,19 @@ def train(
             batch_size=batch_size)
     sess.run(tf.global_variables_initializer())
 
+    def _save_checkpoints():
+        print("Saving checkpoints...")
+        for i, agent in enumerate(learning_agents):
+            agent.save(cp_pm.checkpoint_dirs[i])
+        if not os.path.exists(kwargs_file):
+          json.dump({
+              "num_actions": num_actions,
+              "state_representation_size": info_state_size,
+              "hidden_layers_sizes": hidden_layers_sizes,
+              "replay_buffer_capacity": replay_buffer_capacity,
+              "batch_size": batch_size,
+              }, open(kwargs_file, 'w'), indent=2)
+
     print("Starting...")
 
     for ep in range(num_train_episodes):
@@ -248,21 +271,13 @@ def train(
                    ep + 1, r_mean, value, rolling_value, rolling_value_p0,
                    rolling_value_p1, avg_value))
 
+      # in each round a learning agent goes against a fixed agent for
+      # the other player
       agents_round1 = [learning_agents[0], exploitee_agents[1]]
       agents_round2 = [exploitee_agents[0], learning_agents[1]]
 
       if cp_pm and (ep + 1) % save_every == 0:
-        print("Saving checkpoints...")
-        for i, agent in enumerate(learning_agents):
-            agent.save(cp_pm.checkpoint_dirs[i])
-        if not os.path.exists(kwargs_file):
-          json.dump({
-              "num_actions": num_actions,
-              "info_state_size": info_state_size,
-              "hidden_layers_sizes": hidden_layers_sizes,
-              "replay_buffer_capacity": replay_buffer_capacity,
-              "batch_size": batch_size,
-              }, open(kwargs_file, 'w'), indent=2)
+          _save_checkpoints()
 
       for agents in [agents_round1, agents_round2]:
         time_step = env.reset()
@@ -281,6 +296,10 @@ def train(
         # Episode is over, step all agents with final info state.
         for agent in agents:
           agent.step(time_step)
+
+      if (ep + 1) % eval_every != 0:
+         # only if we ended after some leftover iterations
+         _save_checkpoints()
 
     if cp_pm:
       print(f"Checkpoints saved  into: {cp_pm.path}")

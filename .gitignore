@@ -2,6 +2,8 @@
 /.python-version
 
 **/tmp/
+**/dat/
+**/dump/
 
 # vim detritus
 **/*.swp

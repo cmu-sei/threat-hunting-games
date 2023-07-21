@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from datetime import datetime
 from open_spiel.python.bots.policy import PolicyBot
 
@@ -84,23 +85,25 @@ class PathManager:
             stub = f"{stub}.{ext}"
         return stub
 
-    def path(self, suffix=None, ext=None):
+    def path(self, suffix=None, prefix=None, ext=None):
         stub = self.stub(ext=ext)
         parts = []
         if self._base_dir:
             parts.append(self._base_dir)
+        if prefix:
+            parts.append(prefix)
+        parts.append(self.stub(ext=ext))
         if suffix:
             parts.append(suffix)
-        parts.append(self.stub(ext=ext))
         return os.path.join(*parts)
 
     @property
     def attacker_dir(self):
-        return self.path(suffix='atk')
+        return self.path(suffix=self._atk_str)
 
     @property
     def defender_dir(self):
-        return self.path(suffix='def')
+        return self.path(suffix=self._def_str)
 
     @property
     def checkpoint_dirs(self):
@@ -113,3 +116,13 @@ class PathManager:
     @property
     def defender_str(self):
         return self._def_str
+
+    def __str__(self):
+        fields = {
+            "base_dir": self.base_dir,
+            "game_name": self.game_name,
+            "attacker_policy": self.attacker_policy,
+            "defender_policy": self.defender_policy,
+            "model": self.model,
+        }
+        return str(fields)

@@ -51,13 +51,12 @@ def play_episodes(env, rl_agents, fixed_agents,
     players = list(int(x) for x in arena.Players)
     players = ["atk", "def"]
     num_players = len(players)
-    tallies = {}
+    tallies = []
     for player_pos, p_name in enumerate(["attacker", "defender"]):
         sum_rewards = np.zeros(num_players)
         sum_wins = np.zeros(num_players + 1)
         p_means = np.zeros(num_players)
-        histories = {}
-        tallies = []
+        histories = collections.defaultdict(int)
         cur_agents = fixed_agents[:]
         cur_agents[player_pos] = rl_agents[player_pos]
         for _ in range(num_episodes):
@@ -84,28 +83,27 @@ def play_episodes(env, rl_agents, fixed_agents,
                 time_step = env.step(action_list)
                 episode_rewards += time_step.rewards[player_pos]
             sum_rewards[player_pos] += episode_rewards
-            for i, v in enumerate(episode_rewards):
-                if env.get_state.turns_exausted():
-                    sum_wins[2] += 1
-                elif env.get_state.attacker.got_all_the_marbles:
-                    # attacker won (kill chain complete)
-                    sum_wins[0] += 1
-                else:
-                    # defender won (successful detection)
-                    sum_wins[1] += 1
-            histories[history] += 1
+            if env.get_state.turns_exhausted():
+                sum_wins[2] += 1
+            elif env.get_state.attacker_state.got_all_the_marbles:
+                # attacker won (kill chain complete)
+                sum_wins[0] += 1
+            else:
+                # defender won (successful detection)
+                sum_wins[1] += 1
+            histories[', '.join(str(x) for x in history)] += 1
         tally = {
-            "sum_rewards": sum_rewards,
-            "sum_wins": sum_wins,
-            "p_means": p_means,
+            "sum_rewards": list(sum_rewards),
+            "sum_wins": list(sum_wins),
+            "p_means": list(p_means),
             "histories": histories,
         }
-        tallies[p_name] = tally
+        tallies.append(tally)
     return tallies
 
 _expected_dqn_kwargs = set([
     "num_actions",
-    "info_state_size",
+    "state_representation_size",
     "hidden_layers_sizes",
     "replay_buffer_capacity",
     "batch_size",
@@ -119,9 +117,9 @@ def load_rl_agents(sess, pm):
             f"defender checkpoint dir missing: {pm.defender_dir}"
     kwargs_file = pm.path(ext="json")
     assert os.path.exists(kwargs_file), f"kwargs file missing: {kwargs_file}"
-    kwargs = json.load(kwargs_file)
+    kwargs = json.load(open(kwargs_file))
     kwargs_diff = _expected_dqn_kwargs.difference(kwargs)
-    assert not kwargs_diff, "missing kwargs: {', '.join(kwargs_diff)}"
+    assert not kwargs_diff, f"missing kwargs: {', '.join(kwargs_diff)}"
     for player_id, cp_dir in enumerate([
             pm.attacker_dir, pm.defender_dir]):
         # the parameters that are commented out are expected to be
@@ -182,18 +180,11 @@ def main(game_name=DEFAULTS.game,
                 attacker_policy=attacker_policy,
                 defender_policy=defender_policy,
                 model="dqn")
-            dump_files = [
-                dump_pm.path(ext=f"{dump_pm.attacker_str}.json"),
-                dump_pm.path(ext=f"{dump_pm.defender_str}.json"),
-            ]
-            for i, f in enumerate(dump_files):
-                dd = os.path.dirname(f)
-                df = os.path.basename(f)
-                df = f"{df}.json"
-                if not os.path.exists(dd):
-                    os.makedirs(dd)
-                json.dump(tallies[i], open(df, 'w'))
-            print(f"Dumped game playthrough tallies into: {dump_pm.path}")
+            df = dump_pm.path(ext="json")
+            if not os.path.exists(os.path.dirname(df)):
+                os.makedirs(os.path.dirname(df))
+            json.dump(tallies, open(df, 'w'), indent=2)
+            print(f"Dumped game playthrough tallies into: {df}")
 
 #        histories = collections.defaultdict(int)
 #        overall_returns = {

@@ -151,7 +151,6 @@ def load_bot_agents(game, attacker_policy=DEFAULTS.attacker_policy,
         agents.append(agent)
     return agents
 
-
 def main(game_name=DEFAULTS.game,
         iterations=DEFAULTS.iterations, checkpoint_dir=None,
         defender_policy=DEFAULTS.defender_policy,
@@ -186,51 +185,6 @@ def main(game_name=DEFAULTS.game,
                 os.makedirs(os.path.dirname(df))
             json.dump(tallies, open(df, 'w'), indent=2)
             print(f"Dumped game playthrough tallies into: {df}")
-
-#        histories = collections.defaultdict(int)
-#        overall_returns = {
-#            arena.Players.DEFENDER: 0,
-#            arena.Players.ATTACKER: 0,
-#        }
-#        overall_wins = {
-#            arena.Players.DEFENDER: 0,
-#            arena.Players.ATTACKER: 0,
-#        }
-#
-#    iter_fmt = len(str(iterations))
-#    num_games_maxed = 0
-#    game_num = 0
-#    try:
-#        for game_num in range(iterations):
-#            returns, history, turns_played, turns_exhausted \
-#                    = play_game(game, bots)
-#            histories[" ".join(str(int(x)) for x in history)] += 1
-#            for i, v in enumerate(returns):
-#                overall_returns[i] += v
-#                if v > 0:
-#                    overall_wins[i] += 1
-#            if dump_dir:
-#                dump = {
-#                    "defender_policy": defender_policy,
-#                    "attacker_policy": attacker_policy,
-#                    "returns": returns,
-#                    "history": history,
-#                    "max_turns": game.get_parameters()["num_turns"],
-#                    "turns_played": turns_played,
-#                    "turns_exhausted": turns_exhausted,
-#                }
-#                df = os.path.join(dump_dir, f"%0{iter_fmt}d.json" % game_num)
-#                with open(df, 'w') as dfh:
-#                    json.dump(dump, dfh, indent=2)
-#    except (KeyboardInterrupt, EOFError):
-#        game_num -= 1
-#        print("Game iterations aborted")
-#    print(f"Defender policy: {defender_policy}")
-#    print(f"Attacker policy: {attacker_policy}")
-#    print("Number of games played:", game_num + 1)
-#    print("Number of distinct games played:", len(histories))
-#    if dump_dir:
-#        print(f"Dumped {game_num + 1} game playthroughs into: {dump_dir}")
 
 
 if __name__ == "__main__":

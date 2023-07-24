@@ -75,7 +75,7 @@ DEFAULTS = Defaults()
 
 # For development/debugging; scale all of the default iterations by
 # this factor
-ITER_SCALE = 100
+ITER_SCALE = 0
 
 def get_player_policy(game, player, policy_name):
     policy_class = policies.get_policy_class(policy_name)

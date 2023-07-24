@@ -48,15 +48,16 @@ _expected_dqn_kwargs = set([
 
 def play_episodes(env, rl_agents, fixed_agents,
         num_episodes=DEFAULTS.iterations):
-    players = list(int(x) for x in arena.Players)
-    players = ["atk", "def"]
-    num_players = len(players)
+    num_players = len(arena.Players)
     tallies = []
     for player_pos, p_name in enumerate(["attacker", "defender"]):
         sum_rewards = np.zeros(num_players)
         sum_wins = np.zeros(num_players + 1)
         p_means = np.zeros(num_players)
         histories = collections.defaultdict(int)
+        # We play through once for each player; each time the current
+        # player plays with the RL model and the opposing player plays
+        # with a fixed policy.
         cur_agents = fixed_agents[:]
         cur_agents[player_pos] = rl_agents[player_pos]
         for _ in range(num_episodes):

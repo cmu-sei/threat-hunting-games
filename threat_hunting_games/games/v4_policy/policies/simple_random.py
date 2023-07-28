@@ -3,7 +3,18 @@ import math
 import pyspiel
 from open_spiel.python.policy import Policy
 
+import arena_zsum_v4 as arena
 from .util import normalize_action_probs
+
+
+_psum = len(arena.Defend_Actions)
+_pprobs = {}
+for action in arena.Defend_Actions:
+                pprobs[action] = 1 / psum
+
+Default_Player_Action_Probs = {
+    arena.Players.DEFENDER: _pprobs
+}
 
 class SimpleRandomPolicy(Policy):
     """
@@ -33,7 +44,7 @@ class SimpleRandomPolicy(Policy):
 
     """
 
-    def __init__(self, game, player_action_probs=None):
+    def __init__(self, game, player_action_probs=Default_Player_Action_Probs):
         if not player_action_probs:
             player_action_probs = {}
         all_players = list(range(game.num_players()))
@@ -57,6 +68,13 @@ class SimpleRandomPolicy(Policy):
                 for action in self._player_action_probs[player_id]:
                     pprobs[action] = 1 / psum
                 self._player_action_probs[player_id] = pprobs
+
+    @classmethod
+    def defaults(cls):
+        pap_probs = {}
+        for player, probs in Default_Player_Action_Probs.items():
+            pap_probs[player] = dict(probs)
+        return pap_probs
 
     def action_probabilities(self, state, player_id=None):
         """

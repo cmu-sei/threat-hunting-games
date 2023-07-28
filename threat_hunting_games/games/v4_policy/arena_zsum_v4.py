@@ -97,6 +97,30 @@ NoOp_Actions = tuple(sorted([
     Actions.IN_PROGRESS,
 ]))
 
+Attack_Noisy_Actions = tuple(sorted([
+    Actions.S0_VERIFY_PRIV,
+    Actions.S1_WRITE_EXE,
+    Actions.S2_ENCRYPT,
+]))
+
+Attack_Camo_Actions = tuple(sorted([
+    Actions.S0_VERIFY_PRIV_CAMO,
+    Actions.S1_WRITE_EXE_CAMO,
+    Actions.S2_ENCRYPT_CAMO,
+]))
+
+Defend_Weak_Actions = tuple(sorted([
+    Actions.PSGREP,
+    Actions.SMB_LOGS,
+    Actions.FF_SEARCH,
+]))
+
+Defend_Strong_Actions = tuple(sorted([
+    Actions.PSGREP_STRONG,
+    Actions.SMB_LOGS_STRONG,
+    Actions.FF_SEARCH_STRONG,
+]))
+
 # Attacker is operating off of a kill chain -- at any given point in the
 # chain, the attacker will have three options: next action, next action
 # (camo), and WAIT. IN_PROGRESS actions are injected and handled by

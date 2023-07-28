@@ -5,10 +5,16 @@ from open_spiel.python.bots.policy import PolicyBot
 
 import policies
 
-def get_player_policy(game, player, policy_name):
+def get_player_policy(game, player, policy_name, **policy_kwargs):
     policy_class = policies.get_policy_class(policy_name)
-    policy_args = policies.get_player_policy_args(player, policy_name)
-    return policy_class(game, *policy_args)
+    try:
+        kwargs = policy_class.defaults()
+    except AttributeError:
+        kwargs = {}
+    kwdiff = set(policy_kwargs).difference(kwargs)
+    assert not kwdiff, "unknown kwargs for policy '{policy_name}': {kwdiff}"
+    kwargs.update(policy_kwargs)
+    return policy_class(game, **kwargs)
 
 def get_player_bot(game, player, policy_name):
     policy = get_player_policy(game, player, policy_name)

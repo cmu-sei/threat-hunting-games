@@ -79,6 +79,7 @@ _GAME_TYPE = pyspiel.GameType(
     # tuples, lists, and others don't work
     parameter_specification={
         "num_turns": game_max_turns,
+        "string_thing": "here_is_string",
         # if playing using bots, policies must be None
         #"attacker_policy": None,
         #"defender_policy": "uniform_random",
@@ -537,10 +538,11 @@ class DefenderState(BasePlayerState):
 class GameState(pyspiel.State):
     """Game state, and also action resolution for some reason."""
 
-    def __init__(self, game, game_info):
+    def __init__(self, game, game_info, string_thing=None):
         super().__init__(game)
         assert not (game_info.max_game_length % 2), \
             "game length must have even number of turns"
+        print("STRING THING:", string_thing)
         game_params = game.get_parameters()
         self._num_turns = game_params["num_turns"]
         self._turns_exhausted = False
@@ -978,12 +980,13 @@ class Game(pyspiel.Game):
         """
         self.game_type = _GAME_TYPE
         self.game_info = make_game_info(params["num_turns"])
+        self._string_thing = params["string_thing"]
         super().__init__(self.game_type, self.game_info, params)
         #print("\ngame params:\n", self.get_parameters(), "\n")
 
     def new_initial_state(self):
         """Return a new GameState object"""
-        return GameState(self, self.game_info)
+        return GameState(self, self.game_info, string_thing=self._string_thing)
 
     #def make_py_observer(self, iig_obs_type=None, params=None):
     #    return OmniscientObserver(params)

@@ -3,9 +3,18 @@ import random
 import pyspiel
 from open_spiel.python.policy import Policy
 
+Default_Action_Intervals = {}
+for i, action in enumerate(arena.Defend_Actions):
+    if action == arena.Actions.WAIT:
+        continue
+    else:
+        Defend_Action_Intervals[action] = i
+Defend_Interval_Clock_Seed = 0
+
 class IntervalActions:
 
-    def __init__(self, action_intervals, clock_seed=None):
+    def __init__(self, action_intervals=Default_Action_Intervals,
+            clock_seed=Default_Interval_Clock_Seed):
         self._beats = {}
         for action, interval in dict(action_intervals).items():
             if not interval:
@@ -13,6 +22,14 @@ class IntervalActions:
             self._beats[int(action)] = interval
         self._clock = clock_seed if clock_seed else 0
         self._action_queue = []
+
+    @classmethod
+    def defaults(cls):
+        defs = {
+            "action_intervals": dict(Default_Action_Intervals),
+            "clock_seed": Default_Interval_Clock_Seed,
+        }
+        return defs
 
     def take_action(self, selected_actions=None):
         if not selected_actions:

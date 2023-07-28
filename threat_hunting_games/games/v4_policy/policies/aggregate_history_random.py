@@ -5,6 +5,24 @@ from open_spiel.python.policy import Policy
 
 from .util import normalize_action_probs
 
+
+Default_Agg_Probs = {}
+_pct = .10
+for action in reversed(arena.Defend_Actions):
+    Default_Agg_Probs[action] = _pct
+    _pct += .10
+_psum = sum(Default_Agg_Probs.values())
+Default_Agg_Probs[arena.Actions.WAIT] = \
+        _psum / len(Default_Agg_Probs)
+_psum = sum(Default_Agg_Probs.values())
+for action in Default_Agg_Probs:
+    Default_Agg_Probs[action] *= (1 / _psum)
+
+Default_Player_Seed_Probs = {
+    arena.DEFENDER: Default_Agg_Probs
+}
+
+
 class ActionPicker:
     """
     Keeps track of the running probabilities for available actions.
@@ -96,13 +114,20 @@ class AggregateHistoryPolicy(Policy):
     two types.
     """
 
-    def __init__(self, game, player_seed_probs):
+    def __init__(self, game, player_seed_probs=Default_Player_Seed_Probs):
         all_players = list(range(game.num_players()))
         super().__init__(game, all_players)
         self._action_pickers = {}
         for player in player_seed_probs:
             self._action_pickers[player] = \
                     ActionPicker(player_seed_probs[player])
+
+    @classmethod
+    def defaults(cls):
+        defs = {}
+        for player, seed_probs in Default_Player_Seed_Probs.items():
+            defs[player] = dict(seed_probs)
+        return defs
 
     def action_probabilities(self, state, player_id=None):
         """

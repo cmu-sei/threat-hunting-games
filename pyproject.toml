@@ -53,10 +53,10 @@ log_cli = false
 log_cli_level = "DEBUG"
 
 [config]
-unix-sim-path = "GHOSTSConnection/Simulations/"
-windows-sim-path = "GHOSTSConnection\\Simuations\\"
-unix-ghosts-path = "GHOSTSConnection/Logs/GHOSTSConnection.log"
-windows-ghosts-path = "GHOSTSConnection\\Logs\\GHOSTSConnection.log"
+unix-sim-path = "Simulations"
+windows-sim-path = "Simuations"
+unix-ghosts-path = "Logs/GHOSTSConnection.log"
+windows-ghosts-path = "Logs\\GHOSTSConnection.log"
 local-ghosts-uri = "localhost:8080"
 prod-ghosts-uri = "ghosts-api:5000"
 

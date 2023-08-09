@@ -24,6 +24,6 @@ Containers/Environment_Data/*
 # Basic MACOS removal
 .DS_Store
 # Don't save the simulation files
-GHOSTSConnection/Simulations
+Simulations
 # Don't save GHOSTSConnection log
-GHOSTSConnection/Logs/GHOSTSConnection.log
+Logs/GHOSTSConnection.log

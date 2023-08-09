@@ -29,8 +29,6 @@ def setup_logger(logger_name: str, log_file: str, format_str: str, level=logging
 
 
 class GHOSTSConnection:
-    config_data = toml.load('./pyproject.toml')
-    config_data = config_data['config']
     SIMULATION_ID = ''
     NUM_ATTACKERS = 0
     NUM_DEFENDERS = 0
@@ -38,24 +36,31 @@ class GHOSTSConnection:
     attacker_Machine_Ids = []
     # Matrix reads { 'system_id' : ['Machine with admin', 'machine2 with admin']
     admin_matrix = {}
-    CONN_URL = config_data['prod-ghosts-uri']
+    CONN_URL = ''
     SIM_FILE_PATH = ''
     TEST_SESSION = False
+    config_data = {}
 
     def __init__(self, num_attackers: int = 1, num_defenders: int = 1, local_session: bool = False,
                  test_session: bool = False):
-        # If not being run in the threat-hunting-games container then use localhost address and port
-        ghosts_log_path = self.config_data['unix-ghosts-path']
         if local_session:
-            self.CONN_URL = self.config_data['local-ghosts-uri']
+            self.config_data = toml.load('./pyproject.toml')
+            self.CONN_URL = self.config_data['config']['local-ghosts-uri']
+        else:
+            self.config_data = toml.load('/opt/pysetup/pyproject.toml')
+            self.CONN_URL = self.config_data['config']['prod-ghosts-uri']
+
+        # If not being run in the threat-hunting-games container then use localhost address and port
+        ghosts_log_path = self.config_data['config']['unix-ghosts-path']
+
         if test_session:
             self.TEST_SESSION = True
         if platform == "darwin":
-            self.SIM_FILE_PATH = self.config_data['unix-sim-path']
-            ghosts_log_path = self.config_data['unix-ghosts-path']
+            self.SIM_FILE_PATH = self.config_data['config']['unix-sim-path']
+            ghosts_log_path = self.config_data['config']['unix-ghosts-path']
         elif platform == 'win32' or platform == 'cygwin':
-            self.SIM_FILE_PATH = self.config_data['windows-sim-path']
-            ghosts_log_path = self.config_data['windows-ghosts-path']
+            self.SIM_FILE_PATH = self.config_data['config']['windows-sim-path']
+            ghosts_log_path = self.config_data['config']['windows-ghosts-path']
         try:
             print(os.getcwd())
             os.mkdir(os.path.join(os.getcwd(), self.SIM_FILE_PATH))
@@ -87,20 +92,12 @@ class GHOSTSConnection:
         self.logger_sim.info(msg=f"TIME OF SIMULATION: {datetime.now().time().strftime('%H:%M:%S')}")
         self.logger_sim.info(msg=f'NUMBER OF ATTACKERS: {self.NUM_ATTACKERS}')
         self.logger_sim.info(msg=f'NUMBER OF DEFENDERS: {self.NUM_DEFENDERS}')
-        self.logger_sim.info(msg='Beginning creation of Machinegroups')
-        # Begin creating machinegroups
-        attacker_group = self.create_machinegroup('Attackers')
-        if attacker_group[0] == 'Error':
-            self.end_simulation(reason=attacker_group[1])
-        else:
-            self.logger_sim.info(msg=f'Created Machinegroup Attackers: {attacker_group}')
-            self.create_attacker_machines(attacker_group[1])
-        defender_group = self.create_machinegroup('Defenders')
-        if defender_group[0] == 'Error':
-            self.end_simulation(reason=defender_group[0])
-        else:
-            self.logger_sim.info(msg=f'Created Machinegroup Defenders: {defender_group}')
-            self.create_defender_machines(defender_group[1])
+
+        if len(self.create_attacker_machines()) != self.NUM_ATTACKERS:
+            self.end_simulation(reason="Unable to create all of the necessary attacker machines. See logs")
+
+        if len(self.create_defender_machines()) != self.NUM_DEFENDERS:
+            self.end_simulation(reason="Unable to create all of the necessary defender machines. See logs")
 
     # Function to confirm the connection of the threat-hunting-games container to the GHOSTS-API container
     def confirm_connection(self) -> bool:
@@ -120,21 +117,31 @@ class GHOSTSConnection:
             return False
 
     # Create the specified number of attacker machines
-    def create_attacker_machines(self, attacker_group_id: str):
+    def create_attacker_machines(self) -> list:
+        machines_created = []
         for a in range(0, self.NUM_ATTACKERS):
             self.logger_sim.info(f'NUM ATTACKERS {self.NUM_ATTACKERS}')
             self.logger_sim.info(f'Creating Attacker_{a}')
             ret_dict = self.create_machine(f'Attacker_{a}', 'Attacker')
             if ret_dict is None:
                 self.logger_sim.error(f'Unable to create Attacker_{a}.')
+                ghosts_logger.error(f'Unable to create Attacker_{a}.')
+            else:
+                machines_created.append(ret_dict)
+        return machines_created
 
     # Create the specified number of defender machines
-    def create_defender_machines(self, defender_group_id: str):
+    def create_defender_machines(self) -> list:
+        machines_created = []
         for d in range(0, self.NUM_DEFENDERS):
             self.logger_sim.info(f'Creating Defender_{d}')
             ret_dict = self.create_machine(f'Defender_{d}', 'Defender')
             if ret_dict is None:
                 self.logger_sim.error(f'Unable to create Defender_{d}.')
+                ghosts_logger.error(f'Unable to create Defender_{d}.')
+            else:
+                machines_created.append(machines_created)
+        return machines_created
 
     # Function to create a machine group within the environment
     def create_machinegroup(self, name: str) -> []:
@@ -216,25 +223,12 @@ class GHOSTSConnection:
         try:
             test_data = get(url=f'http://{self.CONN_URL}/api/machines/{machine_id}')
             if test_data.status_code == 200:
+                ghosts_logger.debug(msg=f'Information about {machine_id}| {test_data.content.decode("utf-8")}')
                 return json.loads(test_data.content.decode('utf-8'))
             return {}
         except Exception as e:
             ghosts_logger.error(msg=f'GHOSTS-API is not currently responding, check the container status. | {str(e)}')
             return {}
-
-    # Full data output of listing all possible machine groups
-    def list_machine_groups(self) -> list:
-        try:
-            test_data = get(url=f'http://{self.CONN_URL}/api/machinegroups')
-            if test_data.status_code == 200:
-                ghosts_logger.debug(msg=f'List of Machinegroups: {test_data.content.decode("utf-8")}')
-                return json.loads(test_data.content.decode("utf-8"))
-            else:
-                ghosts_logger.error(msg=f'Unable to list Machinegroups: {test_data.content.decode("utf-8")}')
-                return []
-        except Exception as e:
-            ghosts_logger.error(msg=f'GHOSTS-API is not currently responding, check the container status. | {str(e)}')
-            return []
 
     # Get a list of the machines that currently exist in the simulation
     def list_machines(self) -> list:
@@ -249,6 +243,7 @@ class GHOSTSConnection:
                         machine_info = self.get_machine_information(m["id"])
                         if machine_info['status'] == "Active":
                             ret_list.append(m)
+                            ghosts_logger.debug(msg=f'Appending {machine_info["name"]} with status {machine_info["status"]}')
                     except Exception as e:
                         ghosts_logger.error(msg=f'Unable to find information about machine {m["id"]}. {e}')
             else:
@@ -269,7 +264,7 @@ class GHOSTSConnection:
                     with open('Attacker_Actions.json') as json_f:
                         attacker_actions_json = json.load(json_f)
                         if action_name not in attacker_actions_json["Actions List"]:
-                            ghosts_logger.info(msg=f"{action_name} does exist in list of attacker actions")
+                            ghosts_logger.info(msg=f"{action_name} does not exist in list of attacker actions")
                         # Check that the action exists in the action set from the .json file
                         for a in attacker_actions_json["Actions List"]:
                             if a["Name"] == action_name:
@@ -292,7 +287,7 @@ class GHOSTSConnection:
         machines = self.list_machines()
         if machine_id in machines:
             try:
-                with open('Defender_Actions.json.json') as json_f:
+                with open('Defender_Actions.json') as json_f:
                     defender_actions_json = json.load(json_f)
                     if action_name not in defender_actions_json["Actions List"]:
                         ghosts_logger.info(msg=f"{action_name} does exist in list of defender actions")
@@ -374,20 +369,22 @@ class GHOSTSConnection:
                 utc_time = utc_time[0:24]
                 utc_time[10] = 'T'
                 utc_time[23] = 'Z'
-                ghosts_logger.info(f'Stopping machine {machine_id} at time {"".join(utc_time)}')
+                #ghosts_logger.info(f'Stopping machine {machine_id} at time {"".join(utc_time)}')
                 timeline_action = {
                     "machineId": machine_id,
                     "type": 10,
                     "activeUtc": "".join(utc_time),
                     "status": 0,
                     "update": {
+                        "id": machine_id,
+                        "status": 0,
                         "TimeLineHandlers": [
                             {
                                 "HandlerType": "NpcSystem",
                                 "Initial": "",
                                 "UtcTimeOn": "00:00:00",
                                 "UtcTimeOff": "24:00:00",
-                                "Loop": 'false',
+                                "Loop": "false",
                                 "TimeLineEvents": [
                                     {
                                         "Command": "Stop",
@@ -406,7 +403,7 @@ class GHOSTSConnection:
                                 headers=JSON_HEADER,
                                 timeout=3)
                 self.logger_sim.debug(msg=f'type={type(ret_data)}: data={ret_data.content.decode("utf-8")}')
-                if ret_data.status_code == 200:
+                if ret_data.status_code == 204:
                     self.logger_sim.info(msg=f"Action Stop_Machine was successful on {machine_id}")
                     return True
                 else:
@@ -488,46 +485,17 @@ class GHOSTSConnection:
             ghosts_logger.error(msg=f'Unable to remove machine {machine_id} due to bad response code')
             return False
 
-    # Attempt to remove a machinegroup from GHOSTS
-    def remove_machinegroups(self):
-        success_removal = True
-        if self.confirm_connection():
-            try:
-                machine_groups = self.list_machine_groups()
-                if len(machine_groups) > 0:
-                    for mg in machine_groups:
-                        ret_data = delete(f'http://{self.CONN_URL}/api/machinegroups/{mg["id"]}')
-                        if ret_data.status_code == 204:
-                            self.logger_sim.info(f'Removed machinegroup {mg["name"]} from GHOSTS')
-                            ghosts_logger.info(f'Successfully removed machinegroup {mg["name"]}')
-                        else:
-                            self.logger_sim.error(f'Unable to remove machinegroup {mg["name"]} from GHOSTS.')
-                            ghosts_logger.error(f'Unable to remove machinegroup {mg["name"]} '
-                                                f'from GHOSTS. {ret_data.content.decode("utf-8")}')
-                            success_removal = False
-                return success_removal
-            except Exception as e:
-                self.logger_sim.error(f'Unable to remove all machinegroups from GHOSTS.')
-                ghosts_logger.error(f'Unable to remove machinegroups from GHOSTS. {e}')
-                return False
-        else:
-            self.logger_sim.error(f'Unable to remove machinegroups from GHOSTS.')
-            ghosts_logger.error(msg=f'Unable to remove machinegroups due to failed connection')
-            return False
-
     # End the simulation due to either error or completion
     def end_simulation(self, reason: str = "End of Simulation", maintain_env: bool = False, save_file: bool = True):
         self.logger_sim.error(msg=f'ENDING SIMULATION {self.SIMULATION_ID} due to the following reason: {reason}')
         ghosts_logger.info(msg=f'Tearing down GHOSTS env for SIMULATION {self.SIMULATION_ID}')
         if not maintain_env:
-            success_teardown = self.remove_machinegroups()
-            if not success_teardown:
-                ghosts_logger.error(msg='WARNING: Teardown was not 100% successful, '
-                                        'there may be remaining machinegroups')
             curr_machines = self.list_machines()
             for m in curr_machines:
                 self.logger_sim.info(msg=f'Removing machine {m["id"]} from environment')
-                self.remove_machine(m['id'])
+                if not self.remove_machine(m['id']):
+                    ghosts_logger.error(msg='WARNING: Teardown was not 100% successful, '
+                                            'there may be remaining machines')
         if not save_file or self.TEST_SESSION:
             os.remove(self.sim_file_path_full)
         self.logger_sim.info(F'=-=-=-=-= END OF SIMULATION {self.SIMULATION_ID} -=-=-=-=-=-')

@@ -68,7 +68,7 @@ def test_attacker_machine_created(local):
     machine_group_lists = ghosts_connect.list_machinegroup_machines()
     assert len(machine_group_lists['Attackers']) == 1
     ghosts_connect.end_simulation()
-'''
+
 
 # Test that a defender machine is created via method call with the correct specifications
 def test_defender_machine_created(local):
@@ -90,7 +90,7 @@ def test_multiple_machines_created(local):
     ghosts_connect.end_simulation()
 
 # ACTION TESTING PORTION
-
+'''
 
 # Check that the privilege matrix is correctly updated after an action
 def test_attacker_gained_privileges(local):

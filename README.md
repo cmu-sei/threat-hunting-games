@@ -10,8 +10,7 @@ hunting.
 
 ### Flags
 - **-d**: Run the environment in detached mode 
-- **-r**: Reset the databases of the GHOSTS, POSTGRES, and GHOSTS-SPECTRE containers 
-- **-v**: Configure the containers to run in the VPN configuration (SEI Zscaler)
+- **-r**: Reset the databases of the GHOSTS, POSTGRES, and GHOSTS-SPECTRE containers
 
 ## Local Environment
 ### Pyenv and pyenv-virtualenv (optional)
@@ -93,7 +92,7 @@ framework.
 
 ## Custom Configuration
 Configuration information can be found in the `pyproject.toml` file in the root directory
-of the project under `[application.config]`. This contains the locations for the saving of the GHOSTSConnection.log as
+of the project under `[config]`. This contains the locations for the saving of the GHOSTSConnection.log as
 well as the simulation files. URI connections can also be changed there as well if you happen to 
 change the port for the Docker container for GHOSTS
 
@@ -102,3 +101,4 @@ The threat-hunting-games project uses pytest in order to test functionality. \
 The --local flag is used if you are running the tests on a local system rather than within the 
 threat-hunting-games container. \
 The --test flag is used if you are running test cases thus the simulation files are not saved.
+#### As a note currently the final 3 tests fail due to being unable to successfully remove machines from GHOSTS. Working on a fix for this issue actively*

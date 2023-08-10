@@ -5,12 +5,20 @@ hunting.
 # Toolchain
 
 ## Docker Container Environment (Encouraged)
-### Command to Build the Containers
+### Command to Build the Containers (Linux or MacOS)
 `/bin/sh /build_docker_containers.sh`
 
 ### Flags
 - **-d**: Run the environment in detached mode 
 - **-r**: Reset the databases of the GHOSTS, POSTGRES, and GHOSTS-SPECTRE containers
+
+### Docker Build Command (Windows)
+From the root folder of the project run the following command: \
+`docker compose --file Containers/docker-compose.yml up -d --force-recreate`
+
+### Docker Containers Notes
+The containers that will be spun up are: ghosts-postgres, ghosts-grafana, ghosts-api, and threat-hunting-games \
+Within the threat-hunting-games you should be able to [test the code](#testing-) to confirm that it is working correctly
 
 ## Local Environment
 ### Pyenv and pyenv-virtualenv (optional)

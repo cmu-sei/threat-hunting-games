@@ -3,13 +3,15 @@ import random
 import pyspiel
 from open_spiel.python.policy import Policy
 
+import arena_zsum_v4 as arena
+
 Default_Action_Intervals = {}
 for i, action in enumerate(arena.Defend_Actions):
     if action == arena.Actions.WAIT:
         continue
     else:
-        Defend_Action_Intervals[action] = i
-Defend_Interval_Clock_Seed = 0
+        Default_Action_Intervals[action] = i
+Default_Interval_Clock_Seed = 0
 
 class IntervalActions:
 

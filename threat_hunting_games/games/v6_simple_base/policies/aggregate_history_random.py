@@ -4,7 +4,7 @@ import numpy as np
 import pyspiel
 from open_spiel.python.policy import Policy
 
-import arena_zsum_v4 as arena
+from . import arena
 from .util import normalize_action_probs
 
 
@@ -28,20 +28,17 @@ class ActionPickerIncrement:
 
     pct_per_interval = 0.10
 
-    def __init__(self, action_seed_probs, pct_per_interval=None):
+    def __init__(self, all_actions, pct_per_interval=None, **kwargs):
         if pct_per_interval is not None:
             # override class default
-            self.pct_per_interval = pct_per_interval
+            self.pct_per_interval = abs(pct_per_interval)
         assert pct_per_interval > 0, "only positive non-zero values"
-        if not isinstance(action_seed_probs, dict):
-            # if just a list of actions, uniform initial distribution
-            probs = {}
-            pct = 1 / len(action_seed_probs)
-            for action in action_seed_probs:
-                probs[action] = pct
-            action_seed_probs = probs
-        action_seed_probs = normalize_action_probs(action_seed_probs)
-        self._seed_probs = action_seed_probs
+        assert pct_per_interval <= 1.0, "only values below 1.0"
+        all_actions = [int(x) for x in all_actions]
+        pct = 1 / len(all_actions)
+        self._seed_probs = {}
+        for action in all_actions:
+            self._seed_probs[action] = pct
         self._running_probs = dict(self._seed_probs)
 
     def take_action(self, selected_actions=None):
@@ -52,25 +49,26 @@ class ActionPickerIncrement:
         if selected_actions:
             probs = {}
             for action in selected_actions:
+                action = int(action)
                 probs[action] = self._running_probs[action]
+            probs = normalize_action_probs(probs)
         else:
             probs = self._running_probs
-        if not probs:
-            return pyspiel.ILLEGAL_ACTION
-        probs = normalize_action_probs(probs)
-        selected_action = \
-                np.random.choice(list(probs.keys()), p=list(probs.values()))
+        action = np.random.choice(list(probs.keys()), p=list(probs.values()))
         # this increments all other actions, even those not in
         # selected_actions...
-        for action in self._running_probs:
-            self._running_probs[action] += self.pct_per_interval
+        for p_action in self._running_probs:
+            self._running_probs[p_action] += self.pct_per_interval
         # reset selected action to seed pct -- which will be scaled
         # accordingly with the accumplated percentages of the
         # other actions
-        self._running_probs[selected_action] = \
-                self._seed_probs[selected_action]
+        self._running_probs[action] = self._seed_probs[action]
         self._running_probs = normalize_action_probs(self._running_probs)
-        return selected_action
+        return action
+
+    @classmethod
+    def defaults(cls):
+        return { "pct_per_interval": cls.pct_per_interval }
 
 
 class ActionPickerDecrement:
@@ -85,19 +83,17 @@ class ActionPickerDecrement:
 
     pct_per_interval = 0.8
 
-    def __init__(self, action_seed_probs, pct_per_interval=None):
+    def __init__(self, all_actions, pct_per_interval=None, **kwargs):
         if pct_per_interval is not None:
             # override class default
             self.pct_per_interval = abs(pct_per_interval)
         assert pct_per_interval > 0, "only positive non-zero values"
-        if not isinstance(action_seed_probs, dict):
-            # if just a list of actions, uniform initial distribution
-            probs = {}
-            pct = 1 / len(action_seed_probs)
-            for action in action_seed_probs:
-                probs[action] = pct
-            action_seed_probs = probs
-        self._seed_probs = normalize_action_probs(action_seed_probs)
+        assert pct_per_interval <= 1.0, "only values below 1.0"
+        all_actions = [int(x) for x in all_actions]
+        pct = 1 / len(all_actions)
+        self._seed_probs = {}
+        for action in all_actions:
+            self._seed_probs[action] = pct
         self._running_probs = dict(self._seed_probs)
 
     def take_action(self, selected_actions=None):
@@ -107,29 +103,32 @@ class ActionPickerDecrement:
 
         if selected_actions:
             # if selected actions are a subset of all actions
+            selected_actions = [int(x) for x in selected_actions]
             probs = {}
             for action in selected_actions:
                 probs[action] = self._running_probs[action]
             probs = normalize_action_probs(probs)
         else:
             probs = self._running_probs
-        if not probs:
-            return pyspiel.ILLEGAL_ACTION
-        selected_action = \
-                np.random.choice(list(probs.keys()), p=list(probs.values()))
-        old_prob = probs[selected_action]
+        action = None
+        action = np.random.choice(list(probs.keys()), p=list(probs.values()))
+        old_prob = probs[action]
         new_prob = old_prob * self.pct_per_interval
         pct_slack = old_prob - new_prob
         # this distributes the slack to all other actions, even those
         # not in selected_actions...
         incr = pct_slack / (len(self._running_probs) - 1)
-        for action in self._running_probs:
-            if action is selected_action:
-                self._running_probs[action] = new_prob
+        for r_action in self._running_probs:
+            if r_action == action:
+                self._running_probs[r_action] = new_prob
             else:
-                self._running_probs[action] += incr
+                self._running_probs[r_action] += incr
         self._running_probs = normalize_action_probs(self._running_probs)
-        return selected_action
+        return action
+
+    @classmethod
+    def defaults(cls):
+        return { "pct_per_interval": cls.pct_per_interval }
 
 
 Action_Pickers = {
@@ -140,8 +139,6 @@ Action_Pickers = {
 Default_Action_Picker = "decrement"
 
 def get_action_picker_class(action_picker_name):
-    assert action_picker_name in Action_Pickers, \
-            f"unknown action picker: f{action_picker_name}"
     return Action_Pickers[action_picker_name]
 
 def list_action_pickers():
@@ -188,30 +185,23 @@ class AggregateHistoryPolicy(Policy):
     def __init__(self, game, action_picker=Default_Action_Picker):
         all_players = list(range(game.num_players()))
         super().__init__(game, all_players)
-        self._action_pickers = {}
-        if player_seed_probs:
-            p_seed_probs = dict(player_seed_probs)
-        else:
-            p_seed_probs = {}
-            if not callable(seed_function):
-                seed_function = get_seed_function(seed_function)
-            for player in all_players:
-                p_seed_probs[player] = seed_function()
-        for player, probs in p_seed_probs.items():
-            if not probs:
-                if seed_function not in Seed_Functions.values():
-                    seed_function = Default_Seed_Function
-                    sf = get_seed_function(seed_function)
-                else:
-                    sf = seed_function
-                probs = sf()
-            p_seed_probs[player] = probs
         if not callable(action_picker):
             action_picker = get_action_picker_class(action_picker)
+        self._action_picker_class = action_picker
         self._action_pickers = {}
-        #for player in all_players:
-        #    self._action_pickers[player] = \
-        #            action_picker(p_seed_probs[player])
+
+    @classmethod
+    def defaults(cls):
+        def_ap_class = get_action_picker_class(Default_Action_Picker)
+        return { Default_Action_Picker: dict(def_ap_class.defaults()) }
+
+    @classmethod
+    def get_action_picker_class(cls, ap_name):
+        return get_action_picker_class(ap_name)
+
+    @classmethod
+    def list_action_pickers(cls):
+        return list_action_pickers()
 
     def action_probabilities(self, state, player_id=None):
         """
@@ -219,14 +209,21 @@ class AggregateHistoryPolicy(Policy):
         actions and their assosciated probabilities. In this particular
         case this will be a single action with a probability of 1.0.
         """
+        if player_id is not None:
+            player_id = arena.Players(player_id)
         legal_actions = (
             state.legal_actions() if player_id is None \
                     else state.legal_actions(player_id))
         if not legal_actions:
             return { pyspiel.ILLEGAL_ACTION, 1.0 }
-        if len(legal_actions) == 1:
-            return { legal_actions[0]: 1.0 }
         if player_id not in self._action_pickers:
-            self._action_pickers[player_id] = uniform_probs(legal_actions)
+            uniform_pct = 1 / len(arena.Player_Actions[player_id])
+            #seed_probs = {}
+            #for action in arena.Player_Actions[player_id]:
+            #        seed_probs[action] = uniform_pct
+            self._action_pickers[player_id] = \
+                self._action_picker_class(arena.Player_Actions[player_id])
         action = self._action_pickers[player_id].take_action(legal_actions)
+        if not action:
+            action = arena.Actions.WAIT
         return { action: 1.0 }

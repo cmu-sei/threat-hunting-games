@@ -1,20 +1,34 @@
-import math
+import math, random
 
 import pyspiel
 from open_spiel.python.policy import Policy
 
-import arena_zsum_v4 as arena
+import arena
 from .util import normalize_action_probs
 
 
-_psum = len(arena.Defend_Actions)
-_pprobs = {}
-for action in arena.Defend_Actions:
-                pprobs[action] = 1 / psum
+def uniform_probs(actions):
+    psum = len(arena.Defend_Actions)
+    probs = {}
+    for action in actions:
+            probs[action] = 1 / _psum
+    return probs
+
+def random_probs(actions):
+    mid = int(100 / len(actions))
+    probs = {}
+    for action in actions:
+        probs[action] = random.randint(1, (mid + int(mid / 3))) / 100
+    probs = normalize_action_probs(probs)
+    return probs
 
 Default_Player_Action_Probs = {
-    arena.Players.DEFENDER: _pprobs
+    arena.Players.ATTACKER: \
+            uniform_probs(arena.Player_Actions[arena.Players.ATTACKER])
+    arena.Players.DEFENDER: \
+            random_probs(arena.Player_Actions[arena.Players.DEFENDER])
 }
+
 
 class SimpleRandomPolicy(Policy):
     """
@@ -44,9 +58,9 @@ class SimpleRandomPolicy(Policy):
 
     """
 
-    def __init__(self, game, player_action_probs=Default_Player_Action_Probs):
+    def __init__(self, game, player_action_probs=None):
         if not player_action_probs:
-            player_action_probs = {}
+            player_action_probs = Default_Player_Action_Probs
         all_players = list(range(game.num_players()))
         super().__init__(game, all_players)
         if player_action_probs:
@@ -62,12 +76,6 @@ class SimpleRandomPolicy(Policy):
                 self._player_action_probs[player_id] = \
                     normalize_action_probs(
                             self._player_action_probs[player_id])
-            else:
-                #print("probs set to uniform random")
-                pprobs = {}
-                for action in self._player_action_probs[player_id]:
-                    pprobs[action] = 1 / psum
-                self._player_action_probs[player_id] = pprobs
 
     @classmethod
     def defaults(cls):
@@ -85,19 +93,13 @@ class SimpleRandomPolicy(Policy):
                 else state.legal_actions(player_id))
         if not legal_actions:
             return { pyspiel.ILLEGAL_ACTION: 1.0 }
-        if len(legal_actions) == 1:
-            return { legal_actions.pop(): 1.0 }
         probs = dict(self._player_action_probs.get(player_id, {}))
-        if probs:
-            # total sum already == 1.0
-            if legal_actions.difference(probs.keys()):
-                #print("calculating subset of action probs for", player_id)
-                new_probs = {}
-                for action in legal_actions:
-                    new_probs[action] = probs[action]
-                probs = normalize_action_probs(probs)
-        else:
-            #print("probs set to uniform random")
-            scale = 1 / len(legal_actions)
-            probs = { x: scale for x in legal_actions }
+        if not probs:
+            probs = uniform_probs(legal_actions)
+        if set(probs.keys()).difference(legal_actions):
+            #print("calculating subset of action probs for", player_id)
+            new_probs = {}
+            for action in legal_actions:
+                new_probs[action] = probs[action]
+            probs = normalize_action_probs(probs)
         return probs

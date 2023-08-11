@@ -519,6 +519,29 @@ class Utilities:
                 selected_action = action
         return selected_action
 
+    def resolve_zsums(self):
+        """
+        This is just for recording the utilites in the meta-info for
+        game runs.
+        """
+        utilities = {}
+        for i, atk_actions in enumerate(Atk_Actions_By_Pos):
+            for j, atk_action in enumerate(atk_actions):
+                atk_util = self._utilities[atk_action]
+                atk_res = [atk_util.cost, atk_util.reward, atk_util.damage]
+                if atk_res[-1] == ZSUM:
+                    atk_res[-1] = atk_util.reward
+                def_action = Def_Actions_By_Pos[i][j]
+                def_util = self._utilities[def_action]
+                def_res = [def_util.cost, def_util.reward, def_util.damage]
+                if def_res[1] == ZSUM:
+                    def_res[1] = atk_res[-1]
+                if def_res[2] == ZSUM:
+                    def_res[2] = def_res[1]
+                utilities[atk_action] = tuple(atk_res)
+                utilities[def_action] = tuple(def_res)
+        return tuple(sorted((x, utilities[x]) for x in utilities))
+
     def max_utility(self) -> int:
         '''
         Max utility per turn...maybe. Without knowing the total number of

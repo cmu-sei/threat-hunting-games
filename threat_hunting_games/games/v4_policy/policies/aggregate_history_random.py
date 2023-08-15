@@ -4,7 +4,7 @@ import numpy as np
 import pyspiel
 from open_spiel.python.policy import Policy
 
-import arena_zsum_v4 as arena
+from . import arena_zsum_v4 as arena
 from .util import normalize_action_probs
 
 

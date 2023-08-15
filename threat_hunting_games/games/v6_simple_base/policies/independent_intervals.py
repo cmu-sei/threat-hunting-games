@@ -80,7 +80,7 @@ class ActionPickerIntervals:
         return f"clock: {self._clock} beats: {self._beats}"
 
 
-class ActionPickerCheapest:
+class ActionPickerLeastExpensive:
     """
     Example strategy 1: Spam only the cheapest (or earliest in the kill
     chain) detection action at every available time unit.
@@ -94,11 +94,11 @@ class ActionPickerCheapest:
         if not selected_actions:
             selected_actions = self._all_actions
         action = None
-        action = self._utilities.cheapest_action(selected_actions)
+        action = self._utilities.least_expensive_action(selected_actions)
         return action
 
 
-class ActionPickerLeastRecentCheapest:
+class ActionPickerLeastRecentLeastExpensive:
     """
     Example strategy 2: Spam every detection action at each time unit.
     Since we restrict to only detect action per time unit, first
@@ -140,7 +140,8 @@ class ActionPickerLeastRecentCheapest:
             # hmm
             pass
         if not action:
-            action = self._utilities.cheapest_action(least_recent_actions)
+            action = \
+                self._utilities.least_expensive_action(least_recent_actions)
         for b_action in self._beats:
             if b_action == action:
                 self._beats[b_action] = 0
@@ -257,8 +258,8 @@ class ActionPickerRankedIntervals:
 
 Action_Pickers = {
     "intervals": ActionPickerIntervals,
-    "cheapest": ActionPickerCheapest,
-    "least_recent_cheapest": ActionPickerLeastRecentCheapest,
+    "cheapest": ActionPickerLeastExpensive,
+    "least_recent_cheapest": ActionPickerLeastRecentLeastExpensive,
     "least_recent_most_expensive": ActionPickerLeastRecentMostExpensive,
     "ranked_intervals": ActionPickerRankedIntervals,
 }
@@ -316,7 +317,9 @@ class IndependentIntervalsPolicy(Policy):
     still indicate the magnitude of staleness for that action.
     """
 
-    def __init__(self, game, action_picker=Default_Action_Picker):
+    def __init__(self, game, action_picker=None):
+        if action_picker is None:
+            action_picker = Default_Action_Picker
         all_players = list(range(game.num_players()))
         super().__init__(game, all_players)
         if not callable(action_picker):
@@ -344,6 +347,9 @@ class IndependentIntervalsPolicy(Policy):
                 else state.legal_actions(player_id)
         if not legal_actions:
             return { pyspiel.ILLEGAL_ACTION: 1.0 }
+        if len(legal_actions) == 1 \
+                and legal_actions[0] == arena.Actions.IN_PROGRESS:
+            return { legal_actions[0]: 1.0 }
         if player_id not in self._action_pickers:
             kwargs = {}
             kwargs["utilities"] = state.utilities
@@ -354,4 +360,4 @@ class IndependentIntervalsPolicy(Policy):
         action = self._action_pickers[player_id].take_action(legal_actions)
         if not action:
             action = arena.Actions.WAIT
-        return { action: 1.0 }
+        return { int(action): 1.0 }

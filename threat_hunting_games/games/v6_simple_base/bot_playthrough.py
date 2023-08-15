@@ -17,11 +17,11 @@ from threat_hunting_games import games
 
 @dataclass
 class Defaults:
-    game: str = "chain_game_v4_lb_seq_zsum"
+    game: str = "chain_game_v6_seq"
     iterations: int = 1
 
-    detection_costs: str = arena.Default_Detection_Costs,
-    advancement_rewards: str = arena.Default_Advancement_Rewards,
+    detection_costs: str = arena.Default_Detection_Costs
+    advancement_rewards: str = arena.Default_Advancement_Rewards
 
     # Need to include loading policy of choice in our parameterization
     # efforts.
@@ -54,6 +54,7 @@ def play_game(game, bots):
         player = state.current_player()
         bot = bots[player]
         action = bot.step(state)
+        print("BOT ACTION:", action)
         player_str = arena.player_to_str(player)
         action_str = arena.a2s(action)
         print(f"Player {player_str} sampled action: {action_str}")
@@ -62,8 +63,7 @@ def play_game(game, bots):
         state.apply_action(action)
     returns = state.returns()
     print("Returns:", " ".join(map(str, returns)))
-    return state.turns_played(), returns, \
-            state.victor(), state.turns_exausted(), history
+    return state.turns_played(), returns, state.victor(), history
 
 def main(game_name=DEFAULTS.game,
         iterations=DEFAULTS.iterations,
@@ -80,21 +80,27 @@ def main(game_name=DEFAULTS.game,
     if not iterations:
         iterations = DEFAULTS.iterations
     if detection_costs:
-        assert detection_costs in arena.Detection_Costs
+        assert detection_costs in arena.Detection_Costs, \
+                f"unknown detection_cost: {detection_costs}"
     if advancement_rewards:
-        assert advancement_rewards in arena.Advancement_Rewards
+        assert advancement_rewards in arena.Advancement_Rewards, \
+                f"unknown advancement_rewards: {advancement_rewards}"
     if defender_policy:
-        assert defender_policy in policies.list_policies()
+        assert defender_policy in policies.list_policies(), \
+                f"unknown defender_policy: {defender_policy}"
     if defender_action_picker:
         policy = defender_policy or DEFAULTS.defender_policy
         policy = policies.get_policy_class(policy)
-        assert defender_action_picker in policy.list_action_pickers()
+        assert defender_action_picker in policy.list_action_pickers(), \
+                f"unknown defender_action_picker: {defender_action_picker}"
     if attacker_policy:
-        assert attacker_policy in policies.list_policies()
+        assert attacker_policy in policies.list_policies(), \
+                f"unknkown attacker_policy: {attacker_policy}"
     if attacker_action_picker:
         policy = attacker_policy or DEFAULTS.attacker_policy
         policy = policies.get_policy_class(policy)
-        assert attacker_action_picker in policy.list_action_pickers()
+        assert attacker_action_picker in policy.list_action_pickers(), \
+                f"unknown attacker_action_picker: {attacker_action_picker}"
     kwargs = {
         "advancement_rewards": advancement_rewards,
         "detection_costs": detection_costs,
@@ -113,11 +119,9 @@ def main(game_name=DEFAULTS.game,
             advancement_rewards=advancement_rewards,
             detection_costs=detection_costs)
     def_bot = util.get_player_bot(game, arena.Players.DEFENDER,
-            defender_policy, action_picker=defender_action_picker,
-            utilities=utilities)
+            defender_policy, action_picker=defender_action_picker)
     atk_bot = util.get_player_bot(game, arena.Players.ATTACKER,
-            attacker_policy, action_picker=attacker_action_picker,
-            utilities=utilities)
+            attacker_policy, action_picker=attacker_action_picker)
     bots = {
         arena.Players.DEFENDER: def_bot,
         arena.Players.ATTACKER: atk_bot,
@@ -133,18 +137,17 @@ def main(game_name=DEFAULTS.game,
         games_path = os.path.join(dump_pm.path(), "games")
         if not os.path.exists(games_path):
             os.makedirs(games_path)
-    iter_fmt = len(str(iterations))
     num_games_maxed = 0
     game_num = 0
     try:
-        iter_fmt = f"%0{len(str(iterations))}.json"
+        iter_fmt = f"%0{len(str(iterations))}d.json"
         for game_num in range(iterations):
             turns_played, returns, victor, history \
                     = play_game(game, bots)
             histories[" ".join(str(int(x)) for x in history)] += 1
             for i, v in enumerate(returns):
                 sum_returns[i] += v
-            victor = int(victor)
+            victor = int(victor) if victor is not None else victor
             if victor == int(arena.Players.ATTACKER):
                 sum_victories[0] += 1
             elif victor == int(arena.Players.DEFENDER):
@@ -184,7 +187,7 @@ def main(game_name=DEFAULTS.game,
         dump.update(kwargs)
         dump["history_tallies"] = histories
         df = os.path.join(dump_pm.path(), "summary.json")
-
+        json.dump(dump, open(df, 'w'), indent=2)
         print(f"Dumped {game_num + 1} game playthroughs into: {dump_pm.path()}")
 
 

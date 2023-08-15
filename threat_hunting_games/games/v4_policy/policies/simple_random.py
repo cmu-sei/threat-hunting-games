@@ -3,7 +3,7 @@ import math, random
 import pyspiel
 from open_spiel.python.policy import Policy
 
-import arena
+from . import arena_zsum_v4 as arena
 from .util import normalize_action_probs
 
 
@@ -11,7 +11,7 @@ def uniform_probs(actions):
     psum = len(arena.Defend_Actions)
     probs = {}
     for action in actions:
-            probs[action] = 1 / _psum
+            probs[action] = 1 / psum
     return probs
 
 def random_probs(actions):
@@ -24,9 +24,9 @@ def random_probs(actions):
 
 Default_Player_Action_Probs = {
     arena.Players.ATTACKER: \
-            uniform_probs(arena.Player_Actions[arena.Players.ATTACKER])
+            uniform_probs(arena.Player_Actions[arena.Players.ATTACKER]),
     arena.Players.DEFENDER: \
-            random_probs(arena.Player_Actions[arena.Players.DEFENDER])
+            random_probs(arena.Player_Actions[arena.Players.DEFENDER]),
 }
 
 

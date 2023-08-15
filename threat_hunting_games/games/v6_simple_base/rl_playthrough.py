@@ -83,7 +83,7 @@ def play_episodes(env, rl_agents, fixed_agents,
                 time_step = env.step(action_list)
                 episode_rewards += time_step.rewards[player_pos]
             sum_rewards[player_pos] += episode_rewards
-            if env.get_state.turns_exhausted():
+            if env.get_state.victor() is None:
                 sum_wins[2] += 1
             elif env.get_state.attacker_state.got_all_the_marbles:
                 # attacker won (kill chain complete)

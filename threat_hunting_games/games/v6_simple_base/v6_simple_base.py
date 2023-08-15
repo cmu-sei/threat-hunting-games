@@ -53,9 +53,9 @@ game_utility = pyspiel.GameType.Utility.ZERO_SUM if USE_ZSUM \
 game_name = "chain_game_v6_seq"
 game_long_name = \
         "Chain game version 6 Sequential Simple Base Game with Policies"
-game_max_turns = 30
-game_max_turns = 8
-game_max_turns = 12
+game_max_turns = 50
+#game_max_turns = 8
+#game_max_turns = 12
 num_players = len(arena.Players)
 
 _GAME_TYPE = pyspiel.GameType(
@@ -95,8 +95,12 @@ _GAME_TYPE = pyspiel.GameType(
 def make_game_info(num_turns: int) -> pyspiel.GameInfo:
     # In this constant sum game, each player starts with 30 utility, so
     # max is 60
-    min_utility = arena.min_utility() * num_turns
-    max_utility = arena.max_utility() * num_turns
+
+    # this uses the Utilities defaults, not ideal since they are
+    # determined prior to game load.
+    #utilities = arena.Utilities()
+    #min_utility = utilities.min_utility() * num_turns
+    #max_utility = utilities.max_utility() * num_turns
 
     # Arguments to pyspiel.GameInfo:
     # (num_distinct_actions: int,
@@ -111,8 +115,13 @@ def make_game_info(num_turns: int) -> pyspiel.GameInfo:
         num_distinct_actions=len(arena.Actions),
         max_chance_outcomes=0,
         num_players=num_players,
-        min_utility=float(min_utility),
-        max_utility=float(max_utility),
+        #min_utility=float(min_utility),
+        #max_utility=float(max_utility),
+        # with our game structure these are hard to compute prior to
+        # game load, so these are arbitrary values that are nevertheless
+        # bounding (probably)
+        min_utility=-100,
+        max_utility=100,
         utility_sum=0.0,
         max_game_length=num_turns,
     )
@@ -176,6 +185,7 @@ class BasePlayerState:
     progress. And "asserted" means the same thing but includes the last
     action even if it is still in progress.
     """
+    arena_utilities: arena.Utilities
     utility: int = 0
     history: list[ActionState] = field(default_factory=list)
     available_actions: list[arena.Actions] = field(default_factory=list)
@@ -337,7 +347,7 @@ class AttackerState(BasePlayerState):
     def legal_actions(self):
         #return [x for x in arena.Atk_Actions_By_Pos[self.state_pos]
         #        if arena.action_cost(x) <= self.utility]
-        actions = arena.get_attack_actions_by_pos[self.state_pos]
+        actions = arena.Atk_Actions_By_Pos[self.state_pos]
         return actions
 
     def advance(self, action: arena.Actions, game_state: pyspiel.State):
@@ -355,7 +365,7 @@ class AttackerState(BasePlayerState):
         if action != arena.Actions.IN_PROGRESS:
             debug(f"{self.player} (turn {self.curr_turn}): selected {arena.a2s(action)}")
 
-        utils = arena.Utilities[action]
+        utils = self.arena_utilities[action]
 
         def _resolve_action():
             # tally action -- the delayed source action gets its reward;
@@ -399,7 +409,7 @@ class AttackerState(BasePlayerState):
                 # timewaits defined with 0 as max/min.
                 _resolve_action()
             else:
-                self.available_actions = [arena.Actions.IN_PROGRESS]
+                self.available_actions = (arena.Actions.IN_PROGRESS,)
                 debug(f"{self.player} (turn {self.curr_turn}): will resolve {arena.a2s(action)} in turn {self.curr_turn + 2*turn_cnt} after {turn_cnt} {arena.a2s(arena.Actions.IN_PROGRESS)} actions")
 
 
@@ -415,7 +425,7 @@ class DefenderState(BasePlayerState):
     def legal_actions(self):
         #return [x for x in arena.Defend_Actions
         #        if arena.action_cost(x) <= self.utility]
-        actions = arena.get_player_actions(player_id)
+        actions = arena.Player_Actions[self.player_id]
         return actions
 
     def detect(self, action: arena.Actions, game_state: pyspiel.State):
@@ -431,7 +441,7 @@ class DefenderState(BasePlayerState):
         if action != arena.Actions.IN_PROGRESS:
             debug(f"{self.player} (turn {self.curr_turn}): selected {arena.a2s(action)}")
 
-        utils = arena.Utilities[action]
+        utils = self.arena_utilities[action]
 
         def _resolve_action():
             # the defender action does *not* immediately yield a reward
@@ -472,7 +482,7 @@ class DefenderState(BasePlayerState):
                 _resolve_action()
             else:
                 # limit actions to just IN_PROGRESS for turn_cnt turns
-                self.available_actions = [arena.Actions.IN_PROGRESS]
+                self.available_actions = (arena.Actions.IN_PROGRESS,)
                 debug(f"{self.player} (turn {self.curr_turn}): will resolve {arena.a2s(action)} in turn {self.curr_turn + 2*turn_cnt} after {turn_cnt} {arena.a2s(arena.Actions.IN_PROGRESS)} actions")
 
 
@@ -489,10 +499,10 @@ class GameState(pyspiel.State):
         self._arena = arena
         self._utilities = arena.Utilities(
                 advancement_rewards=game_params["advancement_rewards"],
-                detection_costs=game_params["detection_rewards"])
-        arena.USE_WAITS = game_params["use_waits"]
-        arena.USE_TIMEWAITS = game_params["use_timewaits"]
-        arena.USE_CHANCE_FAIL = game_params["use_chance_fail"]
+                detection_costs=game_params["detection_costs"])
+        arena.USE_WAITS = bool(game_params["use_waits"])
+        arena.USE_TIMEWAITS = bool(game_params["use_timewaits"])
+        arena.USE_CHANCE_FAIL = bool(game_params["use_chance_fail"])
         self._victor = None
         # if policies are None, actions are random choice out of
         # legal actions
@@ -503,8 +513,8 @@ class GameState(pyspiel.State):
         # GameState._legal_actions gets called before available actions
         # can be popuated in AttackerState and DefenderState...so
         # initiaize available actions here.
-        self._attacker = AttackerState()
-        self._defender = DefenderState()
+        self._attacker = AttackerState(arena_utilities=self._utilities)
+        self._defender = DefenderState(arena_utilities=self._utilities)
 
         # attacker always moves first
         self._current_player = arena.Players.ATTACKER
@@ -672,7 +682,7 @@ class GameState(pyspiel.State):
             # terminate here by reaching self._num_turns either because
             # defender always gets the last action.
             self._attacker.advance(action, self)
-            cost = arena.action_cost(action)
+            cost = self._utilities.action_cost(action)
             self._attacker.increment_cost(cost)
             if USE_ZSUM:
                 self._defender.increment_reward(cost)
@@ -697,7 +707,7 @@ class GameState(pyspiel.State):
         self._defend_vec[self._curr_turn] = action
         #debug(f"DEFEND({self._curr_turn}): {self._defend_vec}")
 
-        cost = arena.action_cost(action)
+        cost = self._utilities.action_cost(action)
         self._defender.increment_cost(cost)
         if USE_ZSUM:
             self._attacker.increment_reward(cost)
@@ -728,8 +738,8 @@ class GameState(pyspiel.State):
                     # attack action is *actually* detected by the
                     # current defend action; defender gets reward,
                     # attacker takes damage
-                    reward = arena.defend_reward(defend_action, attack_action)
-                    damage = arena.defend_damage(defend_action, attack_action)
+                    reward = self._utilities.defend_reward(defend_action)
+                    damage = self._utilities.defend_damage(defend_action)
                     dmg = self._attacker.increment_damage(damage)
                     self._defender.increment_reward(dmg)
                     detected = True
@@ -747,8 +757,10 @@ class GameState(pyspiel.State):
 
         if not detected and self._attacker.state.primed:
             # a viable completed attack action that is undetected
-            reward = arena.attack_reward(self._attacker.state.action)
-            damage = arena.attack_damage(self._attacker.state.action)
+            reward = self._utilities.attack_reward(
+                    self._attacker.state.action)
+            damage = self._utilities.attack_damage(
+                    self._attacker.state.action)
             dmg = self._defender.increment_damage(damage)
             self._attacker.increment_reward(dmg)
             if self._attacker.state.action not in arena.NoOp_Actions:

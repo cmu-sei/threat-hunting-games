@@ -2,20 +2,25 @@ import os
 import numpy as np
 from datetime import datetime
 from open_spiel.python.bots.policy import PolicyBot
-
+#from policy_bot import PolicyBot
 import policies
 
-def get_player_policy(game, player, policy_name, action_picker=None)
+def get_player_policy(game, player, policy_name, action_picker=None):
     """
     kwargs are typically keyword arguments that get passed along into
     the action picker class
     """
     policy_class = policies.get_policy_class(policy_name)
-    return policy_class(game, action_picker=action_picker, **kwargs)
+    if policy_class in (policies.UniformRandomPolicy,
+            policies.FirstActionPolicy):
+        return policy_class(game)
+    else:
+        return policy_class(game, action_picker=action_picker)
 
-def get_player_bot(game, player, policy_name, action_picker=None)
+def get_player_bot(game, player, policy_name, action_picker=None):
+    print(f"Bot selecting {player} policy: {policy_name}")
     policy = get_player_policy(game, player, policy_name,
-            action_picker=action_picker, **kwargs)
+            action_picker=action_picker)
     bot = PolicyBot(player, np.random, policy)
     return bot
 
@@ -26,8 +31,8 @@ class PathManager:
     _def_str = 'def'
 
     def __init__(self, base_dir=None, game_name=None,
-            atk_policy=None, atk_action_picker=None,
-            def_policy=None, def_action_picker=None,
+            attacker_policy=None, attacker_action_picker=None,
+            defender_policy=None, defender_action_picker=None,
             model=None, raw_path=None):
         self._timestamp = datetime.now().isoformat(timespec="minutes")
         if raw_path:
@@ -35,10 +40,10 @@ class PathManager:
         else:
             self._base_dir = base_dir
             self._game_name = game_name
-            self._atk_policy = atk_policy
-            self._atk_action_picker = atk_action_picker
-            self._def_policy = def_policy
-            self._def_action_picker = def_action_picker
+            self._atk_policy = attacker_policy
+            self._atk_action_picker = attacker_action_picker
+            self._def_policy = defender_policy
+            self._def_action_picker = defender_action_picker
             self._model = model
 
     def _init_from_raw_path(self, rp):

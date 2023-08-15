@@ -97,6 +97,11 @@ NoOp_Actions = tuple(sorted([
     Actions.IN_PROGRESS,
 ]))
 
+Player_Actions = {
+    Players.ATTACKER: Attack_Actions,
+    Players.DEFENDER: Defend_Actions,
+}
+
 Attack_Noisy_Actions = tuple(sorted([
     Actions.S0_VERIFY_PRIV,
     Actions.S1_WRITE_EXE,

@@ -58,8 +58,6 @@ class ActionPickerSequentialThenCost:
         if not selected_actions:
             selected_actions = self._ordered_actions
         selected_actions = set(selected_actions)
-        diff = selected_actions.difference(self._ordered_actions)
-        assert not diff, f"unknown actions: {list(sorted(diff))}"
         selected_action = None
         while True:
             if self._ordered_actions[self._idx] not in selected_actions:
@@ -70,6 +68,7 @@ class ActionPickerSequentialThenCost:
                     break
             finally:
                 self._idx = (self._idx + 1) % len(self._ordered_actions)
+        print("RETURNING ACTION:", selected_action)
         return selected_action
 
 
@@ -192,7 +191,10 @@ class SimpleRandomPolicy(Policy):
     sisk note: we are not sampling without replacement as of yet
     """
 
-    def __init__(self, game, action_picker=Default_Action_Picker):
+    def __init__(self, game, action_picker=None):
+        if action_picker is None:
+            action_picker = Default_Action_Picker
+        self._action_picker_name = action_picker
         all_players = list(range(game.num_players()))
         super().__init__(game, all_players)
         if not callable(action_picker):
@@ -213,20 +215,25 @@ class SimpleRandomPolicy(Policy):
         Primary interface to a Policy. Returns a dict of actions with
         their assosciated probabilities.
         """
-        legal_actions = set(state.legal_actions() if player_id is None \
-                else state.legal_actions(player_id))
+        legal_actions = state.legal_actions() if player_id is None \
+                else state.legal_actions(player_id)
         if player_id:
             player_id = arena.Players(player_id)
         if not legal_actions:
             return { pyspiel.ILLEGAL_ACTION: 1.0 }
+        if len(legal_actions) == 1 \
+                and legal_actions[0] == arena.Actions.IN_PROGRESS:
+            return { legal_actions[0]: 1.0 }
         if player_id not in self._action_pickers:
             kwargs = {}
             kwargs["utilities"] = state.utilities
             kwargs["action_chain"] = arena.Player_Actions_By_Pos[player_id]
             all_actions = arena.Player_Actions[player_id]
+            print(f"player {player_id} action picker: {self._action_picker_name}")
             self._action_pickers[player_id] = \
                 self._action_picker_class(all_actions, **kwargs)
         action = self._action_pickers[player_id].take_action(legal_actions)
+        print("PICKER:", action)
         if not action:
             action = arena.Actions.WAIT
-        return { action: 1.0 }
+        return { int(action): 1.0 }

@@ -34,7 +34,7 @@ class Players(IntEnum):
     ATTACKER = 0
     DEFENDER = 1
 
-ZERO_BASED_ACTIONS = True
+ZERO_BASED_ACTIONS = False
 
 def _action_idx(val):
     # note: cant use auto()-1 because auto() returns an enum.auto which
@@ -79,9 +79,9 @@ class Actions(IntEnum):
     S4_DETECT        = _action_idx(13)
     S4_DETECT_STRONG = _action_idx(14)
 
-Attack_Actions = tuple(sorted([
+Attack_Actions = [
     # do not include IN_PROGRESS
-    Actions.WAIT,
+    Actions.S0_ADVANCE,
     Actions.S0_ADVANCE_CAMO,
     Actions.S1_ADVANCE,
     Actions.S1_ADVANCE_CAMO,
@@ -91,11 +91,13 @@ Attack_Actions = tuple(sorted([
     Actions.S3_ADVANCE_CAMO,
     Actions.S4_ADVANCE,
     Actions.S4_ADVANCE_CAMO,
-]))
+]
+if USE_WAITS:
+    Attack_Actions.append(Actions.WAIT)
+Attack_Actions = tuple(sorted(Attack_Actions))
 
-Defend_Actions = tuple(sorted([
+Defend_Actions = [
     # Do not include IN_PROGRESS
-    Actions.WAIT,
     Actions.S0_DETECT,
     Actions.S0_DETECT_STRONG,
     Actions.S1_DETECT,
@@ -106,7 +108,10 @@ Defend_Actions = tuple(sorted([
     Actions.S3_DETECT_STRONG,
     Actions.S4_DETECT,
     Actions.S4_DETECT_STRONG,
-]))
+]
+if USE_WAITS:
+    Defend_Actions.append(Actions.WAIT)
+Defend_Actions = tuple(sorted(Defend_Actions))
 
 NoOp_Actions = tuple(sorted([
     Actions.WAIT,
@@ -165,73 +170,74 @@ Defend_Strong_Actions = tuple(sorted(
 #
 # This should be turned into a class that can make more complicated
 # decisions such as in an attack graph.
-Atk_Actions_By_Pos = (
-    (
+Atk_Actions_By_Pos = [
+    [
       # pos 0
-      Actions.WAIT,
       Actions.S0_ADVANCE,
       Actions.S0_ADVANCE_CAMO,
-    ),
-    (
+    ],
+    [
       # pos 1
-      Actions.WAIT,
       Actions.S1_ADVANCE,
       Actions.S1_ADVANCE_CAMO,
-    ),
-    (
+    ],
+    [
       # pos 2
-      Actions.WAIT,
       Actions.S2_ADVANCE,
       Actions.S2_ADVANCE_CAMO,
-    ),
-    (
+    ],
+    [
       # pos 3
-      Actions.WAIT,
       Actions.S3_ADVANCE,
       Actions.S3_ADVANCE_CAMO,
-    ),
-    (
+    ],
+    [
       # pos 4
-      Actions.WAIT,
       Actions.S4_ADVANCE,
       Actions.S4_ADVANCE_CAMO,
-    ),
-)
-
+    ],
+]
+if USE_WAITS:
+    for action_set in Atk_Actions_By_Pos:
+        action_set.insert(0, Actions.WAIT)
+for i, action_set in enumerate(Atk_Actions_By_Pos):
+    Atk_Actions_By_Pos[i] = tuple(sorted(action_set))
+Atk_Actions_By_Pos = tuple(Atk_Actions_By_Pos)
 
 # Corresponding defend actions
-Def_Actions_By_Pos = (
-    (
+Def_Actions_By_Pos = [
+    [
       # pos 0
-      Actions.WAIT,
       Actions.S0_DETECT,
       Actions.S0_DETECT_STRONG,
-    ),
-    (
+    ],
+    [
       # pos 1
-      Actions.WAIT,
       Actions.S1_DETECT,
       Actions.S1_DETECT_STRONG,
-    ),
-    (
+    ],
+    [
       # pos 2
-      Actions.WAIT,
       Actions.S2_DETECT,
       Actions.S2_DETECT_STRONG,
-    ),
-    (
+    ],
+    [
       # pos 3
-      Actions.WAIT,
       Actions.S3_DETECT,
       Actions.S3_DETECT_STRONG,
-    ),
-    (
+    ],
+    [
       # pos 4
-      Actions.WAIT,
       Actions.S4_DETECT,
       Actions.S4_DETECT_STRONG,
-    ),
-)
+    ],
+]
+if USE_WAITS:
+    for action_set in Def_Actions_By_Pos:
+        action_set.insert(0, Actions.WAIT)
+for i, action_set in enumerate(Def_Actions_By_Pos):
+    Def_Actions_By_Pos[i] = tuple(sorted(action_set))
+Def_Actions_By_Pos = tuple(Def_Actions_By_Pos)
 
 Player_Actions_By_Pos = {
     Players.ATTACKER: Atk_Actions_By_Pos,
@@ -415,85 +421,91 @@ class MinMaxUtil(NamedTuple):
 class Utilities:
     """
     Mix and match attacker/defender utility structures and provide
-    reward/damage calculation methods.
+    reward/damage calculation methods. This is a class that needs to be
+    instantiated after game load when cost structures are determined
+    from game parameters.
     """
 
     def __init__(self, advancement_rewards=Default_Advancement_Rewards,
         detection_costs=Default_Detection_Costs):
         # mix and match attacker/defender utilities
         self._utilities = {
-            Actions.WAIT:        Utility(0, 0,    0),
-            Actions.IN_PROGRESS: Utility(0, 0,    0),
+            Actions.WAIT:        Utility(0, 0, 0),
+            Actions.IN_PROGRESS: Utility(0, 0, 0),
         }
         self._utilities.update(get_advancement_utilities(advancement_rewards))
         self._utilities.update(get_detection_utilities(detection_costs))
+        self._utilities = self._resolve_zsums(self._utilities)
         self._min_max_util = MinMaxUtil(None, None)
 
     @property
     def utilities(self):
         return dict(self._utilities)
 
+    def _resolve_zsums(self, utilities):
+        resolved = dict(utilities)
+        for i, atk_actions in enumerate(Atk_Actions_By_Pos):
+            for j, atk_action in enumerate(atk_actions):
+                atk_util = self._utilities[atk_action]
+                atk_res = [atk_util.cost, atk_util.reward, atk_util.damage]
+                if atk_res[-1] == ZSUM:
+                    atk_res[-1] = atk_util.reward
+                def_action = Def_Actions_By_Pos[i][j]
+                def_util = self._utilities[def_action]
+                def_res = [def_util.cost, def_util.reward, def_util.damage]
+                if def_res[1] == ZSUM:
+                    def_res[1] = atk_res[-1]
+                if def_res[2] == ZSUM:
+                    def_res[2] = def_res[1]
+                resolved[atk_action] = Utility(*atk_res)
+                resolved[def_action] = Utility(*def_res)
+        return dict(sorted((x, resolved[x]) for x in resolved))
+
+    def tupleize(self):
+        utilities = {}
+        for action, util in self._utilites.items():
+            utilities[int(action)] = (util.cost, util.reward, util.damage)
+        return utilities
+
     def action_cost(self, action: Actions):
         action = Actions(action)
-        assert action in Actions
+        assert action in Actions, f"action not an action: {action}"
         return self._utilities[action].cost
     
     def attack_reward(self, action: Actions):
         # reward received for attack action
         action = Actions(action)
-        assert action in Actions
-        assert action in Attack_Actions
+        print("attack_reward:", a2s(action))
+        assert action in Actions, f"action not an action: {action}"
+        assert action in Attack_Actions, f"action not an attack: {action}"
         utils = self._utilities[action]
-        return utils.reward + self.action_cost(action)
+        return utils.reward
     
     def attack_damage(self, action: Actions) -> int:
         # damage dealt by attack action
         action = Actions(action)
-        assert action in Actions
-        assert action in Attack_Actions
+        assert action in Actions, f"action not an action: {action}"
+        assert action in Attack_Actions, f"action not an attack: {action}"
         utils = self._utilities[action]
         damage = utils.damage
-        if damage is ZSUM:
-            damage = self.attack_reward(action)
-        if damage is ZSUM:
-            raise ValueError(
-                f"attack damage {action} {utils} ZSUM loop")
         return damage
     
-    def defend_reward(self, action: Actions, attack_action: Actions) -> int:
+    def defend_reward(self, action: Actions) -> int:
         # reward received for defend action depending on attack_action
         action = Actions(action)
-        assert action in Defend_Actions
-        assert attack_action in Attack_Actions
+        assert action in Defend_Actions, f"action not a defend: {action}"
         utils = self._utilities[action]
-        attack_utils = self._utilities[attack_action]
-        reward = utils.reward
-        if reward is ZSUM:
-            reward = self.attack_damage(attack_action)
-        if reward is ZSUM:
-            raise ValueError(
-                f"defend reward {action} {utils} {attack_action} {attack_utils}  ZSUM loop")
-        return reward + self.action_cost(action)
+        return utils.reward
     
-    def defend_damage(self, action: Actions, attack_action: Actions) -> int:
+    def defend_damage(self, action: Actions) -> int:
         # damage (typically taking back an attack reward) dealt by defend
         # action depending on attack_action
         action = Actions(action)
-        assert action in Defend_Actions
-        assert attack_action in Attack_Actions
+        assert action in Defend_Actions, f"action not a defend: {action}"
         utils = self._utilities[action]
-        attack_utils = self._utilities[attack_action]
-        damage = utils.damage
-        if damage is ZSUM:
-            damage = utils.reward
-            if damage is ZSUM:
-                damage = self.attack_damage(attack_action)
-        if damage is ZSUM:
-            raise ValueError(
-                f"defend damage {action} {utils} {attack_action} {attack_utils} ZSUM loop")
-        return damage
+        return utils.damage
 
-    def cheapest_action(self, actions):
+    def least_expensive_action(self, actions):
         min_cost = None
         selected_action = None
         for action in actions:
@@ -519,95 +531,6 @@ class Utilities:
                 selected_action = action
         return selected_action
 
-    def resolve_zsums(self):
-        """
-        This is just for recording the utilites in the meta-info for
-        game runs.
-        """
-        utilities = {}
-        for i, atk_actions in enumerate(Atk_Actions_By_Pos):
-            for j, atk_action in enumerate(atk_actions):
-                atk_util = self._utilities[atk_action]
-                atk_res = [atk_util.cost, atk_util.reward, atk_util.damage]
-                if atk_res[-1] == ZSUM:
-                    atk_res[-1] = atk_util.reward
-                def_action = Def_Actions_By_Pos[i][j]
-                def_util = self._utilities[def_action]
-                def_res = [def_util.cost, def_util.reward, def_util.damage]
-                if def_res[1] == ZSUM:
-                    def_res[1] = atk_res[-1]
-                if def_res[2] == ZSUM:
-                    def_res[2] = def_res[1]
-                utilities[atk_action] = tuple(atk_res)
-                utilities[def_action] = tuple(def_res)
-        return tuple(sorted((x, utilities[x]) for x in utilities))
-
-    def max_utility(self) -> int:
-        '''
-        Max utility per turn...maybe. Without knowing the total number of
-        IN_PROGRESS actions it's not really possible to nail this down
-        precisely. But it gets used in the game info/game definition for
-        OpenSpiel.
-    
-        Takes a Utilities instance as an argument.
-        '''
-        if self._min_max_util.max is not None:
-            return self._min_max_util.max
-        max_util = 0
-        for action in Actions:
-            win_cost = self._utilities[action].cost
-            max_win = 0
-            for skirmish_map in (SkirmishFails, SkirmishWins):
-                for lose_action in skirmish_map.get(action, []):
-                    if lose_action in Defend_Actions:
-                        win_reward = self.attack_reward(action)
-                    else:
-                        win_reward = self.defend_reward(action, lose_action)
-                    win_util = win_cost + win_reward
-                    if win_util > max_win:
-                        max_win = win_util
-                if self._utilities[Actions.IN_PROGRESS].cost:
-                    # subtract costs of maximum possible IN_PROGRESS actions
-                    if Time_Waits.get(action):
-                        max_win -= Time_Waits[action].max \
-                            * self._utilities[Actions.IN_PROGRESS].cost
-            if max_win > max_util:
-                max_util = max_win
-        self._min_max_util._replace(max=max_util)
-        return max_util
-    
-    def min_utility(self) -> int:
-        '''
-        Per turn -- see description for max_utility()
-        '''
-        if self._min_max_util.min is not None:
-            return self._min_max_util.min
-        min_util = 0
-        for action in Actions:
-            fail_cost = -self._utilities[action].cost
-            min_fail = 0
-            for skirmish_map in (SkirmishFails, SkirmishWins):
-                for win_action in skirmish_map.get(action, []):
-                    if win_action in Attack_Actions:
-                        fail_damage = self.attack_damage(win_action)
-                    else:
-                        fail_damage = self.defend_damage(win_action, action)
-                    fail_util = fail_cost - fail_damage
-                    if fail_util < min_fail:
-                        min_fail = fail_util
-                if self._utilities[Actions.IN_PROGRESS].cost:
-                    # subtract costs of maximum possible IN_PROGRESS actions
-                    if Time_Waits.get(action):
-                        min_fail -= Time_Waits[action].max \
-                                * self._utilities[Actions.IN_PROGRESS].cost
-            if min_fail < min_util:
-                min_util = min_fail
-        self._min_max_util._replace(min=min_util)
-        return min_util
-
-    def __getitem__(self, x):
-        return self._utilities[x]
-
 
 class TimeWait(NamedTuple):
     '''
@@ -623,27 +546,31 @@ class TimeWait(NamedTuple):
 Time_Waits = {
         Actions.WAIT:             TimeWait(0, 0),
         Actions.IN_PROGRESS:      TimeWait(0, 0),
-        Actions.S0_ADVANCE:       TimeWait(1, 4),
-        Actions.S0_ADVANCE_CAMO:  TimeWait(2, 5),
-        Actions.S1_ADVANCE:       TimeWait(1, 4),
-        Actions.S1_ADVANCE_CAMO:  TimeWait(2, 5),
-        Actions.S2_ADVANCE:       TimeWait(1, 4),
-        Actions.S2_ADVANCE_CAMO:  TimeWait(2, 5),
-        Actions.S3_ADVANCE:       TimeWait(1, 4),
-        Actions.S3_ADVANCE_CAMO:  TimeWait(2, 5),
-        Actions.S4_ADVANCE:       TimeWait(1, 4),
-        Actions.S4_ADVANCE_CAMO:  TimeWait(2, 5),
-        Actions.S0_DETECT:        TimeWait(1, 4),
-        Actions.S0_DETECT_STRONG: TimeWait(2, 5),
-        Actions.S1_DETECT:        TimeWait(1, 4),
-        Actions.S1_DETECT_STRONG: TimeWait(2, 5),
-        Actions.S2_DETECT:        TimeWait(1, 4),
-        Actions.S2_DETECT_STRONG: TimeWait(2, 5),
-        Actions.S3_DETECT:        TimeWait(1, 4),
-        Actions.S3_DETECT_STRONG: TimeWait(2, 5),
-        Actions.S4_DETECT:        TimeWait(1, 4),
-        Actions.S4_DETECT_STRONG: TimeWait(2, 5),
+        Actions.S0_ADVANCE:       TimeWait(1, 2),
+        Actions.S0_ADVANCE_CAMO:  TimeWait(2, 3),
+        Actions.S1_ADVANCE:       TimeWait(1, 2),
+        Actions.S1_ADVANCE_CAMO:  TimeWait(2, 3),
+        Actions.S2_ADVANCE:       TimeWait(1, 2),
+        Actions.S2_ADVANCE_CAMO:  TimeWait(2, 3),
+        Actions.S3_ADVANCE:       TimeWait(1, 2),
+        Actions.S3_ADVANCE_CAMO:  TimeWait(2, 3),
+        Actions.S4_ADVANCE:       TimeWait(1, 2),
+        Actions.S4_ADVANCE_CAMO:  TimeWait(2, 3),
+        Actions.S0_DETECT:        TimeWait(1, 2),
+        Actions.S0_DETECT_STRONG: TimeWait(2, 3),
+        Actions.S1_DETECT:        TimeWait(1, 2),
+        Actions.S1_DETECT_STRONG: TimeWait(2, 3),
+        Actions.S2_DETECT:        TimeWait(1, 2),
+        Actions.S2_DETECT_STRONG: TimeWait(2, 3),
+        Actions.S3_DETECT:        TimeWait(1, 2),
+        Actions.S3_DETECT_STRONG: TimeWait(2, 3),
+        Actions.S4_DETECT:        TimeWait(1, 2),
+        Actions.S4_DETECT_STRONG: TimeWait(2, 3),
 }
+
+if not USE_TIMEWAITS:
+    for action in Time_Waits:
+        Time_Waits[action] = TimeWait(0, 0)
 
 def get_timewait(action):
     return Time_Waits.get(action, TimeWait(0, 0))
@@ -696,42 +623,42 @@ GeneralFails = {
 SkirmishFails = {
     Actions.S0_DETECT: {
         Actions.S0_ADVANCE:      0.10,
-        Actions.S0_ADVANCE_CAMO: 0.90,
+        #Actions.S0_ADVANCE_CAMO: 0.90,
     },
     Actions.S0_DETECT_STRONG: {
-        Actions.S0_ADVANCE:      0.10,
+        #Actions.S0_ADVANCE:      0.10,
         Actions.S0_ADVANCE_CAMO: 0.10,
     },
     Actions.S1_DETECT: {
         Actions.S1_ADVANCE:      0.10,
-        Actions.S1_ADVANCE_CAMO: 0.90,
+        #Actions.S1_ADVANCE_CAMO: 0.90,
     },
     Actions.S1_DETECT_STRONG: {
-        Actions.S1_ADVANCE:      0.10,
+        #Actions.S1_ADVANCE:      0.10,
         Actions.S1_ADVANCE_CAMO: 0.10,
     },
     Actions.S2_DETECT: {
         Actions.S2_ADVANCE:      0.10,
-        Actions.S2_ADVANCE_CAMO: 0.90,
+        #Actions.S2_ADVANCE_CAMO: 0.90,
     },
     Actions.S2_DETECT_STRONG: {
-        Actions.S2_ADVANCE:      0.10,
+        #Actions.S2_ADVANCE:      0.10,
         Actions.S2_ADVANCE_CAMO: 0.10,
     },
     Actions.S3_DETECT: {
         Actions.S3_ADVANCE:      0.10,
-        Actions.S3_ADVANCE_CAMO: 0.90,
+        #Actions.S3_ADVANCE_CAMO: 0.90,
     },
     Actions.S3_DETECT_STRONG: {
-        Actions.S3_ADVANCE:      0.10,
+        #Actions.S3_ADVANCE:      0.10,
         Actions.S3_ADVANCE_CAMO: 0.10,
     },
     Actions.S4_DETECT: {
         Actions.S4_ADVANCE:      0.10,
-        Actions.S4_ADVANCE_CAMO: 0.90,
+        #Actions.S4_ADVANCE_CAMO: 0.90,
     },
     Actions.S4_DETECT_STRONG: {
-        Actions.S4_ADVANCE:      0.10,
+        #Actions.S4_ADVANCE:      0.10,
         Actions.S4_ADVANCE_CAMO: 0.10,
     },
 }
@@ -774,7 +701,7 @@ def get_skirmish_pct_fail(action1, action2):
     if USE_CHANCE_FAIL:
         return pct_fail
     else:
-        return 1.0 if pct_fail >= 0.5 else 0
+        return round(pct_fail)
 
 def get_skirmish_pct_win(action1, action2):
     pct_win = 0.0
@@ -784,7 +711,7 @@ def get_skirmish_pct_win(action1, action2):
     if USE_CHANCE_FAIL:
         return pct_win
     else:
-        return 1 if pct_win >= 0.5 else 0
+        return round(pct_win)
 
 def action_faulty(action):
     # I suspect that using chance nodes in open_spiel might be a viable

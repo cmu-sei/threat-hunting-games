@@ -182,7 +182,9 @@ class AggregateHistoryPolicy(Policy):
     two types.
     """
 
-    def __init__(self, game, action_picker=Default_Action_Picker):
+    def __init__(self, game, action_picker=None):
+        if action_picker is None:
+            action_picker = Default_Action_Picker
         all_players = list(range(game.num_players()))
         super().__init__(game, all_players)
         if not callable(action_picker):
@@ -216,6 +218,9 @@ class AggregateHistoryPolicy(Policy):
                     else state.legal_actions(player_id))
         if not legal_actions:
             return { pyspiel.ILLEGAL_ACTION, 1.0 }
+        if len(legal_actions) == 1 \
+                and legal_actions[0] == arena.Actions.IN_PROGRESS:
+            return { legal_actions[0]: 1.0 }
         if player_id not in self._action_pickers:
             uniform_pct = 1 / len(arena.Player_Actions[player_id])
             #seed_probs = {}
@@ -226,4 +231,4 @@ class AggregateHistoryPolicy(Policy):
         action = self._action_pickers[player_id].take_action(legal_actions)
         if not action:
             action = arena.Actions.WAIT
-        return { action: 1.0 }
+        return { int(action): 1.0 }

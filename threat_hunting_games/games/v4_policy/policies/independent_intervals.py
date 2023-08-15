@@ -3,7 +3,8 @@ import random
 import pyspiel
 from open_spiel.python.policy import Policy
 
-import arena_zsum_v4 as arena
+#import arena_zsum_v4 as arena
+from . import arena_zsum_v4 as arena
 
 Default_Action_Intervals = {}
 for i, action in enumerate(arena.Defend_Actions):

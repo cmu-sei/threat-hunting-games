@@ -108,7 +108,14 @@ def main(game_name=DEFAULTS.game,
         "use_timewaits": use_timewaits,
         "use_chance_fail": use_chance_fail,
     }
-    game = pyspiel.load_game(game_name, kwargs)
+    # load_game does not accept bools
+    game = pyspiel.load_game(game_name, {
+        "advancement_rewards": advancement_rewards,
+        "detection_costs": detection_costs,
+        "use_waits": int(use_waits),
+        "use_timewaits": int(use_timewaits),
+        "use_chance_fail": int(use_chance_fail),
+    })
     #        "advancement_rewards": advancement_rewards,
     #        "detection_costs": detection_costs,
     #        "use_waits": int(bool(use_waits)),

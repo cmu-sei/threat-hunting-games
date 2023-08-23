@@ -3,11 +3,11 @@ import random
 import pyspiel
 from open_spiel.python.policy import Policy
 
-from . import arena
+from . import arena as arena_mod
 
 Default_Action_Intervals = {}
-for i, action in enumerate(arena.Defend_Actions):
-    if action == arena.Actions.WAIT:
+for i, action in enumerate(arena_mod.Defend_Actions):
+    if action == arena_mod.Actions.WAIT:
         continue
     else:
         Default_Action_Intervals[action] = i
@@ -86,15 +86,15 @@ class ActionPickerLeastExpensive:
     chain) detection action at every available time unit.
     """
 
-    def __init__(self, all_actions, utilities=None, **kwargs):
-        self._utilities = utilities if utilities else arena.Utilities()
+    def __init__(self, all_actions, arena=None, **kwargs):
+        self._arena = arena if arena else arena_mod.Arena()
         self._all_actions = tuple(all_actions)
 
     def take_action(self, selected_actions=None):
         if not selected_actions:
             selected_actions = self._all_actions
         action = None
-        action = self._utilities.least_expensive_action(selected_actions)
+        action = self._arena.utilities.least_expensive_action(selected_actions)
         return action
 
 
@@ -108,12 +108,12 @@ class ActionPickerLeastRecentLeastExpensive:
     expensive detect
     """
 
-    def __init__(self, all_actions, utilities=None, **kwargs):
-        self._utilities = utilities if utilities else arena.Utilities()
+    def __init__(self, all_actions, arena=None, **kwargs):
+        self._arena = arena if arena else arena_mod.Arena()
         self._all_actions = tuple(all_actions)
         self._beats = {}
         for action in self._all_actions:
-            action = arena.Actions(action)
+            action = self._arena.actions(action)
             self._beats[action] = 0
 
     @classmethod
@@ -141,7 +141,8 @@ class ActionPickerLeastRecentLeastExpensive:
             pass
         if not action:
             action = \
-                self._utilities.least_expensive_action(least_recent_actions)
+                self._arena.utilities.least_expensive_action(
+                        least_recent_actions)
         for b_action in self._beats:
             if b_action == action:
                 self._beats[b_action] = 0
@@ -160,8 +161,8 @@ class ActionPickerLeastRecentMostExpensive:
     expensive detect.
     """
 
-    def __init__(self, all_actions, utilities=None, **kwargs):
-        self._utilities = utilities if utilities else arena.Utilities()
+    def __init__(self, all_actions, arena=None, **kwargs):
+        self._arena = arena if arena else arena_mod.Arena()
         self._all_actions = tuple(int(x) for x in all_actions)
         self._beats = {}
         for action in self._all_actions:
@@ -191,7 +192,7 @@ class ActionPickerLeastRecentMostExpensive:
             # hmm
             pass
         if not action:
-            action = self._utilities.most_expensive_action(
+            action = self._arena.utilities.most_expensive_action(
                     least_recent_actions)
         for b_action in self._beats:
             if action == b_action:
@@ -210,13 +211,13 @@ class ActionPickerRankedIntervals:
     the order.
     """
 
-    def __init__(self, action_chain, utilities=None,
+    def __init__(self, action_chain, arena=None,
             clock_seed=Default_Interval_Clock_Seed, **kwargs):
-        self._utilities = utilities if utilities else arena.Utilities()
+        self._arena = arena if arena else arena_mod.arena()
         self._ordered_actions = []
         for stage_actions in action_chain:
                 for action in [x[1] \
-                    for x in (sorted((self._utilities[y].cost, y)) \
+                    for x in (sorted((self._arena.utilities.utilities[y].cost, y)) \
                         for y in stage_actions)]:
                             self._ordered_actions.append(action)
         self._beats = {}
@@ -348,16 +349,18 @@ class IndependentIntervalsPolicy(Policy):
         if not legal_actions:
             return { pyspiel.ILLEGAL_ACTION: 1.0 }
         if len(legal_actions) == 1 \
-                and legal_actions[0] == arena.Actions.IN_PROGRESS:
+                and legal_actions[0] == state.arena.actions.IN_PROGRESS:
             return { legal_actions[0]: 1.0 }
         if player_id not in self._action_pickers:
             kwargs = {}
-            kwargs["utilities"] = state.utilities
-            kwargs["action_chain"] = arena.Player_Actions_By_Pos[player_id]
-            all_actions = arena.Player_Actions[player_id]
+            kwargs["arena"] = state.arena
+            kwargs["action_chain"] = \
+                    state.player_actions_by_pos[player_id]
+            all_actions = state.arena.player_actions[player_id]
             self._action_pickers[player_id] = \
                 self._action_picker_class(all_actions, **kwargs)
         action = self._action_pickers[player_id].take_action(legal_actions)
-        if not action:
-            action = arena.Actions.WAIT
-        return { int(action): 1.0 }
+        if action:
+            return { int(action): 1.0 }
+        else:
+            return None

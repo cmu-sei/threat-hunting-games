@@ -5,6 +5,7 @@
 
 from typing import NamedTuple, Mapping, Any, List
 from enum import IntEnum, auto
+from frozendict import frozendict
 import random
 
 import pyspiel
@@ -14,6 +15,7 @@ DEBUG = True
 USE_WAITS = False
 USE_TIMEWAITS = False
 USE_CHANCE_FAIL = False
+
 
 def debug(*args, **kwargs):
     '''
@@ -197,12 +199,13 @@ Atk_Actions_By_Pos = [
       Actions.S4_ADVANCE_CAMO,
     ],
 ]
-if USE_WAITS:
-    for action_set in Atk_Actions_By_Pos:
-        action_set.insert(0, Actions.WAIT)
-for i, action_set in enumerate(Atk_Actions_By_Pos):
-    Atk_Actions_By_Pos[i] = tuple(sorted(action_set))
-Atk_Actions_By_Pos = tuple(Atk_Actions_By_Pos)
+
+#if USE_WAITS:
+#    for action_set in Atk_Actions_By_Pos:
+#        action_set.insert(0, Actions.WAIT)
+#for i, action_set in enumerate(Atk_Actions_By_Pos):
+#    Atk_Actions_By_Pos[i] = tuple(sorted(action_set))
+#Atk_Actions_By_Pos = tuple(Atk_Actions_By_Pos)
 
 # Corresponding defend actions
 Def_Actions_By_Pos = [
@@ -232,12 +235,6 @@ Def_Actions_By_Pos = [
       Actions.S4_DETECT_STRONG,
     ],
 ]
-if USE_WAITS:
-    for action_set in Def_Actions_By_Pos:
-        action_set.insert(0, Actions.WAIT)
-for i, action_set in enumerate(Def_Actions_By_Pos):
-    Def_Actions_By_Pos[i] = tuple(sorted(action_set))
-Def_Actions_By_Pos = tuple(Def_Actions_By_Pos)
 
 Player_Actions_By_Pos = {
     Players.ATTACKER: Atk_Actions_By_Pos,
@@ -463,7 +460,7 @@ class Utilities:
 
     def tupleize(self):
         utilities = {}
-        for action, util in self._utilites.items():
+        for action, util in self._utilities.items():
             utilities[int(action)] = (util.cost, util.reward, util.damage)
         return utilities
 
@@ -471,7 +468,7 @@ class Utilities:
         action = Actions(action)
         assert action in Actions, f"action not an action: {action}"
         return self._utilities[action].cost
-    
+
     def attack_reward(self, action: Actions):
         # reward received for attack action
         action = Actions(action)
@@ -480,7 +477,7 @@ class Utilities:
         assert action in Attack_Actions, f"action not an attack: {action}"
         utils = self._utilities[action]
         return utils.reward
-    
+
     def attack_damage(self, action: Actions) -> int:
         # damage dealt by attack action
         action = Actions(action)
@@ -489,14 +486,14 @@ class Utilities:
         utils = self._utilities[action]
         damage = utils.damage
         return damage
-    
+
     def defend_reward(self, action: Actions) -> int:
         # reward received for defend action depending on attack_action
         action = Actions(action)
         assert action in Defend_Actions, f"action not a defend: {action}"
         utils = self._utilities[action]
         return utils.reward
-    
+
     def defend_damage(self, action: Actions) -> int:
         # damage (typically taking back an attack reward) dealt by defend
         # action depending on attack_action
@@ -567,10 +564,6 @@ Time_Waits = {
         Actions.S4_DETECT:        TimeWait(1, 2),
         Actions.S4_DETECT_STRONG: TimeWait(2, 3),
 }
-
-if not USE_TIMEWAITS:
-    for action in Time_Waits:
-        Time_Waits[action] = TimeWait(0, 0)
 
 def get_timewait(action):
     return Time_Waits.get(action, TimeWait(0, 0))
@@ -677,79 +670,6 @@ def infer_wins():
 
 infer_wins()
 
-def get_general_pct_fail(action):
-    #print(f"GENERAL pct_fail: {GeneralFails.get(action, DEFAULT_FAIL)} {action_to_str(action)}")
-    if USE_CHANCE_FAIL:
-        return GeneralFails.get(action, DEFAULT_FAIL)
-    else:
-        return 0
-
-# There is probably a way to use skirmish failure rates to model the
-# confidence scores we've been discussing that get returned by
-# the oracle in GHOSTS land.
-
-def get_skirmish_pct_fail(action1, action2):
-    pct_fail = 1.0
-    if action1 in SkirmishFails:
-        # note: don't use DEFAULT_FAIL as a fallback here
-        pct_fail = SkirmishFails[action1].get(action2, 1.0)
-        #pct_fail = SkirmishFails[action1].get(action2, 0.9)
-        #print("SKIRMISH in level 1 SkirmishFails")
-        #if pct_fail != DEFAULT_FAIL:
-        #    print("SKIRMISH in level 2 SkirmishFails")
-    #print(f"SKIRMISH pct_fail: {pct_fail} {action_to_str(action1)} {action_to_str(action2)}")
-    if USE_CHANCE_FAIL:
-        return pct_fail
-    else:
-        return round(pct_fail)
-
-def get_skirmish_pct_win(action1, action2):
-    pct_win = 0.0
-    if action1 in SkirmishWins:
-        # note: don't use DEFAULT_FAIL as a fallback here
-        pct_win = SkirmishWins[action1].get(action2, 0.0)
-    if USE_CHANCE_FAIL:
-        return pct_win
-    else:
-        return round(pct_win)
-
-def action_faulty(action):
-    # I suspect that using chance nodes in open_spiel might be a viable
-    # way for dealing with an action failing to execute...
-
-    if action in NoOp_Actions:
-        # don't want to advance on a no-op action
-        return None
-    completed = True
-    pct_fail = get_general_pct_fail(action)
-    if pct_fail:
-        chance = random.random()
-        completed = chance > pct_fail
-        if not completed:
-            action = action_to_str(action)
-            DEBUG and print(f"action GENERAL fail! {action}: {chance:.2f} > {pct_fail:.2f} : {completed}")
-    #print("action_completed() end\n")
-    return not completed
-
-def action_succeeds(action1, action2):
-    # should only be called if the action was not faulty (see above)
-    if action1 in NoOp_Actions or action2 in NoOp_Actions:
-        # don't want to advance on a no-op action
-        return None
-    # skirmish fail chance
-    successful = True
-    if action1 in SkirmishFails:
-        pct_fail = get_skirmish_pct_fail(action1, action2)
-    else:
-        pct_fail = 1 - get_skirmish_pct_win(action1, action2)
-    if pct_fail:
-        chance = random.random()
-        successful = chance > pct_fail
-        if not successful and pct_fail < 1:
-            # don't report skirmishes that are 100% doomed
-            DEBUG and print(f"action SKIRMISH fail! {action_to_str(action1)} vs {action_to_str(action2)}: {chance:.2f} > {pct_fail:.2f} : {successful}")
-    return successful
-
 def assert_arena_parameters():
     # Assert the various arena parameters in order to check for data
     # integrity while importing their values from JSON.
@@ -761,11 +681,11 @@ def assert_arena_parameters():
     def assert_defend_actions():
         for action in Defend_Actions:
             assert action in Actions, f"not an Action: {action}"
-    
+
     def assert_noop_actions():
         for action in NoOp_Actions:
             assert action in Actions, f"not an Action: {action}"
-    
+
     def assert_utilities():
         util_structs = list(Advancement_Rewards.values())
         util_structs.extend(list(Detection_Costs.values()))
@@ -793,17 +713,17 @@ def assert_arena_parameters():
                     f"defend action {action.name} reward must be int or ZSUM, not {utils.reward}"
                 assert isinstance(utils.damage, int) or utils.damage == ZSUM, \
                     f"defend action {action.name} damage must be int or ZSUM, not {utils.reward}"
-    
+
     def assert_timewaits():
         for action, tw in Time_Waits.items():
             assert action in Actions, f"not an Action: {action}"
             assert isinstance(tw, TimeWait)
-    
+
     def assert_general_fails():
         for action, chance in GeneralFails.items():
             assert action in Actions, f"not an Action: {action}"
             assert (chance >= 0 and chance <= 1)
-    
+
     def assert_skirmish_fails():
         fail_pairs = set()
         reverse_pairs = set()
@@ -818,7 +738,7 @@ def assert_arena_parameters():
         # make sure there are no bidirectional fail pairings
         bidirects = fail_pairs.intersection(reverse_pairs)
         assert not bidirects, f"{len(bidirects)} bidirectional SkirmishFail action pairs detected: {list(sorted(bidirects))}"
-    
+
     # assert values in this order
     assert_attack_actions()
     assert_defend_actions()
@@ -827,3 +747,237 @@ def assert_arena_parameters():
     assert_timewaits()
     assert_general_fails()
     assert_skirmish_fails()
+
+
+class Arena:
+    """
+    These methods and data were packaged into a class (as opposed to
+    top-level module data and functions) due to the fact that many
+    configuration decisions are made at runtime when OpenSpiel loads the
+    game -- these options are specified as game parameters -- those
+    parameters get passed into an instance of this class. They can then
+    be passed along to any other module that relies on the arena
+    functionality but might be a separate instance. Or the arena
+    instance itself can be passed around.
+    """
+
+    def __init__(self,
+            advancement_rewards=Default_Advancement_Rewards,
+            detection_costs=Default_Detection_Costs,
+            use_waits=USE_WAITS,
+            use_timewaits=USE_TIMEWAITS,
+            use_chance_fail=USE_CHANCE_FAIL):
+
+        self._use_waits = use_waits
+        self._use_timewaits = use_timewaits
+        self._use_chance_fail = use_chance_fail
+
+        self._players = Players
+        self._actions = Actions
+
+        self._advancement_rewards_name = advancement_rewards
+        self._detection_costs_name = detection_costs
+        self._utilities = Utilities(
+                advancement_rewards=self._advancement_rewards_name,
+                detection_costs=self._detection_costs_name)
+
+        self._attack_actions = set(Attack_Actions)
+        if use_waits:
+            self._attack_actions.add(Actions.WAIT)
+        self._attack_actions = tuple(sorted(self._attack_actions))
+
+        self._defend_actions = set(Defend_Actions)
+        if use_waits:
+            self._defend_actions.add(Actions.WAIT)
+        self._defend_actions = tuple(sorted(self._defend_actions))
+
+        self._noop_actions = frozenset(NoOp_Actions)
+
+        self._player_actions = frozendict(Player_Actions)
+
+        self._atk_actions_by_pos = []
+        for action_group in Atk_Actions_By_Pos:
+            ag = set(action_group)
+            if self._use_waits:
+                ag.add(Actions.WAIT)
+            ag = tuple(sorted(ag))
+            self._atk_actions_by_pos.append(ag)
+        self._atk_actions_by_pos = tuple(self._atk_actions_by_pos)
+
+        self._def_actions_by_pos = []
+        for action_group in Def_Actions_By_Pos:
+            ag = set(action_group)
+            if self._use_waits:
+                ag.add(Actions.WAIT)
+            ag = tuple(sorted(ag))
+            self._def_actions_by_pos.append(ag)
+        self._def_actions_by_pos = tuple(self._def_actions_by_pos)
+
+        self._player_actions_by_pos = frozendict({
+            Players.ATTACKER: self._atk_actions_by_pos,
+            Players.DEFENDER: self._def_actions_by_pos,
+        })
+
+
+        if self._use_timewaits:
+            self._timewaits = Time_Waits
+        else:
+            self._timewaits = {}
+            for action in Time_Waits:
+                self._timewaits[action] = TimeWait(0, 0)
+        self._timewaits = frozendict(self._timewaits)
+
+        if self._use_chance_fail:
+            self._general_fails = frozendict(GeneralFails)
+            self._skirmish_fails = {}
+            for action, opposing_actions in SkirmishFails.items():
+                self._skirmish_fails[action] = frozendict(opposing_actions)
+            self._skirmish_fails = frozendict(self._skirmish_fails)
+            self._skirmish_wins = {}
+            for action, opposing_actions in SkirmishWins.items():
+                self._skirmish_wins[action] = frozendict(opposing_actions)
+            self._skirmish_wins = frozendict(self._skirmish_wins)
+        else:
+            self._general_fails = frozendict()
+            self._skirmish_fails = frozendict()
+            self._skirmish_wins = frozendict()
+
+    @property
+    def use_waits(self):
+        return self._use_waits
+
+    @property
+    def use_timewaits(self):
+        return self._use_timewaits
+
+    @property
+    def use_chance_fail(self):
+        return self._use_chance_fail
+
+    @property
+    def players(self):
+        return self._players
+
+    @property
+    def actions(self):
+        return self._actions
+
+    @property
+    def player_actions(self):
+        return self._player_actions
+
+    @property
+    def utilities(self):
+        return self._utilities
+
+    @property
+    def attack_actions(self):
+        return self._attack_actions
+
+    @property
+    def defend_actions(self):
+        return self._defend_actions
+
+    @property
+    def atk_actions_by_pos(self):
+        return self._atk_actions_by_pos
+
+    @property
+    def noop_actions(self):
+        return self._noop_actions
+
+    @property
+    def def_actions_by_pos(self):
+        return self._def_actions_by_pos
+
+    @property
+    def player_actions_by_pos(self):
+        return self._player_actions_by_pos
+
+    def action_to_str(self, action):
+        return action_to_str(action)
+
+    def a2s(self, action):
+        return action_to_str(action)
+
+    def player_to_str(self, player):
+        return player_to_str(player)
+
+    def p2s(self, player):
+        return player_to_str(player)
+
+    def get_timewait(self, action):
+        return self._timewaits.get(action, TimeWait(0, 0))
+
+    def get_general_pct_fail(self, action):
+        #print(f"GENERAL pct_fail: {GeneralFails.get(action, DEFAULT_FAIL)} {action_to_str(action)}")
+        if self._use_chance_fail:
+            return self._general_fails.get(action, DEFAULT_FAIL)
+        else:
+            return 0
+
+    # There is probably a way to use skirmish failure rates to model the
+    # confidence scores we've been discussing that get returned by
+    # the oracle in GHOSTS land.
+
+    def get_skirmish_pct_fail(self, action1, action2):
+        pct_fail = 1.0
+        if action1 in self._skirmish_fails:
+            # note: don't use DEFAULT_FAIL as a fallback here
+            pct_fail = self._skirmish_fails[action1].get(action2, 1.0)
+            #pct_fail = SkirmishFails[action1].get(action2, 0.9)
+            #print("SKIRMISH in level 1 SkirmishFails")
+            #if pct_fail != DEFAULT_FAIL:
+            #    print("SKIRMISH in level 2 SkirmishFails")
+        #print(f"SKIRMISH pct_fail: {pct_fail} {action_to_str(action1)} {action_to_str(action2)}")
+        if self._use_chance_fail:
+            return pct_fail
+        else:
+            return round(pct_fail)
+    
+    def get_skirmish_pct_win(self, action1, action2):
+        pct_win = 0.0
+        if action1 in self._skirmish_wins:
+            # note: don't use DEFAULT_FAIL as a fallback here
+            pct_win = self._skirmish_wins[action1].get(action2, 0.0)
+        if self._use_chance_fail:
+            return pct_win
+        else:
+            return round(pct_win)
+    
+    def action_faulty(self, action):
+        # I suspect that using chance nodes in open_spiel might be a viable
+        # way for dealing with an action failing to execute...
+    
+        if action in NoOp_Actions:
+            # don't want to advance on a no-op action
+            return None
+        completed = True
+        pct_fail = self.get_general_pct_fail(action)
+        if pct_fail:
+            chance = random.random()
+            completed = chance > pct_fail
+            if not completed:
+                action = self.action_to_str(action)
+                debug(f"action GENERAL fail! {action}: {chance:.2f} > {pct_fail:.2f} : {completed}")
+        #print("action_completed() end\n")
+        return not completed
+
+    def action_succeeds(self, action1, action2):
+        # should only be called if the action was not faulty (see above)
+        if action1 in NoOp_Actions or action2 in NoOp_Actions:
+            # don't want to advance on a no-op action
+            return None
+        # skirmish fail chance
+        successful = True
+        if action1 in self._skirmish_fails:
+            pct_fail = self.get_skirmish_pct_fail(action1, action2)
+        else:
+            pct_fail = 1 - self.get_skirmish_pct_win(action1, action2)
+        if pct_fail:
+            chance = random.random()
+            successful = chance > pct_fail
+            if not successful and pct_fail < 1:
+                # don't report skirmishes that are 100% doomed
+                debug(f"action SKIRMISH fail! {action_to_str(action1)} vs {action_to_str(action2)}: {chance:.2f} > {pct_fail:.2f} : {successful}")
+        return successful

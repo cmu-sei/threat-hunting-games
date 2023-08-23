@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import pyspiel
 from open_spiel.python.policy import Policy
 
-from . import arena
+from . import arena as arena_mod
 from .util import normalize_action_probs
 
 
@@ -38,18 +38,20 @@ class ActionPickerSequentialThenCost:
     _pct = 0.5
 
     def __init__(self, all_actions, action_chain=None,
-            utilities=None, pct=None, **kwargs):
+            arena=None, pct=None, **kwargs):
         assert action_chain, "Parameter 'action_chain' should be arena.Def_Actions_By_Pos or arena.Atk_Actions_By_Pos"
         if pct is not None:
             # override class default
             self._pct = pct
         assert self._pct > 0, "pct must be gt 0"
         assert self._pct <= 1.0, "pct must be lte 1.0"
-        self._utilities = utilities if utilities else arena.Utilities()
+        if arena is None:
+            arena = arena_mod.Arena()
+        self._arena = arena
         self._ordered_actions = []
         for stage_actions in action_chain:
             for action in [x[1] \
-                    for x in (sorted((self._utilities[y].cost, y)) \
+                    for x in (sorted((self._arena.utilities.utilities[y].cost, y)) \
                         for y in stage_actions)]:
                 self._ordered_actions.append(action)
         self._idx = 0
@@ -112,12 +114,12 @@ class ActionPickerCostScale:
     Note: this doesn't specify whether it should be an inverse scaling
     """
 
-    def __init__(self, all_actions, utilities=None, **kwargs):
-        self._utilities = utilities if utilities else arena.Utilities()
+    def __init__(self, all_actions, arena=None, **kwargs):
+        self._arena = arena if arena else arena_mod.Arena()
         self._all_actions = tuple(all_actions)
         self._probs = {}
         for action in self._all_actions:
-            self._probs[action] = self._utilities[action].cost / 100
+            self._probs[action] = self._arena.utilities.utilities[action].cost / 100
         self._probs = normalize_action_probs(self._probs)
 
     def take_action(self, selected_actions=None):
@@ -138,12 +140,12 @@ class ActionPickerCostScaleInverse(ActionPickerCostScale):
     Inverse scaling from example strategy 7 above.
     """
 
-    def __init__(self, all_actions, utilities=None, **kwargs):
-        self._utilites = utilities if utilities else arena.Utilities()
+    def __init__(self, all_actions, arena=None, **kwargs):
+        self._arena = arena if arena else arena_mod.Arena()
         self._all_actions = tuple(all_actions)
         self._probs = {}
         for action in self._all_actions:
-            self._probs[action] = (1 / (2 * self._utilities[action].cost))
+            self._probs[action] = (1 / (2 * self._arena.utilities.utilities[action].cost))
         self._probs = normalize_action_probs(self._probs)
 
 
@@ -218,22 +220,24 @@ class SimpleRandomPolicy(Policy):
         legal_actions = state.legal_actions() if player_id is None \
                 else state.legal_actions(player_id)
         if player_id:
-            player_id = arena.Players(player_id)
+            player_id = state.arena.players(player_id)
         if not legal_actions:
             return { pyspiel.ILLEGAL_ACTION: 1.0 }
         if len(legal_actions) == 1 \
-                and legal_actions[0] == arena.Actions.IN_PROGRESS:
+                and legal_actions[0] == state.arena.actions.IN_PROGRESS:
             return { legal_actions[0]: 1.0 }
         if player_id not in self._action_pickers:
             kwargs = {}
-            kwargs["utilities"] = state.utilities
-            kwargs["action_chain"] = arena.Player_Actions_By_Pos[player_id]
-            all_actions = arena.Player_Actions[player_id]
+            kwargs["arena"] = state.arena
+            kwargs["action_chain"] = \
+                    state.arena.player_actions_by_pos[player_id]
+            all_actions = state.arena.player_actions[player_id]
             print(f"player {player_id} action picker: {self._action_picker_name}")
             self._action_pickers[player_id] = \
                 self._action_picker_class(all_actions, **kwargs)
         action = self._action_pickers[player_id].take_action(legal_actions)
         print("PICKER:", action)
-        if not action:
-            action = arena.Actions.WAIT
-        return { int(action): 1.0 }
+        if action:
+            return { int(action): 1.0 }
+        else:
+            return None

@@ -4,7 +4,7 @@ import numpy as np
 import pyspiel
 from open_spiel.python.policy import Policy
 
-from . import arena
+from . import arena as arena_mod
 from .util import normalize_action_probs
 
 
@@ -212,23 +212,24 @@ class AggregateHistoryPolicy(Policy):
         case this will be a single action with a probability of 1.0.
         """
         if player_id is not None:
-            player_id = arena.Players(player_id)
+            player_id = state.arena.players(player_id)
         legal_actions = (
             state.legal_actions() if player_id is None \
                     else state.legal_actions(player_id))
         if not legal_actions:
             return { pyspiel.ILLEGAL_ACTION, 1.0 }
         if len(legal_actions) == 1 \
-                and legal_actions[0] == arena.Actions.IN_PROGRESS:
+                and legal_actions[0] == state.arena.actions.IN_PROGRESS:
             return { legal_actions[0]: 1.0 }
         if player_id not in self._action_pickers:
-            uniform_pct = 1 / len(arena.Player_Actions[player_id])
+            uniform_pct = 1 / len(state.arena.player_pctions[player_id])
             #seed_probs = {}
-            #for action in arena.Player_Actions[player_id]:
+            #for action in state.arena.player_pctions[player_id]:
             #        seed_probs[action] = uniform_pct
             self._action_pickers[player_id] = \
-                self._action_picker_class(arena.Player_Actions[player_id])
+                self._action_picker_class(state.arena.player_actions[player_id])
         action = self._action_pickers[player_id].take_action(legal_actions)
         if not action:
-            action = arena.Actions.WAIT
-        return { int(action): 1.0 }
+            return None
+        else:
+            return { int(action): 1.0 }

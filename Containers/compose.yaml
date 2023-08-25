@@ -7,7 +7,6 @@ services:
       build:
         context: ..
         dockerfile: Containers/dockerfile
-      image: threat-hunting-game
       container_name: threat-hunting-game
       ports:
         - '5433:5433'

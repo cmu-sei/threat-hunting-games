@@ -19,10 +19,10 @@ class ActionPickerIntervals:
     From original description of independent intervals.
     """
 
-    def __init__(self, action_intervals=Default_Action_Intervals,
+    def __init__(self, all_actions, action_intervals=Default_Action_Intervals,
             clock_seed=Default_Interval_Clock_Seed, **kwargs):
         self._beats = {}
-        for action, interval in dict(action_intervals).items():
+        for action, interval in action_intervals.items():
             if not interval:
                 continue
             self._beats[int(action)] = interval
@@ -89,6 +89,10 @@ class ActionPickerLeastExpensive:
     def __init__(self, all_actions, arena=None, **kwargs):
         self._arena = arena if arena else arena_mod.Arena()
         self._all_actions = tuple(all_actions)
+
+    @classmethod
+    def defaults(cls):
+        return {}
 
     def take_action(self, selected_actions=None):
         if not selected_actions:
@@ -211,9 +215,9 @@ class ActionPickerRankedIntervals:
     the order.
     """
 
-    def __init__(self, action_chain, arena=None,
+    def __init__(self, all_actions, action_chain=None, arena=None,
             clock_seed=Default_Interval_Clock_Seed, **kwargs):
-        self._arena = arena if arena else arena_mod.arena()
+        self._arena = arena if arena else arena_mod.Arena()
         self._ordered_actions = []
         for stage_actions in action_chain:
                 for action in [x[1] \
@@ -223,7 +227,7 @@ class ActionPickerRankedIntervals:
         self._beats = {}
         for i, action in enumerate(self._ordered_actions):
             self._beats[action] = i
-        self._clock = clock_seed if clock_seed else 0
+        self._clock = clock_seed if clock_seed else 1
         self._action_queue = []
 
     @classmethod
@@ -253,7 +257,7 @@ class ActionPickerRankedIntervals:
         self._clock += 1
         action = None
         if self._action_queue:
-            action = self._action_queue.remove(0)
+            action = self._action_queue.pop(0)
         return action
 
 
@@ -324,9 +328,24 @@ class IndependentIntervalsPolicy(Policy):
         all_players = list(range(game.num_players()))
         super().__init__(game, all_players)
         if not callable(action_picker):
+            self._action_picker_name = action_picker
             action_picker = get_action_picker_class(action_picker)
+        else:
+            self._action_picker_name = action_picker.__name__
         self._action_picker_class = action_picker
         self._action_pickers = {}
+
+    @classmethod
+    def default_action_picker(cls):
+        return Default_Action_Picker
+
+    @classmethod
+    def defaults(cls):
+        defs = {}
+        for ap in list_action_pickers():
+            apc = get_action_picker_class(ap)
+            defs[ap] = apc.defaults()
+        return defs
 
     @classmethod
     def get_action_picker_class(cls, ap_name):
@@ -355,12 +374,13 @@ class IndependentIntervalsPolicy(Policy):
             kwargs = {}
             kwargs["arena"] = state.arena
             kwargs["action_chain"] = \
-                    state.player_actions_by_pos[player_id]
+                    state.arena.player_actions_by_pos[player_id]
             all_actions = state.arena.player_actions[player_id]
             self._action_pickers[player_id] = \
                 self._action_picker_class(all_actions, **kwargs)
         action = self._action_pickers[player_id].take_action(legal_actions)
-        if action:
-            return { int(action): 1.0 }
-        else:
-            return None
+        if action is None:
+            action = random.choice(legal_actions)
+            print("No action picked, random choice:", state.arena.a2s(action),
+                    self._action_picker_name)
+        return { int(action): 1.0 }

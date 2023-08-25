@@ -53,8 +53,13 @@ class ActionPickerSequentialThenCost:
             for action in [x[1] \
                     for x in (sorted((self._arena.utilities.utilities[y].cost, y)) \
                         for y in stage_actions)]:
-                self._ordered_actions.append(action)
+                self._ordered_actions.append(int(action))
+        print("ORDERED ACTIONS:", self._ordered_actions)
         self._idx = 0
+
+    @classmethod
+    def defaults(cls):
+        return {}
 
     def take_action(self, selected_actions = None):
         if not selected_actions:
@@ -62,15 +67,14 @@ class ActionPickerSequentialThenCost:
         selected_actions = set(selected_actions)
         selected_action = None
         while True:
-            if self._ordered_actions[self._idx] not in selected_actions:
-                continue
             try:
+                if self._ordered_actions[self._idx] not in selected_actions:
+                    continue
                 if random.random() >= self._pct:
                     selected_action = self._ordered_actions[self._idx]
                     break
             finally:
                 self._idx = (self._idx + 1) % len(self._ordered_actions)
-        print("RETURNING ACTION:", selected_action)
         return selected_action
 
 
@@ -91,6 +95,10 @@ class ActionPickerFixedProb:
         else:
             probs = normalize_action_probs(probs)
         self._probs = probs
+
+    @classmethod
+    def defaults(cls):
+        return {}
 
     def take_action(self, selected_actions=None):
         if selected_actions \
@@ -122,6 +130,10 @@ class ActionPickerCostScale:
             self._probs[action] = self._arena.utilities.utilities[action].cost / 100
         self._probs = normalize_action_probs(self._probs)
 
+    @classmethod
+    def defaults(cls):
+        return {}
+
     def take_action(self, selected_actions=None):
         if selected_actions \
                 and set(self._probs).difference(selected_actions):
@@ -148,6 +160,10 @@ class ActionPickerCostScaleInverse(ActionPickerCostScale):
             self._probs[action] = (1 / (2 * self._arena.utilities.utilities[action].cost))
         self._probs = normalize_action_probs(self._probs)
 
+    @classmethod
+    def defaults(cls):
+        return {}
+
 
 Action_Pickers = {
     "sequential_pct": ActionPickerSequentialThenCost,
@@ -163,7 +179,6 @@ def get_action_picker_class(name):
 
 def list_action_pickers():
     return list(Action_Pickers.keys())
-
 
 
 class SimpleRandomPolicy(Policy):
@@ -196,13 +211,27 @@ class SimpleRandomPolicy(Policy):
     def __init__(self, game, action_picker=None):
         if action_picker is None:
             action_picker = Default_Action_Picker
-        self._action_picker_name = action_picker
         all_players = list(range(game.num_players()))
         super().__init__(game, all_players)
         if not callable(action_picker):
+            self._action_picker_name = action_picker
             action_picker = get_action_picker_class(action_picker)
+        else:
+            self._action_picker_name = action_picker.__name__
         self._action_picker_class = action_picker
         self._action_pickers = {}
+
+    @classmethod
+    def default_action_picker(cls):
+        return Default_Action_Picker
+
+    @classmethod
+    def defaults(cls):
+        defs = {}
+        for ap in list_action_pickers():
+            apc = get_action_picker_class(ap)
+            defs[ap] = apc.defaults()
+        return defs
 
     @classmethod
     def get_action_picker_class(cls, ap_name):
@@ -236,8 +265,8 @@ class SimpleRandomPolicy(Policy):
             self._action_pickers[player_id] = \
                 self._action_picker_class(all_actions, **kwargs)
         action = self._action_pickers[player_id].take_action(legal_actions)
-        print("PICKER:", action)
-        if action:
-            return { int(action): 1.0 }
-        else:
-            return None
+        if action is None:
+            action = random.choice(legal_actions)
+            print("No action picked, random choice:", state.arena.a2s(action),
+                    self._action_picker_name)
+        return { int(action): 1.0 }

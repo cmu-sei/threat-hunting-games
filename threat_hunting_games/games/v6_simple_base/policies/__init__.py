@@ -31,6 +31,18 @@ def policy_classes():
 def list_policies_with_pickers():
     names = []
     for policy, cls in _policies.items():
-        for action_picker in cls.list_action_pickers():
-            names.append('-'.join([policy, action_picker]))
+        if hasattr(cls, "list_action_pickers"):
+            for action_picker in cls.list_action_pickers():
+                names.append((policy, action_picker))
+        else:
+            names.append((policy, ""))
+    return names
+
+def list_policies_with_pickers_strs():
+    names = []
+    for policy, ap in list_policies_with_pickers():
+        if ap:
+            names.append("-".join([policy, ap]))
+        else:
+            names.append(policy)
     return names

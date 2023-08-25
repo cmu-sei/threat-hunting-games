@@ -13,6 +13,7 @@ from open_spiel.python.bots.policy import PolicyBot
 
 import arena, policies, util
 from threat_hunting_games import games
+from arena import debug
 
 
 @dataclass
@@ -54,10 +55,10 @@ def play_game(game, bots):
         player = state.current_player()
         bot = bots[player]
         action = bot.step(state)
-        print("BOT ACTION:", action)
+        debug("BOT ACTION:", action)
         player_str = arena.player_to_str(player)
         action_str = arena.a2s(action)
-        print(f"Player {player_str} sampled action: {action_str}")
+        debug(f"Player {player_str} sampled action: {action_str}")
         # convert to int; json.dump() can't dump int64
         history.append(int(action))
         state.apply_action(action)
@@ -136,6 +137,7 @@ def main(game_name=DEFAULTS.game,
     histories = collections.defaultdict(int)
     sum_returns = [0, 0]
     sum_victories = [0, 0]
+    sum_inconclusive = 0
     dump_pm = None
     if dump_dir:
         dump_pm = util.PathManager(base_dir=dump_dir, game_name=game_name,
@@ -144,11 +146,11 @@ def main(game_name=DEFAULTS.game,
         games_path = os.path.join(dump_pm.path(), "games")
         if not os.path.exists(games_path):
             os.makedirs(games_path)
-    num_games_maxed = 0
     game_num = 0
     try:
         iter_fmt = f"%0{len(str(iterations))}d.json"
-        for game_num in range(iterations):
+        for _ in range(iterations):
+            game_num += 1
             turns_played, returns, victor, history \
                     = play_game(game, bots)
             histories[" ".join(str(int(x)) for x in history)] += 1
@@ -176,26 +178,35 @@ def main(game_name=DEFAULTS.game,
     except (KeyboardInterrupt, EOFError):
         game_num -= 1
         print("Game iterations aborted")
-    print(f"Defender policy: {defender_policy}")
-    print(f"Attacker policy: {attacker_policy}")
-    print("Number of games played:", game_num + 1)
+    if not defender_action_picker:
+        cls = policies.get_policy_class(defender_policy)
+        defender_action_picker = cls.default_action_picker()
+    if not attacker_action_picker:
+        cls = policies.get_policy_class(attacker_policy)
+        attacker_action_picker = cls.default_action_picker()
+    print(f"Defender policy: {defender_policy}/{defender_action_picker}")
+    print(f"Attacker policy: {attacker_policy}/{attacker_action_picker}")
+    print("Number of games played:", game_num)
     print("Number of distinct games played:", len(histories))
     if dump_pm:
         dump = {
             "sum_returns": returns,
             "sum_victories": sum_victories,
+            "sum_inconclusive": sum_inconclusive,
             "p_means": [
-                sum_returns[0] / turns_played,
-                sum_returns[1] / turns_played
+                sum_returns[0] / game_num,
+                sum_returns[1] / game_num,
             ],
             "max_turns": game.get_parameters()["num_turns"],
             "turns_played": turns_played,
         }
         dump.update(kwargs)
+        dump["action_map"] = arena.action_map()
+        dump["utilities"] = utilities.tupleize()
         dump["history_tallies"] = histories
         df = os.path.join(dump_pm.path(), "summary.json")
         json.dump(dump, open(df, 'w'), indent=2)
-        print(f"Dumped {game_num + 1} game playthroughs into: {dump_pm.path()}")
+        print(f"Dumped {game_num} game playthroughs into: {dump_pm.path()}")
 
 
 if __name__ == "__main__":
@@ -209,29 +220,41 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--iterations", default=DEFAULTS.iterations,
             type=int,
             help=f"Number of games to play ({DEFAULTS.iterations})")
-    parser.add_argument("--detection_costs", "--dc",
+    parser.add_argument("--detection-costs", "--dc",
             default=DEFAULTS.detection_costs,
             help=f"Defender detect action cost structure ({DEFAULTS.detection_costs})")
-    parser.add_argument("--advancement_rewards", "--ar",
+    parser.add_argument("--advancement-rewards", "--ar",
             default=DEFAULTS.advancement_rewards,
             help=f"Attacker advance action rewards structure ({DEFAULTS.advancement_rewards})")
-    parser.add_argument("--defender_policy", "--dp",
+    parser.add_argument("--defender-policy", "--dp",
             default=DEFAULTS.defender_policy,
             help=f"Defender policy ({DEFAULTS.defender_policy})")
-    parser.add_argument("--attacker_policy", "--ap",
+    parser.add_argument("--attacker-policy", "--ap",
             default=DEFAULTS.attacker_policy,
             help=f"Attacker policy ({DEFAULTS.attacker_policy})")
-    parser.add_argument("-l", "--list_policies", action="store_true",
+    parser.add_argument("-l", "--list-policies", action="store_true",
             help="List available policies")
-    parser.add_argument("-p", "--dump_dir",
+    parser.add_argument("--list-advancement-rewards", action="store_true",
+            help="List attacker rewards choices")
+    parser.add_argument("--list-detection-costs", action="store_true",
+            help="List defender costs choices")
+    parser.add_argument("-p", "--dump-dir",
             default=DEFAULTS.dump_dir,
             help=f"Directory in which to dump game states over iterations of the game. ({DEFAULTS.dump_dir})")
-    parser.add_argument("-n", "--no_dump", action="store_true",
+    parser.add_argument("-n", "--no-dump", action="store_true",
             help="Disable logging of game playthroughs")
     args = parser.parse_args()
     if args.list_policies:
-        for policy_name in policies.available_policies_with_pickers():
+        for policy_name in policies.list_policies_with_pickers_strs():
             print("  ", policy_name)
+        sys.exit()
+    if args.list_detection_costs:
+        for dc in arena.list_detection_utilities():
+            print("  ", dc)
+        sys.exit()
+    if args.list_advancement_rewards:
+        for au in arena.list_advancement_utilities():
+            print("  ", au)
         sys.exit()
     if args.no_dump:
         args.dump_dir = None

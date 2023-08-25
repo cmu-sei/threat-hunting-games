@@ -10,11 +10,12 @@ import random
 
 import pyspiel
 
-DEBUG = True
+DEBUG = False
 
 USE_WAITS = False
 USE_TIMEWAITS = False
 USE_CHANCE_FAIL = False
+USE_DEFENDER_CLAWBACK = False
 
 
 def debug(*args, **kwargs):
@@ -65,21 +66,21 @@ class Actions(IntEnum):
     S1_ADVANCE_CAMO  = _action_idx(6)
     S2_ADVANCE       = _action_idx(7)
     S2_ADVANCE_CAMO  = _action_idx(8)
-    S3_ADVANCE       = _action_idx(7)
-    S3_ADVANCE_CAMO  = _action_idx(8)
-    S4_ADVANCE       = _action_idx(7)
-    S4_ADVANCE_CAMO  = _action_idx(8)
+    S3_ADVANCE       = _action_idx(9)
+    S3_ADVANCE_CAMO  = _action_idx(10)
+    S4_ADVANCE       = _action_idx(11)
+    S4_ADVANCE_CAMO  = _action_idx(12)
     # defender
-    S0_DETECT        = _action_idx(9)
-    S0_DETECT_STRONG = _action_idx(10)
-    S1_DETECT        = _action_idx(11)
-    S1_DETECT_STRONG = _action_idx(12)
-    S2_DETECT        = _action_idx(13)
-    S2_DETECT_STRONG = _action_idx(14)
-    S3_DETECT        = _action_idx(13)
-    S3_DETECT_STRONG = _action_idx(14)
-    S4_DETECT        = _action_idx(13)
-    S4_DETECT_STRONG = _action_idx(14)
+    S0_DETECT        = _action_idx(13)
+    S0_DETECT_STRONG = _action_idx(14)
+    S1_DETECT        = _action_idx(15)
+    S1_DETECT_STRONG = _action_idx(16)
+    S2_DETECT        = _action_idx(17)
+    S2_DETECT_STRONG = _action_idx(18)
+    S3_DETECT        = _action_idx(19)
+    S3_DETECT_STRONG = _action_idx(20)
+    S4_DETECT        = _action_idx(21)
+    S4_DETECT_STRONG = _action_idx(22)
 
 Attack_Actions = [
     # do not include IN_PROGRESS
@@ -125,6 +126,11 @@ Player_Actions = {
     Players.DEFENDER: Defend_Actions,
 }
 
+def player_map():
+    return dict((int(x), p2s(x)) for x in Players)
+
+def action_map():
+    return dict((int(x), a2s(x)) for x in Actions)
 
 def player_to_str(player: Players) -> str:
     '''
@@ -250,6 +256,9 @@ class Utility(NamedTuple):
     cost:    int # utility cost
     reward:  int # action success reward (only attacker for now)
     damage:  int # cost to opposition if successful action
+
+    def __str__(self):
+        return f"({self.cost}, {self.reward}, {self.damage})"
 
 # ZSUM:
 #
@@ -433,11 +442,12 @@ class Utilities:
         self._utilities.update(get_advancement_utilities(advancement_rewards))
         self._utilities.update(get_detection_utilities(detection_costs))
         self._utilities = self._resolve_zsums(self._utilities)
+        self._utilities = frozendict(self._utilities)
         self._min_max_util = MinMaxUtil(None, None)
 
     @property
     def utilities(self):
-        return dict(self._utilities)
+        return self._utilities
 
     def _resolve_zsums(self, utilities):
         resolved = dict(utilities)
@@ -458,6 +468,17 @@ class Utilities:
                 resolved[def_action] = Utility(*def_res)
         return dict(sorted((x, resolved[x]) for x in resolved))
 
+    def max_atk_utility(self):
+        total = 0
+        for action, util in self._utilities.items():
+            if action in Attack_Actions:
+                net = util.reward - util.cost
+                total += net
+        # currently there are two actions, noisy vs camo, per stage of
+        # the attack chain (WAIT has 0 reward). Both have the same
+        # reward, hence dividing by 2
+        return total / 2
+
     def tupleize(self):
         utilities = {}
         for action, util in self._utilities.items():
@@ -472,10 +493,10 @@ class Utilities:
     def attack_reward(self, action: Actions):
         # reward received for attack action
         action = Actions(action)
-        print("attack_reward:", a2s(action))
         assert action in Actions, f"action not an action: {action}"
         assert action in Attack_Actions, f"action not an attack: {action}"
         utils = self._utilities[action]
+        debug("attack reward:", utils.reward, a2s(action))
         return utils.reward
 
     def attack_damage(self, action: Actions) -> int:
@@ -766,11 +787,13 @@ class Arena:
             detection_costs=Default_Detection_Costs,
             use_waits=USE_WAITS,
             use_timewaits=USE_TIMEWAITS,
-            use_chance_fail=USE_CHANCE_FAIL):
+            use_chance_fail=USE_CHANCE_FAIL,
+            use_defender_clawback=USE_DEFENDER_CLAWBACK):
 
         self._use_waits = use_waits
         self._use_timewaits = use_timewaits
         self._use_chance_fail = use_chance_fail
+        self._use_defender_clawback = use_defender_clawback
 
         self._players = Players
         self._actions = Actions
@@ -827,20 +850,15 @@ class Arena:
                 self._timewaits[action] = TimeWait(0, 0)
         self._timewaits = frozendict(self._timewaits)
 
-        if self._use_chance_fail:
-            self._general_fails = frozendict(GeneralFails)
-            self._skirmish_fails = {}
-            for action, opposing_actions in SkirmishFails.items():
-                self._skirmish_fails[action] = frozendict(opposing_actions)
-            self._skirmish_fails = frozendict(self._skirmish_fails)
-            self._skirmish_wins = {}
-            for action, opposing_actions in SkirmishWins.items():
-                self._skirmish_wins[action] = frozendict(opposing_actions)
-            self._skirmish_wins = frozendict(self._skirmish_wins)
-        else:
-            self._general_fails = frozendict()
-            self._skirmish_fails = frozendict()
-            self._skirmish_wins = frozendict()
+        self._general_fails = frozendict(GeneralFails)
+        self._skirmish_fails = {}
+        for action, opposing_actions in SkirmishFails.items():
+            self._skirmish_fails[action] = frozendict(opposing_actions)
+        self._skirmish_fails = frozendict(self._skirmish_fails)
+        self._skirmish_wins = {}
+        for action, opposing_actions in SkirmishWins.items():
+            self._skirmish_wins[action] = frozendict(opposing_actions)
+        self._skirmish_wins = frozendict(self._skirmish_wins)
 
     @property
     def use_waits(self):
@@ -853,6 +871,10 @@ class Arena:
     @property
     def use_chance_fail(self):
         return self._use_chance_fail
+
+    @property
+    def use_defender_clawback(self):
+        return self._use_defender_clawback
 
     @property
     def players(self):

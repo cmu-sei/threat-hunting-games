@@ -4,6 +4,7 @@ from datetime import datetime
 from open_spiel.python.bots.policy import PolicyBot
 #from policy_bot import PolicyBot
 import policies
+from arena import debug
 
 def get_player_policy(game, player, policy_name, action_picker=None):
     """
@@ -18,7 +19,7 @@ def get_player_policy(game, player, policy_name, action_picker=None):
         return policy_class(game, action_picker=action_picker)
 
 def get_player_bot(game, player, policy_name, action_picker=None):
-    print(f"Bot selecting {player} policy: {policy_name}")
+    debug(f"Bot selecting {player} policy: {policy_name}")
     policy = get_player_policy(game, player, policy_name,
             action_picker=action_picker)
     bot = PolicyBot(player, np.random, policy)

@@ -32,8 +32,8 @@ class ActionPickerIncrement:
         if pct_per_interval is not None:
             # override class default
             self.pct_per_interval = abs(pct_per_interval)
-        assert pct_per_interval > 0, "only positive non-zero values"
-        assert pct_per_interval <= 1.0, "only values below 1.0"
+        assert self.pct_per_interval > 0, "only positive non-zero values"
+        assert self.pct_per_interval <= 1.0, "only values below 1.0"
         all_actions = [int(x) for x in all_actions]
         pct = 1 / len(all_actions)
         self._seed_probs = {}
@@ -87,8 +87,8 @@ class ActionPickerDecrement:
         if pct_per_interval is not None:
             # override class default
             self.pct_per_interval = abs(pct_per_interval)
-        assert pct_per_interval > 0, "only positive non-zero values"
-        assert pct_per_interval <= 1.0, "only values below 1.0"
+        assert self.pct_per_interval > 0, "only positive non-zero values"
+        assert self.pct_per_interval <= 1.0, "only values below 1.0"
         all_actions = [int(x) for x in all_actions]
         pct = 1 / len(all_actions)
         self._seed_probs = {}
@@ -188,12 +188,25 @@ class AggregateHistoryPolicy(Policy):
         all_players = list(range(game.num_players()))
         super().__init__(game, all_players)
         if not callable(action_picker):
+            self._action_picker_name = action_picker
             action_picker = get_action_picker_class(action_picker)
+        else:
+            self._action_picker_name = action_picker.__name__
         self._action_picker_class = action_picker
         self._action_pickers = {}
 
     @classmethod
+    def default_action_picker(cls):
+        return Default_Action_Picker
+
+    @classmethod
     def defaults(cls):
+        defs = {}
+        for ap in list_action_pickers():
+            apc = get_action_picker_class(ap)
+            defs[ap] = apc.defaults()
+        return defs
+
         def_ap_class = get_action_picker_class(Default_Action_Picker)
         return { Default_Action_Picker: dict(def_ap_class.defaults()) }
 
@@ -222,14 +235,15 @@ class AggregateHistoryPolicy(Policy):
                 and legal_actions[0] == state.arena.actions.IN_PROGRESS:
             return { legal_actions[0]: 1.0 }
         if player_id not in self._action_pickers:
-            uniform_pct = 1 / len(state.arena.player_pctions[player_id])
+            #uniform_pct = 1 / len(state.arena.player_pctions[player_id])
             #seed_probs = {}
             #for action in state.arena.player_pctions[player_id]:
             #        seed_probs[action] = uniform_pct
             self._action_pickers[player_id] = \
                 self._action_picker_class(state.arena.player_actions[player_id])
         action = self._action_pickers[player_id].take_action(legal_actions)
-        if not action:
-            return None
-        else:
-            return { int(action): 1.0 }
+        if action is None:
+            action = random.choice(legal_actions)
+            print("No action picked, random choice:", state.arena.a2s(action),
+                    self._action_picker_name)
+        return { int(action): 1.0 }

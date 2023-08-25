@@ -332,7 +332,6 @@ class AttackerState(BasePlayerState):
     BaseState: state_pos, which tracks the advancement steps/stages of
     an attack sequence.
     """
-    available_actions: list[arena_mod.Actions] = field(default_factory=list)
     state_pos: int = 0
     player_id: int = arena_mod.Players.ATTACKER
     player: str = arena_mod.player_to_str(arena_mod.Players.ATTACKER)
@@ -346,11 +345,15 @@ class AttackerState(BasePlayerState):
 
     def increment_pos(self):
         self.state_pos += 1
+        self.available_actions = self.legal_actions()
 
     def legal_actions(self):
         #return [x for x in arena.Atk_Actions_By_Pos[self.state_pos]
         #        if arena.action_cost(x) <= self.utility]
-        actions = self.arena.atk_actions_by_pos[self.state_pos]
+        if self.got_all_the_marbles:
+            actions = ()
+        else:
+            actions = self.arena.atk_actions_by_pos[self.state_pos]
         return actions
 
     def advance(self, action: arena_mod.Actions, game_state: pyspiel.State):
@@ -382,6 +385,8 @@ class AttackerState(BasePlayerState):
                     debug(f"\n{self.player} (turn {self.curr_turn}): resolved {self.arena.a2s(self.state.action)} from turn {self.state.from_turn}: faulty execution, {self.player} stays at position {self.state_pos}")
             elif self.state.was_delayed:
                     debug(f"\n{self.player} (turn {self.curr_turn}): resolved {self.arena.a2s(self.state.action)} from turn {self.state.from_turn}: executed, {self.player} advances to position {self.state_pos}")
+            # back to all attack actions by pos
+            #self.available_actions = self.legal_actions()
 
         if action == self.arena.actions.IN_PROGRESS:
             # still in the progress sequence of a completed action;
@@ -735,8 +740,21 @@ class GameState(pyspiel.State):
                     # attack action is *actually* detected by the
                     # current defend action; defender gets reward,
                     # attacker takes damage
-                    reward = self._arena.utilities.defend_reward(defend_action)
-                    damage = self._arena.utilities.defend_damage(defend_action)
+                    if self._arena.use_defender_clawback:
+                        # it could be interesting for the defender to
+                        # regain all of the damage it took up until the
+                        # latest attacker stage -- the way these work at
+                        # the moment is to regain the damage from just
+                        # the attack action that was detected.
+                        reward = \
+                            self._arena.utilities.defend_reward(defend_action)
+                        damage = \
+                            self._arena.utilities.defend_damage(defend_action)
+                    else:
+                        # no damage is regained by defender, no rewards
+                        # are lost by attacker
+                        reward = 0
+                        damage = 0
                     dmg = self._attacker.increment_damage(damage)
                     self._defender.increment_reward(dmg)
                     detected = True
@@ -790,6 +808,10 @@ class GameState(pyspiel.State):
             debug(f"\nmax game length reached, terminating game after {dsp_turn} turns\n")
             self._victor = None
             self._game_over = True
+
+        if self._game_over:
+            debug(f"{self.arena.p2s(self.arena.players.DEFENDER)} util history:", self._defender.utilities)
+            debug(f"{self.arena.p2s(self.arena.players.ATTACKER)} util history:", self._attacker.utilities)
 
 
     ### Not sure if these methods are required, but they are

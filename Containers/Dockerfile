@@ -44,12 +44,15 @@ RUN apt-get -qq update; \
         gnupg2 wget ca-certificates apt-transport-https \
         autoconf automake cmake dpkg-dev file make patch libc6-dev
 
+RUN update-ca-certificates
 # Install LLVM
 RUN wget -nv -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+
 RUN echo "deb http://apt.llvm.org/bullseye/ llvm-toolchain-bullseye-15 main" > /etc/apt/sources.list.d/llvm.list;   \
     apt-get -qq update &&  apt-get install -qqy -t llvm-toolchain-bullseye-15 clang-15 clang-tidy-15 clang-format-15 lld-15 &&   \
     for f in /usr/lib/llvm-15/bin/*; do ln -sf "$f" /usr/bin; done &&   \
     rm -rf /var/lib/apt/lists/*
+
 
 WORKDIR $PYSETUP_PATH
 RUN poetry install --no-interaction --no-ansi

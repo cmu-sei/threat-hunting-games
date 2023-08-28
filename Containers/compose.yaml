@@ -6,7 +6,7 @@ services:
     threat-hunting-game:
       build:
         context: ..
-        dockerfile: Containers/dockerfile
+        dockerfile: Containers/Dockerfile
       container_name: threat-hunting-game
       ports:
         - '5433:5433'
@@ -40,9 +40,7 @@ services:
       restart: always
 
     ghosts-api:
-      build:
-        context: ../Containers/GHOSTS/src
-        dockerfile: Dockerfile-api
+      image: dustinupdyke/ghosts:7.0.40
       container_name: ghosts-api
       depends_on:
         - postgres

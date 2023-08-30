@@ -40,7 +40,7 @@ class Defaults:
     use_chance_fail: bool = arena.USE_CHANCE_FAIL
 
     dump_dir: str = os.path.join(os.path.dirname(
-        os.path.abspath(__file__)), "dump")
+        os.path.abspath(__file__)), "dump_playthroughs")
 
 DEFAULTS = Defaults()
 
@@ -140,8 +140,7 @@ def main(game_name=DEFAULTS.game,
     sum_inconclusive = 0
     dump_pm = None
     if dump_dir:
-        dump_pm = util.PathManager(base_dir=dump_dir, game_name=game_name,
-            attacker_policy=attacker_policy, defender_policy=defender_policy)
+        dump_pm = util.PathManager(base_dir=dump_dir, game_name=game_name)
         dump_dir = os.path.join(dump_dir, str(datetime.now()))
         games_path = os.path.join(dump_pm.path(), "games")
         if not os.path.exists(games_path):
@@ -234,15 +233,15 @@ if __name__ == "__main__":
             help=f"Attacker policy ({DEFAULTS.attacker_policy})")
     parser.add_argument("-l", "--list-policies", action="store_true",
             help="List available policies")
-    parser.add_argument("--list-advancement-rewards", action="store_true",
-            help="List attacker rewards choices")
+    parser.add_argument("--list-advancement-rewards", "-lar",
+            action="store_true", help="List attacker rewards choices")
     parser.add_argument("--list-detection-costs", action="store_true",
             help="List defender costs choices")
-    parser.add_argument("-p", "--dump-dir",
+    parser.add_argument("-d", "--dump-dir",
             default=DEFAULTS.dump_dir,
             help=f"Directory in which to dump game states over iterations of the game. ({DEFAULTS.dump_dir})")
     parser.add_argument("-n", "--no-dump", action="store_true",
-            help="Disable logging of game playthroughs")
+            help="Disable dumping of game playthroughs")
     args = parser.parse_args()
     if args.list_policies:
         for policy_name in policies.list_policies_with_pickers_strs():

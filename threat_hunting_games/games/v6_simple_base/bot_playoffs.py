@@ -69,7 +69,7 @@ def main(game_name=DEFAULTS.game,
         use_waits=DEFAULTS.use_waits,
         use_timewaits=DEFAULTS.use_timewaits,
         use_chance_fail=DEFAULTS.use_chance_fail,
-        dump_dir=None):
+        dump_dir=None, dump_games=None):
     if not iterations:
         iterations = DEFAULTS.iterations
     perms_seen = set()
@@ -92,16 +92,15 @@ def main(game_name=DEFAULTS.game,
             continue
         perms_seen.add(key)
         perm_cnt += 1
-        dump_pm = None
-        if dump_dir:
-            dump_pm = util.PathManager(base_dir=dump_dir,
-                    game_name=game_name)
         perm_dir = games_dir = None
         if dump_pm:
             perm_dir = dump_pm.path(suffix=perm_fmt % perm_cnt)
-            games_dir = os.path.join(perm_dir, "games")
-            if not os.path.exists(games_dir):
-                os.makedirs(games_dir)
+            if not os.path.exists(perm_dir):
+                os.makedirs(perm_dir)
+            if dump_games:
+                games_dir = os.path.join(perm_dir, "games")
+                if not os.path.exists(games_dir):
+                    os.makedirs(games_dir)
         kwargs = {
             "defender policy": def_policy,
             "defender action picker": def_ap if def_ap else "n/a",
@@ -158,7 +157,7 @@ def main(game_name=DEFAULTS.game,
                 sum_victories[1] += 1
             else:
                 sum_inconclusive += 1
-            if dump_pm:
+            if dump_pm and dump_games:
                 dump = {
                     "returns": returns,
                     "victor": victor,
@@ -189,7 +188,8 @@ def main(game_name=DEFAULTS.game,
         if dump_pm:
             p_means = [x / game_num for x in sum_returns]
             max_atk_util = utilities.max_atk_utility()
-            sum_normalized_returns = [x / max_atk_util for x in sum_returns]
+            scale_factor = 100 / max_atk_util
+            sum_normalized_returns = [x * scale_factor for x in sum_returns]
             p_means_normalized = \
                     [x / game_num for x in sum_normalized_returns]
             dump = {
@@ -226,16 +226,20 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--iterations", default=DEFAULTS.iterations,
             type=int,
             help=f"Number of games per policy permutation to play ({DEFAULTS.iterations})")
-    parser.add_argument("-p", "--dump-dir",
+    parser.add_argument("-d", "--dump-dir",
             default=DEFAULTS.dump_dir,
             help=f"Directory in which to dump game states over iterations of the game. ({DEFAULTS.dump_dir})")
+    parser.add_argument("-g", "--dump-games", action="store_true",
+            help="If dumping, also dump individual game runs along with the summaries for each perumutation of cost/reward models and policy variations.")
     parser.add_argument("-n", "--no-dump", action="store_true",
             help="Disable logging of game playthroughs")
     args = parser.parse_args()
     if args.no_dump:
         args.dump_dir = None
+        args.dump_games = None
     main(
         game_name=DEFAULTS.game,
         iterations=args.iterations,
         dump_dir = args.dump_dir,
+        dump_games = args.dump_games,
     )

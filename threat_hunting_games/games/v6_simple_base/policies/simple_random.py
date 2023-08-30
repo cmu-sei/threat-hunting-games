@@ -54,7 +54,6 @@ class ActionPickerSequentialThenCost:
                     for x in (sorted((self._arena.utilities.utilities[y].cost, y)) \
                         for y in stage_actions)]:
                 self._ordered_actions.append(int(action))
-        print("ORDERED ACTIONS:", self._ordered_actions)
         self._idx = 0
 
     @classmethod
@@ -261,7 +260,7 @@ class SimpleRandomPolicy(Policy):
             kwargs["action_chain"] = \
                     state.arena.player_actions_by_pos[player_id]
             all_actions = state.arena.player_actions[player_id]
-            print(f"player {player_id} action picker: {self._action_picker_name}")
+            #print(f"player {player_id} action picker: {self._action_picker_name}")
             self._action_pickers[player_id] = \
                 self._action_picker_class(all_actions, **kwargs)
         action = self._action_pickers[player_id].take_action(legal_actions)

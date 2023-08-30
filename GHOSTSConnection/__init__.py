@@ -210,6 +210,14 @@ class GHOSTSConnection:
             print(f'Unable to create machine {name}. {str(e)}')
             return {}
 
+
+    # Get a list of the machine groups as well as the machines in them
+    def list_machines_grouped(self) -> dict:
+        return {
+            'Attackers': self.attacker_Machine_Ids,
+            'Defenders': self.defender_Machine_Ids
+        }
+
     # Get an in depth report about a machine
     def get_machine_information(self, machine_id: str) -> dict:
         try:

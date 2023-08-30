@@ -5,13 +5,20 @@ hunting.
 # Toolchain
 
 ## Docker Container Environment (Encouraged)
-### Command to Build the Containers
+### Command to Build the Containers (Linux or MacOS)
 `/bin/sh /build_docker_containers.sh`
 
 ### Flags
 - **-d**: Run the environment in detached mode 
-- **-r**: Reset the databases of the GHOSTS, POSTGRES, and GHOSTS-SPECTRE containers 
-- **-v**: Configure the containers to run in the VPN configuration (SEI Zscaler)
+- **-r**: Reset the databases of the GHOSTS, POSTGRES, and GHOSTS-SPECTRE containers
+
+### Docker Build Command (Windows)
+From the root folder of the project run the following command: \
+`docker compose --file Containers/docker-compose.yml up -d --force-recreate`
+
+### Docker Containers Notes
+The containers that will be spun up are: ghosts-postgres, ghosts-grafana, ghosts-api, and threat-hunting-games \
+Within the threat-hunting-games you should be able to [test the code](#testing-) to confirm that it is working correctly
 
 ## Local Environment
 ### Pyenv and pyenv-virtualenv (optional)
@@ -109,14 +116,13 @@ framework.
 
 ## Custom Configuration
 Configuration information can be found in the `pyproject.toml` file in the root directory
-of the project under `[application.config]`. This contains the locations for the saving of the GHOSTSConnection.log as
+of the project under `[config]`. This contains the locations for the saving of the GHOSTSConnection.log as
 well as the simulation files. URI connections can also be changed there as well if you happen to 
 change the port for the Docker container for GHOSTS
 
 ## Testing 
 The threat-hunting-games project uses pytest in order to test functionality. \
-`pytest tests [--local] [--test]` \
 The --local flag is used if you are running the tests on a local system rather than within the 
 threat-hunting-games container. \
 The --test flag is used if you are running test cases thus the simulation files are not saved.
-
+#### As a note currently the final 3 tests fail due to being unable to successfully remove machines from GHOSTS. Working on a fix for this issue actively*

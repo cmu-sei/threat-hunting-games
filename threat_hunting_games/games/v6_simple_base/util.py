@@ -32,37 +32,46 @@ class PathManager:
     _def_str = 'def'
 
     def __init__(self, base_dir=None, game_name=None,
-            attacker_policy=None, attacker_action_picker=None,
+            detection_costs=None, advancement_rewards=None,
             defender_policy=None, defender_action_picker=None,
-            model=None, raw_path=None):
-        self._timestamp = datetime.now().isoformat(timespec="minutes")
-        if raw_path:
-            self._init_from_raw_path(raw_path)
-        else:
-            self._base_dir = base_dir
-            self._game_name = game_name
-            self._atk_policy = attacker_policy
-            self._atk_action_picker = attacker_action_picker
-            self._def_policy = defender_policy
-            self._def_action_picker = defender_action_picker
-            self._model = model
+            attacker_policy=None, attacker_action_picker=None,
+            model=None, timestamp=None, no_timestamp=False):
+            #model=None, raw_path=None):
+        self._timestamp = None
+        if not no_timestamp:
+            if timestamp:
+                self._timestamp = timestamp
+            else:
+                self._timestamp = datetime.now().isoformat(timespec="minutes")
+        #if raw_path:
+        #    self._init_from_raw_path(raw_path)
+        #else:
+        self._base_dir = base_dir
+        self._game_name = game_name
+        self._detection_costs = detection_costs
+        self._advancement_rewards = advancement_rewards
+        self._def_policy = defender_policy
+        self._def_action_picker = defender_action_picker
+        self._atk_policy = attacker_policy
+        self._atk_action_picker = attacker_action_picker
+        self._model = model
 
-    def _init_from_raw_path(self, rp):
-        parts = list(os.path.split(rp))
-        if parts[-1] in [self._atk_str, self._def_str]:
-            parts.pop()
-        stub = parts.pop()
-        self._base_dir = os.path.join(*parts) if parts else None
-        # get rid of extension if present
-        stub = stub.rsplit('.', 1)[0]
-        stub_parts = stub.split('-')
-        self._timestamp = '-'.join(stub_parts[-3:])
-        stub_parts = list(reversed(stub_parts[:-3]))
-        self._game_name = stub_parts.pop() if stub_parts else None
-        self._atk_policy = stub_parts.pop() if stub_parts else None
-        self._atk_action_picker = stub_parts.pop() if stub_parts else None
-        self._def_action_picker = stub_parts.pop() if stub_parts else None
-        self._model = stub_parts.pop() if stub_parts else None
+    #def _init_from_raw_path(self, rp):
+    #    parts = list(os.path.split(rp))
+    #    if parts[-1] in [self._atk_str, self._def_str]:
+    #        parts.pop()
+    #    stub = parts.pop()
+    #    self._base_dir = os.path.join(*parts) if parts else None
+    #    # get rid of extension if present
+    #    stub = stub.rsplit('.', 1)[0]
+    #    stub_parts = stub.split('-')
+    #    self._timestamp = '-'.join(stub_parts[-3:])
+    #    stub_parts = list(reversed(stub_parts[:-3]))
+    #    self._game_name = stub_parts.pop() if stub_parts else None
+    #    self._atk_policy = stub_parts.pop() if stub_parts else None
+    #    self._atk_action_picker = stub_parts.pop() if stub_parts else None
+    #    self._def_action_picker = stub_parts.pop() if stub_parts else None
+    #    self._model = stub_parts.pop() if stub_parts else None
 
     @property
     def base_dir(self):
@@ -73,12 +82,12 @@ class PathManager:
         return self._game_name
 
     @property
-    def atk_policy(self):
-        return self._atk_policy
+    def detection_costs(self):
+        return self._detection_costs
 
     @property
-    def atk_action_picker(self):
-        return self._atk_action_picker
+    def advancement_rewards(self):
+        return self._advancement_rewards
 
     @property
     def def_policy(self):
@@ -89,6 +98,14 @@ class PathManager:
         return self._def_policy
 
     @property
+    def atk_policy(self):
+        return self._atk_policy
+
+    @property
+    def atk_action_picker(self):
+        return self._atk_action_picker
+
+    @property
     def model(self):
         return self._model
 
@@ -96,25 +113,44 @@ class PathManager:
     def timestamp(self):
         return self._timestamp
 
-    def stub(self, ext=None):
-        parts = [x for x in (self._game_name, self._atk_policy,
-                self._def_policy, self._model,
-                self._timestamp) if x]
-        if not parts:
-            return None
-        stub = '-'.join(parts)
-        if ext:
-            stub = f"{stub}.{ext}"
+    def stub(self):
+        parts = []
+        game_dir = []
+        if self._game_name:
+            game_dir.append(self._game_name)
+        if self._model:
+            game_dir.append(self._model)
+        if self._timestamp:
+            game_dir.append(self._timestamp)
+        game_dir = '-'.join(game_dir)
+        utility_dir = []
+        if self._detection_costs:
+            utility_dir.append(self._detection_costs)
+        if self._advancement_rewards:
+            utility_dir.append(self._advancement_rewards)
+        utility_dir = '-'.join(utility_dir)
+        def_dir = []
+        if self._def_policy:
+            def_dir.append(self._def_policy)
+        if self._def_action_picker:
+            def_dir.append(self._def_action_picker)
+        def_dir = '-'.join(def_dir)
+        atk_dir = []
+        if self._atk_policy:
+            atk_dir.append(self._atk_policy)
+        if self._atk_action_picker:
+            atk_dir.append(self._atk_action_picker)
+        parts = [x for x in (game_dir, utility_dir, def_dir, atk_dir) if x]
+        stub = os.path.join(*parts)
         return stub
 
-    def path(self, suffix=None, prefix=None, ext=None):
-        stub = self.stub(ext=ext)
+    def path(self, suffix=None, prefix=None):
         parts = []
         if self._base_dir:
             parts.append(self._base_dir)
         if prefix:
             parts.append(prefix)
-        parts.append(self.stub(ext=ext))
+        parts.append(self.stub())
         if suffix:
             parts.append(suffix)
         return os.path.join(*parts)
@@ -143,8 +179,12 @@ class PathManager:
         fields = {
             "base_dir": self.base_dir,
             "game_name": self.game_name,
-            "atk_policy": self.atk_policy,
+            "detection_costs": self.detection_costs,
+            "advancement_rewards": self.advancement_rewards,
             "def_policy": self.def_policy,
+            "def_action_picker": self.def_action_picker,
+            "atk_policy": self.atk_policy,
+            "atk_action_picker": self.atk_action_picker,
             "model": self.model,
         }
         return str(fields)

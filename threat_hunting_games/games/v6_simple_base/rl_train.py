@@ -27,6 +27,9 @@ directly rather than RL+Search.
 import os, sys, json
 import argparse
 import numpy as np
+# I added matplotlib import because without having imported it
+# the tensorflow import will segfault
+import matplotlib
 import tensorflow.compat.v1 as tf
 import pyspiel
 
@@ -40,21 +43,42 @@ from open_spiel.python.algorithms import dqn
 from open_spiel.python.bots.policy import PolicyBot
 
 from threat_hunting_games.games import game_name
-import arena_zsum_v4 as arena
+import arena
 import policies, util
 from bot_agent import BotAgent
+
+def_defender_policy = "simple_random"
+def_dp_class = policies.get_policy_class(def_defender_policy)
+if hasattr(def_dp_class, "default_action_picker"):
+    def_defender_action_picker = def_dp_class.default_action_picker()
+else:
+      def_defender_action_picker = None
+def_attacker_policy = "uniform_random"
+def_ap_class = policies.get_policy_class(def_attacker_policy)
+if hasattr(def_ap_class, "default_action_picker"):
+    def_attacker_action_picker = def_ap_class.default_action_picker()
+else:
+    def_attacker_action_picker = None
+
+def_dat_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dat")
 
 
 @dataclass
 class Defaults:
 
     game: str ="chain_game_v4_lb_seq_zsum"
-    dat_dir: str = \
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "dat")
+    dat_dir: str = def_dat_dir
 
     # Player policies
+    detection_costs: str = "flat"
+    advancement_rewards: str = "flat"
     defender_policy: str = "uniform_random"
+    defender_action_picker: str|None = def_defender_action_picker
     attacker_policy: str = "simple_random"
+    attacker_action_picker: str|None = def_attacker_action_picker
+    use_waits: bool = arena.USE_WAITS
+    use_timewaits: bool = arena.USE_TIMEWAITS
+    use_chance_fail: bool = arena.USE_CHANCE_FAIL
 
     # Training parameters
     save_every: int = int(1e4)
@@ -77,15 +101,6 @@ DEFAULTS = Defaults()
 # this factor
 ITER_SCALE = 0
 
-def get_player_policy(game, player, policy_name):
-    policy_class = policies.get_policy_class(policy_name)
-    policy_args = policies.get_player_policy_args(player, policy_name)
-    return policy_class(game, *policy_args)
-
-def get_player_bot(game, player, policy_name):
-    policy = get_player_policy(game, player, policy_name)
-    bot = PolicyBot(player, np.random, policy)
-    return bot
 
 def eval_against_fixed_bots(env, trained_agents, fixed_agents, num_episodes):
   """Evaluates `trained_agents` against `random_agents` for `num_episodes`."""
@@ -158,8 +173,15 @@ class RollingAverage(object):
 # open_spiel/python/rl_response.py
 def train(
         game_name=DEFAULTS.game,
+        detection_costs=DEFAULTS.detection_costs,
+        advancement_rewards=DEFAULTS.advancement_rewards,
         defender_policy=DEFAULTS.defender_policy,
+        defender_action_picker=DEFAULTS.defender_action_picker,
         attacker_policy=DEFAULTS.attacker_policy,
+        attacker_action_picker=DEFAULTS.attacker_action_picker,
+        use_waits=DEFAULTS.use_waits,
+        use_timewaits=DEFAULTS.use_timewaits,
+        use_chance_fail=DEFAULTS.use_chance_fail,
         checkpoint_base_dir=None,
         no_checkpoint_dir=False,
         save_every=DEFAULTS.save_every,
@@ -184,24 +206,36 @@ def train(
   cp_pm = None
   if not no_checkpoint_dir:
       cp_pm = util.PathManager(base_dir=checkpoint_base_dir,
-              game_name=game_name,
-              attacker_policy=attacker_policy,
-              defender_policy=defender_policy,
-              model="dqn")
+              game_name=game_name, model="dqn")
   kwargs_file = None
   if cp_pm:
     for d in cp_pm.checkpoint_dirs:
       if not os.path.exists(d):
         os.makedirs(d)
-    kwargs_file = f"{cp_pm.path(ext='json')}"
+    kwargs_file = os.path.join(cp_pm.path(), "params.json")
   if os.path.exists(kwargs_file):
       os.remove(kwargs_file)
   if isinstance(hidden_layers_sizes, str):
       hidden_layers_sizes = [int(x) for x in hidden_layers_sizes.split(',')]
   assert len(hidden_layers_sizes) == 3
-  game = pyspiel.load_game(game_name)
-  def_bot = get_player_bot(game, arena.Players.DEFENDER, defender_policy)
-  atk_bot = get_player_bot(game, arena.Players.ATTACKER, attacker_policy)
+  print("GAME PARAMS:", {
+        "advancement_rewards": advancement_rewards,
+        "detection_costs": detection_costs,
+        "use_waits": int(use_waits),
+        "use_timewaits": int(use_timewaits),
+        "use_chance_fail": int(use_chance_fail),
+    })
+  game = pyspiel.load_game(game_name, {
+      "advancement_rewards": advancement_rewards,
+      "detection_costs": detection_costs,
+      "use_waits": int(use_waits),
+      "use_timewaits": int(use_timewaits),
+      "use_chance_fail": int(use_chance_fail),
+  })
+  def_bot = util.get_player_bot(game,
+          arena.Players.DEFENDER, defender_policy)
+  atk_bot = util.get_player_bot(game,
+          arena.Players.ATTACKER, attacker_policy)
   #def_agent = BotAgent(len(arena.Defend_Actions), def_bot,
   def_agent = BotAgent(len(arena.Actions), def_bot,
           name=defender_policy)
@@ -243,6 +277,15 @@ def train(
             agent.save(cp_pm.checkpoint_dirs[i])
         if not os.path.exists(kwargs_file):
           json.dump({
+              "detection_costs": detection_costs,
+              "advancement_rewards": advancement_rewards,
+              "defender_policy": defender_policy,
+              "defender_action_picker": defender_action_picker,
+              "attacker_policy": attacker_policy,
+              "attacker_action_picker": attacker_action_picker,
+              "use_waits": use_waits,
+              "use_timewaits": use_timewaits,
+              "use_chance_fail": use_chance_fail,
               "num_actions": num_actions,
               "state_representation_size": info_state_size,
               "hidden_layers_sizes": hidden_layers_sizes,
@@ -311,14 +354,38 @@ def main():
         description=f"Train DQN models against fixed policies")
     #parser.add_argument("-g", "--game", default=default_game,
     #        description="Name of game to play"
-    parser.add_argument("--defender_policy", "--dp",
-            default=DEFAULTS.defender_policy,
+    parser.add_argument("--detection-costs", "--dc",
+            default=DEFAULTS.detection_costs,
+            help=f"Defender detect action cost structure ({DEFAULTS.detection_costs})")
+    parser.add_argument("--advancement-rewards", "--ar",
+            default=DEFAULTS.advancement_rewards,
+            help=f"Attacker advance action rewards structure ({DEFAULTS.advancement_rewards})")
+    def_def_policy = DEFAULTS.defender_policy
+    if DEFAULTS.defender_action_picker:
+        def_def_policy = '-'.join([def_def_policy,
+            DEFAULTS.defender_action_picker])
+    parser.add_argument("--defender_policy", "--dp", default=def_def_policy,
             help=f"Defender policy ({DEFAULTS.defender_policy})")
-    parser.add_argument("--attacker_policy", "--ap",
-            default=DEFAULTS.attacker_policy,
+    def_atk_policy = DEFAULTS.attacker_policy
+    if DEFAULTS.attacker_action_picker:
+        def_atk_policy = '-'.join([def_atk_policy,
+                DEFAULTS.attacker_action_picker])
+    parser.add_argument("--attacker_policy", "--ap", default=def_atk_policy,
             help=f"Attacker policy ({DEFAULTS.attacker_policy})")
+    parser.add_argument("--use-waits", "--uw", default=DEFAULTS.use_waits,
+            help=f"Include WAIT as a possible action choice for both players ({DEFAULTS.use_waits})")
+    #parser.add_argument("--use-timewaits", "--utw",
+    #        default=DEFAULTS.use_timewaits, help=f"Include IN_PROGRESS actions to potentially delay turns before fufillment of an action for both players ({DEFAULTS.use_timewaits})")
+    #parser.add_argument("--use-chance-fail", "--ucf",
+    #        default=DEFAULTS.use_chance_fail, help=f"Include a general chance of failure for an action as well as chance of failure for action opposed to action for both players ({DEFAULTS.use_chance_fail})")
+    #parser.add_argument("--use-waits", "--uw", default=DEFAULTS.use_waits,
+    #        help=f"Include WAIT as a possible action choice for both players ({DEFAULTS.use_waits}))
     parser.add_argument("-l", "--list_policies", action="store_true",
             help="List available policies")
+    parser.add_argument("--list-advancement-rewards", "-lar",
+            action="store_true", help="List attacker rewards choices")
+    parser.add_argument("--list-detection-costs", action="store_true",
+            help="List defender costs choices")
 
     # Training parameters
     parser.add_argument("--checkpoint_base_dir",
@@ -354,18 +421,43 @@ def main():
             help=f"Size of window for rolling average. ({DEFAULTS.window_size})")
     args = parser.parse_args()
     if args.list_policies:
-        for policy_name in policies.available_policies():
+        for policy_name in policies.list_policies_with_pickers_strs():
             print("  ", policy_name)
+        sys.exit()
+    if args.list_detection_costs:
+        for dc in arena.list_detection_utilities():
+            print("  ", dc)
+        sys.exit()
+    if args.list_advancement_rewards:
+        for au in arena.list_advancement_utilities():
+            print("  ", au)
         sys.exit()
 
     hidden_layers_sizes = \
             [int(x) for x in args.hidden_layers_sizes.split(',')]
     assert len(hidden_layers_sizes) == 3
 
+    def_policy = def_action_picker = None
+    def_pol_parts = args.defender_policy.split('-')
+    if len(def_pol_parts) > 1:
+        def_policy, def_action_picker = def_pol_parts
+    else:
+        def_policy = def_pol_parts[0]
+    atk_policy = atk_action_picker = None
+    atk_pol_parts = args.attacker_policy.split('-')
+    if len(atk_pol_parts) > 1:
+        atk_policy, atk_action_picker = atk_pol_parts
+    else:
+        atk_policy = atk_pol_parts[0]
+
     train(
         game_name=DEFAULTS.game,
-        defender_policy=args.defender_policy,
-        attacker_policy=args.attacker_policy,
+        detection_costs=args.detection_costs,
+        advancement_rewards=args.advancement_rewards,
+        defender_policy=def_policy,
+        defender_action_picker=def_action_picker,
+        attacker_policy=atk_policy,
+        attacker_action_picker=atk_action_picker,
         checkpoint_base_dir=args.checkpoint_base_dir,
         no_checkpoint_dir=args.no_checkpoint_dir,
         save_every=args.save_every,

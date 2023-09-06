@@ -67,6 +67,7 @@ class SimpleRandomPolicy(Policy):
             assert not \
                 set(player_action_probs.keys()).difference(all_players), \
                     "unkown player_ids in action probabilities"
+            self._player_action_probs = player_action_probs
         else:
             self._player_action_probs = {}
         for player_id in self._player_action_probs:
@@ -82,7 +83,7 @@ class SimpleRandomPolicy(Policy):
         pap_probs = {}
         for player, probs in Default_Player_Action_Probs.items():
             pap_probs[player] = dict(probs)
-        return pap_probs
+        return {"player_action_probs": pap_probs }
 
     def action_probabilities(self, state, player_id=None):
         """

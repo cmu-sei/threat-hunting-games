@@ -15,6 +15,18 @@ import arena, policies, util
 from threat_hunting_games import games
 from arena import debug
 
+def_defender_policy = "simple_random"
+def_dp_class = policies.get_policy_class(def_defender_policy)
+if hasattr(def_dp_class, "default_action_picker"):
+    def_defender_action_picker = def_dp_class.default_action_picker()
+else:
+    def_defender_action_picker = None
+def_attacker_policy = "uniform_random"
+def_ap_class = policies.get_policy_class(def_attacker_policy)
+if hasattr(def_ap_class, "default_action_picker"):
+    def_attacker_action_picker = def_ap_class.default_action_picker()
+else:
+    def_attacker_action_picker = None
 
 @dataclass
 class Defaults:
@@ -26,14 +38,14 @@ class Defaults:
 
     # Need to include loading policy of choice in our parameterization
     # efforts.
-    defender_policy: str = "simple_random"
-    #default_defender_policy = "independent_intervals"
-    #default_defender_policy = "aggregate_history"
+    defender_policy: str = def_defender_policy
+    defender_action_picker: str|None = def_defender_action_picker
 
     # Attacker will always have a two actions (whatever the next action
     # in the chain is plus its CAMO version) plus WAIT...so randomly
     # choose one of the three; uniform random comes stock with OpenSpiel
-    attacker_policy: str = "uniform_random"
+    attacker_policy: str = def_attacker_policy
+    attacker_action_picker: str|None = def_attacker_action_picker
 
     use_waits: bool = arena.USE_WAITS
     use_timewaits: bool = arena.USE_TIMEWAITS
@@ -225,11 +237,17 @@ if __name__ == "__main__":
     parser.add_argument("--advancement-rewards", "--ar",
             default=DEFAULTS.advancement_rewards,
             help=f"Attacker advance action rewards structure ({DEFAULTS.advancement_rewards})")
-    parser.add_argument("--defender-policy", "--dp",
-            default=DEFAULTS.defender_policy,
+    def_def_policy = DEFAULTS.defender_policy
+    if DEFAULTS.defender_action_picker:
+        def_def_policy = '-'.join([def_def_policy,
+            DEFAULTS.defender_action_picker])
+    parser.add_argument("--defender-policy", "--dp", default=def_def_policy,
             help=f"Defender policy ({DEFAULTS.defender_policy})")
-    parser.add_argument("--attacker-policy", "--ap",
-            default=DEFAULTS.attacker_policy,
+    def_atk_policy = DEFAULTS.attacker_policy
+    if DEFAULTS.attacker_action_picker:
+        def_atk_policy = '-'.join([def_atk_policy,
+                DEFAULTS.attacker_action_picker])
+    parser.add_argument("--attacker-policy", "--ap", default=def_atk_policy,
             help=f"Attacker policy ({DEFAULTS.attacker_policy})")
     parser.add_argument("-l", "--list-policies", action="store_true",
             help="List available policies")

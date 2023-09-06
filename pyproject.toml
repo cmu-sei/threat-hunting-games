@@ -13,6 +13,7 @@ python = "~3.10"
 open-spiel = "^1.2"
 numpy = "^1.23.2"
 toml = "^0.10.2"
+frozendict = "^2.3.8"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"

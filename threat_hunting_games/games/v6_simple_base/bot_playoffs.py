@@ -74,16 +74,15 @@ def main(game_name=DEFAULTS.game,
         iterations = DEFAULTS.iterations
     perms_seen = set()
     perm_total = 0
-    for def_policy, def_ap, atk_policy, atk_ap, det_costs, adv_rewards \
-            in permutations():
-        perm_total += 1
+    perm_total = len(list(permutations()))
     perm_fmt = f"permutation.%0{len(str(perm_total))}d"
-    dump_pm = None
+    dump_pm = timestamp = None
     if dump_dir:
         dump_pm = util.PathManager(base_dir=dump_dir,
                 game_name=game_name)
         if not os.path.exists(dump_pm.path()):
             os.makedirs(dump_pm.path())
+        timestamp = dump_pm.timestamp
     perm_cnt = 0
     for def_policy, def_ap, atk_policy, atk_ap, det_costs, adv_rewards \
             in permutations():
@@ -92,26 +91,22 @@ def main(game_name=DEFAULTS.game,
             continue
         perms_seen.add(key)
         perm_cnt += 1
-        perm_dir = games_dir = None
-        if dump_pm:
-            perm_dir = dump_pm.path(suffix=perm_fmt % perm_cnt)
-            if not os.path.exists(perm_dir):
-                os.makedirs(perm_dir)
+        perm_dir = games_dir = dd = None
+        if dump_dir:
+            dd = util.PathManager(base_dir=dump_dir,
+                    game_name=game_name,
+                    detection_costs=f"det_costs_{det_costs}",
+                    advancement_rewards=f"adv_rewards_{adv_rewards}",
+                    timestamp=timestamp)
             if dump_games:
+                perm_dir = os.path.join(dd.path(), perm_fmt % perm_cnt)
                 games_dir = os.path.join(perm_dir, "games")
                 if not os.path.exists(games_dir):
                     os.makedirs(games_dir)
-        kwargs = {
-            "defender policy": def_policy,
-            "defender action picker": def_ap if def_ap else "n/a",
-            "attacker policy": atk_policy,
-            "attacker action picker": atk_ap if atk_ap else "n/a",
-            "advancement_rewards": adv_rewards,
-            "detection_costs": det_costs,
-            "use_waits": use_waits,
-            "use_timewaits": use_timewaits,
-            "use_chance_fail": use_chance_fail,
-        }
+            else:
+                perm_dir = dd.path()
+            if not os.path.exists(perm_dir):
+                os.makedirs(perm_dir)
         # load_game does not accept bools
         game = pyspiel.load_game(game_name, {
             "advancement_rewards": adv_rewards,
@@ -157,7 +152,7 @@ def main(game_name=DEFAULTS.game,
                 sum_victories[1] += 1
             else:
                 sum_inconclusive += 1
-            if dump_pm and dump_games:
+            if dd and dump_games:
                 dump = {
                     "returns": returns,
                     "victor": victor,
@@ -185,7 +180,7 @@ def main(game_name=DEFAULTS.game,
         print(f"Attacker policy: {atk_policy}, {atk_ap}, {adv_rewards}")
         print("Number of games played:", game_num)
         print("Number of distinct games played:", len(histories))
-        if dump_pm:
+        if perm_dir:
             p_means = [x / game_num for x in sum_returns]
             max_atk_util = utilities.max_atk_utility()
             scale_factor = 100 / max_atk_util
@@ -193,6 +188,7 @@ def main(game_name=DEFAULTS.game,
             p_means_normalized = \
                     [x / game_num for x in sum_normalized_returns]
             dump = {
+                "episodes": game_num,
                 "sum_returns": sum_returns,
                 "sum_victories": sum_victories,
                 "sum_inconclusive": sum_inconclusive,
@@ -202,25 +198,41 @@ def main(game_name=DEFAULTS.game,
                 "p_means_normalized": p_means_normalized,
                 "max_turns": game.get_parameters()["num_turns"],
             }
-            dump.update(kwargs)
+            dump["defender policy"] = def_policy,
+            dump["defender action picker"] = def_ap or "n/a"
+            dump["attacker policy"] = atk_policy,
+            dump["attacker action picker"] = atk_ap or "n/a"
+            dump["advancement_rewards"] = adv_rewards
+            dump["detection_costs"] = det_costs
+            dump["use_waits"] = use_waits
+            dump["use_timewaits"] = use_timewaits
+            dump["use_chance_fail"] = use_chance_fail
             dump["player_map"] = arena.player_map()
             dump["action_map"] = arena.action_map()
             dump["utilities"] = utilities.tupleize()
             histories = list(reversed(sorted((y, x)
                 for x, y in histories.items())))
             dump["history_tallies"] = histories
-            summary_file = os.path.join(perm_dir, "summary.json")
+            if dump_games:
+                summary_file = os.path.join(perm_dir, "summary.json")
+            else:
+                summary_file = f"{perm_fmt % perm_cnt}.json"
+                summary_file = os.path.join(dd.path(), summary_file)
             with open(summary_file, 'w') as dfh:
                 json.dump(dump, dfh, indent=2)
-            print(f"Dumped {game_num} game playthroughs into: {perm_dir}")
+            if dump_games:
+                print(f"Dumped {game_num} game playthroughs into: {perm_dir}")
+            else:
+                print(f"Dumped summary of {game_num} game playthroughs into: {summary_file}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="Bot Policy Playthrough",
-        description=f"Play through {DEFAULTS.game} using player "
-                     "bots with policies"
-    )
+        description=f"Play through {DEFAULTS.iterations} of game "
+                      "{DEFAULTS.game} using player bots for each permutation "
+                      "of possible policies and cost/reward structures "
+                      "and save the resulting statisistics.")
     #parser.add_argument("-g", "--game", default=DEFAULTS.game,
     #        description="Name of game to play"
     parser.add_argument("-i", "--iterations", default=DEFAULTS.iterations,

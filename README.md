@@ -66,6 +66,10 @@ install them.
 
 ### Other Packages
 
+To install OpenSpiel:
+
+  # pip install open_spiel
+
 Some of the examples and algorithms use the following python modules:
 
   * [TensorFlow](https://www.tensorflow.org/install/pip)

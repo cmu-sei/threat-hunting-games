@@ -209,7 +209,7 @@ def main(game_name=DEFAULTS.game,
                 sum_returns[1] / game_num,
             ],
             "max_turns": game.get_parameters()["num_turns"],
-            "turns_played": turns_played,
+            "episodes": turns_played,
         }
         dump.update(kwargs)
         dump["action_map"] = arena.action_map()

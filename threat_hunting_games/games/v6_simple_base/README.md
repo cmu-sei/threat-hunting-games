@@ -143,4 +143,5 @@ This is the script that deploys an RL model against the fixed policies.
 It too is based on part of the `python/examples/rl_response.py` script.
 It uses the `bot_agent.py` to wrap the RL model. Currently the RL agents
 are not integrated with `bot_playthrough.py` or `bot_playoffs.py` which
-are described above.
+are described above. Results are saved in the `./dump_rl` directory
+by default.

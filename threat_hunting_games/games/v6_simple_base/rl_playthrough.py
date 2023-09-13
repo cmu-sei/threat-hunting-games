@@ -55,10 +55,13 @@ class Defaults:
     defender_action_picker: str|None = def_defender_action_picker
     attacker_policy: str = def_attacker_policy
     attacker_action_picker: str|None = def_attacker_action_picker
+    use_waits: bool = arena.USE_WAITS
+    use_timewaits: bool = arena.USE_TIMEWAITS
+    use_chance_fail: bool = arena.USE_CHANCE_FAIL
     dat_dir: str = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "dat")
     dump_dir: str = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "dump/rl")
+            os.path.dirname(os.path.abspath(__file__)), "dump_rl")
 
 DEFAULTS = Defaults()
 
@@ -197,7 +200,7 @@ def main(game_name=DEFAULTS.game,
                 if os.path.isdir(x)])
         checkpoint_dir = dirs[-1]
         checkpoint_pm = util.PathManager(base_dir=checkpoint_dir)
-    params_file = os.path.join(checkpoint_pm.path, "params.json")
+    params_file = os.path.join(checkpoint_pm.path(), "params.json")
     assert os.path.exists(params_file), f"params file missing: {params_file}"
     params = json.load(open(params_file))
     param_deltas = {}
@@ -305,22 +308,32 @@ if __name__ == "__main__":
         help=f"Defender detect action cost structure.")
     parser.add_argument("--advancement-rewards", "--ar",
         help=f"Attacker advance action rewards structure.")
-    parser.add_argument("--defender_policy", "--dp", help=f"Defender policy")
-    parser.add_argument("--attacker_policy", "--ap", help=f"Attacker policy")
-    parser.add_argument("-l", "--list_policies", action="store_true",
+    def_def_policy = DEFAULTS.defender_policy
+    if DEFAULTS.defender_action_picker:
+        def_def_policy = '-'.join([def_def_policy,
+            DEFAULTS.defender_action_picker])
+    def_atk_policy = DEFAULTS.attacker_policy
+    if DEFAULTS.attacker_action_picker:
+        def_atk_policy = '-'.join([def_atk_policy,
+                DEFAULTS.attacker_action_picker])
+    parser.add_argument("--defender-policy", "--dp",
+            help=f"Defender policy ({def_def_policy})")
+    parser.add_argument("--attacker-policy", "--ap",
+            help=f"Attacker policy ({def_atk_policy})")
+    parser.add_argument("-l", "--list-policies", action="store_true",
             help="List available policies.")
-    parser.add_argument("--list-advancement-rewards", "-lar",
+    parser.add_argument("--list-advancement-rewards", "--lar",
             action="store_true", help="List attacker rewards choices.")
-    parser.add_argument("--list-detection-costs", action="store_true",
-            help="List defender costs choices.")
-    parser.add_argument("--skip-attacker-model", action="store_true",
+    parser.add_argument("--list-detection-costs", "--ldc",
+            action="store_true", help="List defender costs choices.")
+    parser.add_argument("--skip-attacker-model", "--sam", action="store_true",
             help="Omit testing the attacker's trained model since it's typically just uniform_random currently.")
-    parser.add_argument("--checkpoint_dir",
+    parser.add_argument("--checkpoint-dir",
             help=f"Directory from which to find and load RL agent checkpoints and default game parameters. (most recent in {DEFAULTS.dat_dir})")
-    parser.add_argument("-d", "--dump_dir",
+    parser.add_argument("-d", "--dump-dir",
             default=DEFAULTS.dump_dir,
             help=f"Directory in which to dump game states over iterations of the game. ({DEFAULTS.dump_dir})")
-    parser.add_argument("-n", "--no_dump", action="store_true",
+    parser.add_argument("-n", "--no-dump", action="store_true",
             help="Disable logging of game playthroughs.")
     args = parser.parse_args()
     if args.list_policies:

@@ -389,13 +389,13 @@ def main():
     if DEFAULTS.defender_action_picker:
         def_def_policy = '-'.join([def_def_policy,
             DEFAULTS.defender_action_picker])
-    parser.add_argument("--defender_policy", "--dp", default=def_def_policy,
+    parser.add_argument("--defender-policy", "--dp", default=def_def_policy,
             help=f"Defender policy ({DEFAULTS.defender_policy})")
     def_atk_policy = DEFAULTS.attacker_policy
     if DEFAULTS.attacker_action_picker:
         def_atk_policy = '-'.join([def_atk_policy,
                 DEFAULTS.attacker_action_picker])
-    parser.add_argument("--attacker_policy", "--ap", default=def_atk_policy,
+    parser.add_argument("--attacker-policy", "--ap", default=def_atk_policy,
             help=f"Attacker policy ({DEFAULTS.attacker_policy})")
     help_str = "WAIT as a possible action for both players."
     if DEFAULTS.use_waits:
@@ -418,7 +418,7 @@ def main():
     else:
         parser.add_argument("--use-chance-fail", action="store_true",
                 help=f"Use a {help_str}")
-    parser.add_argument("-l", "--list_policies", action="store_true",
+    parser.add_argument("-l", "--list-policies", action="store_true",
             help="List available policies")
     parser.add_argument("--list-advancement-rewards", "--lar",
             action="store_true", help="List attacker rewards choices")

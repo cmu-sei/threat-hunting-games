@@ -129,7 +129,7 @@ def play_episodes(env, rl_agents, fixed_agents,
             "num_episodes": num_episodes,
             "sum_rewards": list(sum_rewards),
             "sum_wins": list(sum_wins),
-            "p_means": [x / num_episodes for x in sum_rewards],
+            "r_means": [x / num_episodes for x in sum_rewards],
             "histories": histories,
         }
         tallies.append(tally)

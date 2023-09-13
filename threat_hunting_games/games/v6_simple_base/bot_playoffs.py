@@ -180,21 +180,21 @@ def main(game_name=DEFAULTS.game,
         print("Number of games played:", game_num)
         print("Number of distinct games played:", len(histories))
         if perm_dir:
-            p_means = [x / game_num for x in sum_returns]
+            r_means = [x / game_num for x in sum_returns]
             max_atk_util = utilities.max_atk_utility()
             scale_factor = 100 / max_atk_util
             sum_normalized_returns = [x * scale_factor for x in sum_returns]
-            p_means_normalized = \
+            r_means_normalized = \
                     [x / game_num for x in sum_normalized_returns]
             dump = {
                 "episodes": game_num,
                 "sum_returns": sum_returns,
                 "sum_victories": sum_victories,
                 "sum_inconclusive": sum_inconclusive,
-                "p_means": p_means,
+                "r_means": r_means,
                 "max_atk_util": max_atk_util,
                 "sum_normalized_returns": sum_normalized_returns,
-                "p_means_normalized": p_means_normalized,
+                "r_means_normalized": r_means_normalized,
                 "max_turns": game.get_parameters()["num_turns"],
             }
             dump["defender policy"] = def_policy,

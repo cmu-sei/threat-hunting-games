@@ -84,13 +84,13 @@ This script pits two bots against one another -- the attacker and
 defender -- and each bot uses a policy and action-picker. Multipe
 iterations (or episodes) can be specified and summary of the iterations
 are stored in an output directory (by default `./dump_playthroughs`).
-There are sums of returns, victories, inconclusive matches, p_means
+There are sums of returns, victories, inconclusive matches, r_means
 (averages), as well as some meta-information about the structure of the
 game itself. The returns are the overall utilities for each player.
 Victories represent the number of time the attacker completed the
 kill-chain or the defender made a successful detection (currently the
 game ends with *any* detection of *any* attacker action). The utilities
-summations are divided by the number of episodes to produce p_means.
+summations are divided by the number of episodes to produce r_means.
 `History tallies` are essentially a histogram of gagmeplay moves -- a
 `history` is a sequence of actions alternating between each player
 beginning with the attacker. If two separate episodes unfold in the
@@ -117,9 +117,9 @@ pickers for each player, advancement rewards, detection costs, use
 waits, use timewaits, use chance fail).
 
 This may or may not be useful, but the maximum attack rewards is
-calculated and this is used to scale the sums of returns and the p_means
+calculated and this is used to scale the sums of returns and the r_means
 as though the maximum rewards is 100. (`sum_normalized_returns`,
-`p_means_normalized`).
+`r_means_normalized`).
 
 As with `bot_playthrough.py`, each permutation summary has action and
 player maps to their symbolic names as well as a history tally histogram

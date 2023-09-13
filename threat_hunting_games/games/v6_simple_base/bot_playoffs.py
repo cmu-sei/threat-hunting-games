@@ -26,7 +26,7 @@ class Defaults:
     use_chance_fail: bool = arena.USE_CHANCE_FAIL
 
     dump_dir: str = os.path.join(os.path.dirname(
-        os.path.abspath(__file__)), "dump")
+        os.path.abspath(__file__)), "dump_playoffs")
 
 DEFAULTS = Defaults()
 

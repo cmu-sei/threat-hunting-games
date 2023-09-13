@@ -83,22 +83,23 @@ The Scripts
 This script pits two bots against one another -- the attacker and
 defender -- and each bot uses a policy and action-picker. Multipe
 iterations (or episodes) can be specified and summary of the iterations
-are stored in an output directory (by default `./dump`). There are sums
-of returns, victories, inconclusive matches, p_means (averages), as well
-as some meta-information about the structure of the game itself. The
-returns are the overall utilities for each player. Victories represent
-the number of time the attacker completed the kill-chain or the defender
-made a successful detection (currently the game ends with *any*
-detection of *any* attacker action). The utilities summations are
-divided by the number of episodes to produce p_means. `History tallies`
-are essentially a histogram of gagmeplay moves -- a `history` is a
-sequence of actions alternating between each player beginning with the
-attacker. If two separate episodes unfold in the exact some way, their
-count is incremented in the tally map. The symbolic names of actions are
-detailedc in the `action map`. The structure of the cost/reward
-utilities is detailed in the `utilities` field -- these are controlled
-by the `advancement-rewards` and `detection-costs` parameters. These too
-have symbolic string representations that are used on the command line.
+are stored in an output directory (by default `./dump_playthroughs`).
+There are sums of returns, victories, inconclusive matches, p_means
+(averages), as well as some meta-information about the structure of the
+game itself. The returns are the overall utilities for each player.
+Victories represent the number of time the attacker completed the
+kill-chain or the defender made a successful detection (currently the
+game ends with *any* detection of *any* attacker action). The utilities
+summations are divided by the number of episodes to produce p_means.
+`History tallies` are essentially a histogram of gagmeplay moves -- a
+`history` is a sequence of actions alternating between each player
+beginning with the attacker. If two separate episodes unfold in the
+exact some way, their count is incremented in the tally map. The
+symbolic names of actions are detailedc in the `action map`. The
+structure of the cost/reward utilities is detailed in the `utilities`
+field -- these are controlled by the `advancement-rewards` and
+`detection-costs` parameters. These too have symbolic string
+representations that are used on the command line.
 
 ### bot_playoffs.py
 
@@ -107,9 +108,8 @@ for every permutation of policy, action picker, advancement reward
 utility structure, and detection cost utility structure. For each
 permutation, multiple games/episodes are played (by default 1000) and a
 summary file is generated for that particular permutation. Optionally a
-record of each individule episode can also be stored.
-
-This also uses the `./dump` directory but can be specified elsewhere.
+record of each individule episode can also be stored. Results are stored
+in an output directory (`./dump_playoffs` by default).
 
 The summary files are similar to the `bot_playthrough.py` output. Each
 summary file has a listing of the game settings (policies and action
@@ -135,8 +135,7 @@ tested against fixed policies which can be selected via command line
 parameters. The training itself happens using a fixed policy for the
 attacker as well as the defender, so in all likelyhood will be most
 effective against those fixed policies upon which it was trained. The
-models are saved in the `dat` directory by default, rather than the
-`dump` directory..
+models are saved in the `dat` directory by default.
 
 ### rl_playthrough.py
 

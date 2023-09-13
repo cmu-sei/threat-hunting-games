@@ -1,9 +1,20 @@
 #!/bin/env python3
 
+"""
+Test saved trained models (i.e. checkpoint) against fixed agents (bot
+agents) and see what happens.
+
+The `play_episodes()` code is largely lifted from the OpenSpiel
+examples/rl_response.py evaluation method against fixed agents.
+"""
+
 import os, sys, json
 import argparse
 import collections
 import numpy as np
+# I added matplotlib import because without having imported it
+# the tensorflow import will segfault
+import matplotlib
 import tensorflow.compat.v1 as tf
 from datetime import datetime
 from glob import glob
@@ -35,7 +46,7 @@ else:
 
 @dataclass
 class Defaults:
-    game: str = "chain_game_v4_lb_seq_zsum"
+    game: str = "chain_game_v6_seq"
     iterations: int = 1000
     # Attacker will always have a two actions (whatever the next action
     # in the chain is plus its CAMO version) plus WAIT...so randomly
@@ -61,10 +72,13 @@ _expected_dqn_kwargs = set([
 
 
 def play_episodes(env, rl_agents, fixed_agents,
-        num_episodes=DEFAULTS.iterations):
+        num_episodes=DEFAULTS.iterations, skip_attacker=False):
     num_players = len(arena.Players)
     tallies = []
     for player_pos, p_name in enumerate(["attacker", "defender"]):
+        if skip_attacker and p_name == "attacker":
+            print("skipping attacker...")
+            continue
         sum_rewards = np.zeros(num_players)
         sum_wins = np.zeros(num_players + 1)
         histories = collections.defaultdict(int)
@@ -73,7 +87,9 @@ def play_episodes(env, rl_agents, fixed_agents,
         # with a fixed policy.
         cur_agents = fixed_agents[:]
         cur_agents[player_pos] = rl_agents[player_pos]
-        for _ in range(num_episodes):
+        for ep in range(num_episodes):
+            if (ep + 1) % 100 == 0:
+                print(f"episodes player {arena.p2s(player_pos)}: {ep + 1}/{num_episodes}")
             time_step = env.reset()
             episode_rewards = 0
             turn_num = 0
@@ -171,6 +187,7 @@ def main(game_name=DEFAULTS.game,
         defender_policy=None, defender_action_picker=None,
         attacker_policy=None, attacker_action_picker=None,
         use_waits=None, use_timewaits=None, use_chance_fail=None,
+        skip_attacker=False,
         dump_dir=None):
     if checkpoint_dir:
         checkpoint_pm = util.PathManager(base_dir=checkpoint_dir)
@@ -249,7 +266,7 @@ def main(game_name=DEFAULTS.game,
                 attacker_policy=attacker_policy,
                 attacker_action_picker=attacker_action_picker)
         tallies = play_episodes(env, rl_agents, fixed_agents,
-            num_episodes=iterations)
+            num_episodes=iterations, skip_attacker=skip_attacker)
         if dump_dir:
             dump_pm = util.PathManager(base_dir=dump_dir,
                 detection_costs=detection_costs,
@@ -283,26 +300,28 @@ if __name__ == "__main__":
     #        description="Name of game to play"
     parser.add_argument("-i", "--iterations", default=DEFAULTS.iterations,
             type=int,
-            help=f"Number of game episodes to play ({DEFAULTS.iterations})")
+            help=f"Number of game episodes to play. ({DEFAULTS.iterations})")
     parser.add_argument("--detection-costs", "--dc", default=None,
-        help=f"Defender detect action cost structure")
+        help=f"Defender detect action cost structure.")
     parser.add_argument("--advancement-rewards", "--ar",
-        help=f"Attacker advance action rewards structure")
+        help=f"Attacker advance action rewards structure.")
     parser.add_argument("--defender_policy", "--dp", help=f"Defender policy")
     parser.add_argument("--attacker_policy", "--ap", help=f"Attacker policy")
     parser.add_argument("-l", "--list_policies", action="store_true",
-            help="List available policies")
+            help="List available policies.")
     parser.add_argument("--list-advancement-rewards", "-lar",
-            action="store_true", help="List attacker rewards choices")
+            action="store_true", help="List attacker rewards choices.")
     parser.add_argument("--list-detection-costs", action="store_true",
-            help="List defender costs choices")
+            help="List defender costs choices.")
+    parser.add_argument("--skip-attacker-model", action="store_true",
+            help="Omit testing the attacker's trained model since it's typically just uniform_random currently.")
     parser.add_argument("--checkpoint_dir",
             help=f"Directory from which to find and load RL agent checkpoints and default game parameters. (most recent in {DEFAULTS.dat_dir})")
     parser.add_argument("-d", "--dump_dir",
             default=DEFAULTS.dump_dir,
             help=f"Directory in which to dump game states over iterations of the game. ({DEFAULTS.dump_dir})")
     parser.add_argument("-n", "--no_dump", action="store_true",
-            help="Disable logging of game playthroughs")
+            help="Disable logging of game playthroughs.")
     args = parser.parse_args()
     if args.list_policies:
         for policy_name in policies.list_policies_with_picker_strs():
@@ -343,4 +362,5 @@ if __name__ == "__main__":
         use_waits=DEFAULTS.use_waits,
         use_timewaits=DEFAULTS.use_timewaits,
         use_chance_fail=DEFAULTS.use_chance_fail,
+        skip_attacker=args.skip_attacker_model,
         dump_dir=args.dump_dir)

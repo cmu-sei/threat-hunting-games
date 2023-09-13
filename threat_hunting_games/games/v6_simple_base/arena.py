@@ -37,7 +37,7 @@ class Players(IntEnum):
     ATTACKER = 0
     DEFENDER = 1
 
-ZERO_BASED_ACTIONS = False
+ZERO_BASED_ACTIONS = True
 
 def _action_idx(val):
     # note: cant use auto()-1 because auto() returns an enum.auto which

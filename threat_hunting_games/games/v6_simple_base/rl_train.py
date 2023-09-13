@@ -390,13 +390,13 @@ def main():
         def_def_policy = '-'.join([def_def_policy,
             DEFAULTS.defender_action_picker])
     parser.add_argument("--defender-policy", "--dp", default=def_def_policy,
-            help=f"Defender policy ({DEFAULTS.defender_policy})")
+            help=f"Defender policy ({def_def_policy})")
     def_atk_policy = DEFAULTS.attacker_policy
     if DEFAULTS.attacker_action_picker:
         def_atk_policy = '-'.join([def_atk_policy,
                 DEFAULTS.attacker_action_picker])
     parser.add_argument("--attacker-policy", "--ap", default=def_atk_policy,
-            help=f"Attacker policy ({DEFAULTS.attacker_policy})")
+            help=f"Attacker policy ({def_atk_policy})")
     help_str = "WAIT as a possible action for both players."
     if DEFAULTS.use_waits:
         parser.add_argument("--no-waits", action="store_true",

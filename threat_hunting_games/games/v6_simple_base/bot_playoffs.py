@@ -167,13 +167,15 @@ def main(game_name=DEFAULTS.game,
             cls = policies.get_policy_class(def_policy)
             if hasattr(cls, "default_action_picker"):
                 def_ap = cls.default_action_picker()
-                def_policy_str += f"/{def_ap}"
+        if def_ap:
+            def_policy_str += f"/{def_ap}"
         atk_policy_str = atk_policy
         if not atk_ap:
             cls = policies.get_policy_class(atk_policy)
             if hasattr(cls, "default_action_picker"):
                 atk_ap = cls.default_action_picker()
-                atk_policy_str += f"/{atk_ap}"
+        if atk_ap:
+            atk_policy_str += f"/{atk_ap}"
         print(f"\nPermutation {perm_cnt}/{iterations}:")
         print(f"Defender policy: {def_policy_str}, {det_costs}")
         print(f"Attacker policy: {atk_policy_str}, {adv_rewards}")

@@ -48,7 +48,7 @@ from open_spiel.python.bots.policy import PolicyBot
 
 from threat_hunting_games.games import game_name
 import arena
-import policies, util
+import policies, util, std_args
 from arena import debug
 from bot_agent import BotAgent
 
@@ -75,8 +75,8 @@ class Defaults:
     dat_dir: str = def_dat_dir
 
     # Player policies
-    detection_costs: str = "flat"
-    advancement_rewards: str = "flat"
+    detection_costs: str = arena.Default_Detection_Costs
+    advancement_rewards: str = arena.Default_Advancement_Rewards
     defender_policy: str = def_defender_policy
     defender_action_picker: str|None = def_defender_action_picker
     attacker_policy: str = def_attacker_policy
@@ -214,14 +214,17 @@ def train(
   if not no_checkpoint_dir:
       cp_pm = util.PathManager(base_dir=checkpoint_base_dir,
               game_name=game_name, model="dqn")
-  kwargs_file = None
+  kwargs_file = train_log_file = None
   if cp_pm:
     for d in cp_pm.checkpoint_dirs:
       if not os.path.exists(d):
         os.makedirs(d)
     kwargs_file = os.path.join(cp_pm.path(), "params.json")
-  if os.path.exists(kwargs_file):
+    train_log_file = os.path.join(cp_pm.path(), "train_log.txt")
+    if os.path.exists(kwargs_file):
       os.remove(kwargs_file)
+    if os.path.exists(train_log_file):
+      os.remove(train_log_file)
   if isinstance(hidden_layers_sizes, str):
       hidden_layers_sizes = [int(x) for x in hidden_layers_sizes.split(',')]
   assert len(hidden_layers_sizes) == 3
@@ -315,6 +318,8 @@ def train(
 
     print("Starting...")
 
+    train_log_fh = open(train_log_file, 'w') if train_log_file else None
+
     for ep in range(num_train_episodes):
       if (ep + 1) % 100 == 0:
           print(f"training episodes: {ep + 1}/{num_train_episodes}")
@@ -332,10 +337,11 @@ def train(
         total_value += value
         total_value_n += 1
         avg_value = total_value / total_value_n
-        print(("[{}] Mean episode rewards {}, value: {}, " +
-               "rval: {} (p0/p1: {} / {}), aval: {}").format(
-                   ep + 1, r_mean, value, rolling_value, rolling_value_p0,
-                   rolling_value_p1, avg_value))
+        status_str = f"[{ep + 1}] Mean episode rewards {r_mean}, value: {value}, rval: {rolling_value} (p0/p1: {rolling_value_p0} / {rolling_value_p1}), aval: {avg_value}"
+        print(status_str)
+        if train_log_fh:
+          print(status_str, file=train_log_fh)
+          train_log_fh.flush()
 
       # in each round a learning agent goes against a fixed agent for
       # the other player
@@ -379,51 +385,8 @@ def main():
         description=f"Train DQN models against fixed policies")
     #parser.add_argument("-g", "--game", default=default_game,
     #        description="Name of game to play"
-    parser.add_argument("--detection-costs", "--dc",
-            default=DEFAULTS.detection_costs,
-            help=f"Defender detect action cost structure ({DEFAULTS.detection_costs})")
-    parser.add_argument("--advancement-rewards", "--ar",
-            default=DEFAULTS.advancement_rewards,
-            help=f"Attacker advance action rewards structure ({DEFAULTS.advancement_rewards})")
-    def_def_policy = DEFAULTS.defender_policy
-    if DEFAULTS.defender_action_picker:
-        def_def_policy = '-'.join([def_def_policy,
-            DEFAULTS.defender_action_picker])
-    parser.add_argument("--defender-policy", "--dp", default=def_def_policy,
-            help=f"Defender policy ({def_def_policy})")
-    def_atk_policy = DEFAULTS.attacker_policy
-    if DEFAULTS.attacker_action_picker:
-        def_atk_policy = '-'.join([def_atk_policy,
-                DEFAULTS.attacker_action_picker])
-    parser.add_argument("--attacker-policy", "--ap", default=def_atk_policy,
-            help=f"Attacker policy ({def_atk_policy})")
-    help_str = "WAIT as a possible action for both players."
-    if DEFAULTS.use_waits:
-        parser.add_argument("--no-waits", action="store_true",
-                help=f"Exclude {help_str}")
-    else:
-        parser.add_argument("--use-waits", action="store_true",
-            help=f"Include {help_str}")
-    help_str = "IN_PROGRESS actions (random within a range hard   coded in arena.py per action) prior to finalizing an action."
-    if DEFAULTS.use_timewaits:
-        parser.add_argument("--no-timewaits", action="store_true",
-                help=f"Exclude {help_str}")
-    else:
-        parser.add_argument("--use-timewaits", action="store_true",
-                help=f"Include {help_str}")
-    help_str = "general percent failure for actions as well as a p  ercent failure for actions applied to their corresponding action of the other   player (percentages hard coded in arena.py)."
-    if DEFAULTS.use_chance_fail:
-        parser.add_argument("--no-chance-fail", action="store_true",
-                help=f"Disable using a {help_str}")
-    else:
-        parser.add_argument("--use-chance-fail", action="store_true",
-                help=f"Use a {help_str}")
-    parser.add_argument("-l", "--list-policies", action="store_true",
-            help="List available policies")
-    parser.add_argument("--list-advancement-rewards", "--lar",
-            action="store_true", help="List attacker rewards choices")
-    parser.add_argument("--list-detection-costs", "--ldc", action="store_true",
-            help="List defender costs choices")
+
+    std_args.add_std_args(DEFAULTS, parser)
 
     # Training parameters
     parser.add_argument("--checkpoint_base_dir",
@@ -458,58 +421,24 @@ def main():
     parser.add_argument("--window_size", default=DEFAULTS.window_size, type=int,
             help=f"Size of window for rolling average. ({DEFAULTS.window_size})")
     args = parser.parse_args()
-    if args.list_policies:
-        for policy_name in policies.list_policies_with_pickers_strs():
-            print("  ", policy_name)
-        sys.exit()
-    if args.list_detection_costs:
-        for dc in arena.list_detection_utilities():
-            print("  ", dc)
-        sys.exit()
-    if args.list_advancement_rewards:
-        for au in arena.list_advancement_utilities():
-            print("  ", au)
-        sys.exit()
-    try:
-        use_waits = args.use_waits
-    except AttributeError:
-        use_waits = not args.no_waits
-    try:
-        use_timewaits = args.use_timewaits
-    except AttributeError:
-        use_timewaits = not args.no_timewaits
-    try:
-        use_chance_fail = args.use_chance_fail
-    except AttributeError:
-        use_chance_fail = not args.no_chance_fail
+
+    param_values = std_args.handle_std_args(args)
+
     hidden_layers_sizes = \
             [int(x) for x in args.hidden_layers_sizes.split(',')]
     assert len(hidden_layers_sizes) == 3
 
-    def_policy = def_action_picker = None
-    def_pol_parts = args.defender_policy.split('-')
-    if len(def_pol_parts) > 1:
-        def_policy, def_action_picker = def_pol_parts
-    else:
-        def_policy = def_pol_parts[0]
-    atk_policy = atk_action_picker = None
-    atk_pol_parts = args.attacker_policy.split('-')
-    if len(atk_pol_parts) > 1:
-        atk_policy, atk_action_picker = atk_pol_parts
-    else:
-        atk_policy = atk_pol_parts[0]
-
     train(
         game_name=DEFAULTS.game,
-        detection_costs=args.detection_costs,
-        advancement_rewards=args.advancement_rewards,
-        defender_policy=def_policy,
-        defender_action_picker=def_action_picker,
-        attacker_policy=atk_policy,
-        attacker_action_picker=atk_action_picker,
-        use_waits=use_waits,
-        use_timewaits=use_timewaits,
-        use_chance_fail=use_chance_fail,
+        detection_costs=param_values["detection_costs"],
+        advancement_rewards=param_values["advancement_rewards"],
+        defender_policy=param_values["defender_policy"],
+        defender_action_picker=param_values["defender_action_picker"],
+        attacker_policy=param_values["attacker_policy"],
+        attacker_action_picker=param_values["attacker_action_picker"],
+        use_waits=param_values["use_waits"],
+        use_timewaits=param_values["use_timewaits"],
+        use_chance_fail=param_values["use_chance_fail"],
         checkpoint_base_dir=args.checkpoint_base_dir,
         no_checkpoint_dir=args.no_checkpoint_dir,
         save_every=args.save_every,

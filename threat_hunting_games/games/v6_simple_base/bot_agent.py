@@ -32,6 +32,11 @@ class BotAgent(rl_agent.AbstractAgent):
     assert num_actions > 0
     self._bot = bot
     self._num_actions = num_actions
+    self._name = name
+
+  @property
+  def name(self):
+      return self._name
 
   def restart(self):
     self._bot.restart()

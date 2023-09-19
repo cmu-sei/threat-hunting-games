@@ -4,16 +4,20 @@
 **/tmp/
 **/dat/
 **/dump/
+**/dump_playthroughs
+**/dump_playoffs
 
 # vim detritus
 **/*.swp
 
 # For pycharm IDE users
 .idea
+
 # For pytest previous tests cache
 .pytest_cache
 # Another cache
 **/.mypy_cache/
+
 # For the virtual environment
 venv
 # For Data files from spinning up the containers

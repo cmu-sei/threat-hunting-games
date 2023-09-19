@@ -11,7 +11,7 @@ import pyspiel
 from open_spiel.python.bots.policy import PolicyBot
 #from policy import PolicyBot
 
-import arena, policies, util
+import arena, policies, util, std_args
 from threat_hunting_games import games
 from arena import debug
 
@@ -75,7 +75,7 @@ def play_game(game, bots):
         history.append(int(action))
         state.apply_action(action)
     returns = state.returns()
-    print("Returns:", " ".join(map(str, returns)))
+    #print("Returns:", " ".join(map(str, returns)))
     return state.turns_played(), returns, state.victor(), history
 
 def main(game_name=DEFAULTS.game,
@@ -187,23 +187,27 @@ def main(game_name=DEFAULTS.game,
         cls = policies.get_policy_class(defender_policy)
         if hasattr(cls, "default_action_picker"):
             defender_action_picker = cls.default_action_picker()
-            defender_policy_str += f"/{defender_action_picker}"
+    if defender_action_picker:
+        defender_policy_str += f"/{defender_action_picker}"
     attacker_policy_str = attacker_policy
     if not attacker_action_picker:
         cls = policies.get_policy_class(attacker_policy)
         if hasattr(cls, "default_action_picker"):
             attacker_action_picker = cls.default_action_picker()
-            attacker_policy_str += f"/{attacker_action_picker}"
+    if attacker_action_picker:
+        attacker_policy_str += f"/{attacker_action_picker}"
     print(f"Defender policy and costs: {defender_policy_str}, {detection_costs}")
     print(f"Attacker policy and rewards: {attacker_policy_str}, {advancement_rewards}")
     print("Number of games played:", game_num)
     print("Number of distinct games played:", len(histories))
+    print(f"Total returns: {sum_returns}")
+    print(f"r_means: [{sum_returns[0] / game_num}, {sum_returns[1] / game_num}]")
     if dump_pm:
         dump = {
             "sum_returns": returns,
             "sum_victories": sum_victories,
             "sum_inconclusive": sum_inconclusive,
-            "p_means": [
+            "r_means": [
                 sum_returns[0] / game_num,
                 sum_returns[1] / game_num,
             ],
@@ -234,51 +238,9 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--iterations", default=DEFAULTS.iterations,
             type=int,
             help=f"Number of games to play ({DEFAULTS.iterations})")
-    parser.add_argument("--detection-costs", "--dc",
-            default=DEFAULTS.detection_costs,
-            help=f"Defender detect action cost structure ({DEFAULTS.detection_costs})")
-    parser.add_argument("--advancement-rewards", "--ar",
-            default=DEFAULTS.advancement_rewards,
-            help=f"Attacker advance action rewards structure ({DEFAULTS.advancement_rewards})")
-    def_def_policy = DEFAULTS.defender_policy
-    if DEFAULTS.defender_action_picker:
-        def_def_policy = '-'.join([def_def_policy,
-            DEFAULTS.defender_action_picker])
-    parser.add_argument("--defender-policy", "--dp", default=def_def_policy,
-            help=f"Defender policy ({DEFAULTS.defender_policy})")
-    def_atk_policy = DEFAULTS.attacker_policy
-    if DEFAULTS.attacker_action_picker:
-        def_atk_policy = '-'.join([def_atk_policy,
-                DEFAULTS.attacker_action_picker])
-    parser.add_argument("--attacker-policy", "--ap", default=def_atk_policy,
-            help=f"Attacker policy ({DEFAULTS.attacker_policy})")
-    parser.add_argument("-l", "--list-policies", action="store_true",
-            help="List available policies")
-    help_str = "WAIT as a possible action for both players."
-    if DEFAULTS.use_waits:
-        parser.add_argument("--no-waits", action="store_true",
-                help=f"Exclude {help_str}")
-    else:
-        parser.add_argument("--use-waits", action="store_true",
-            help=f"Include {help_str}")
-    help_str = "IN_PROGRESS actions (random within a range hard   coded in arena.py per action) prior to finalizing an action."
-    if DEFAULTS.use_timewaits:
-        parser.add_argument("--no-timewaits", action="store_true",
-                help=f"Exclude {help_str}")
-    else:
-        parser.add_argument("--use-timewaits", action="store_true",
-                help=f"Include {help_str}")
-    help_str = "general percent failure for actions as well as a p  ercent failure for actions applied to their corresponding action of the other   player (percentages hard coded in arena.py)."
-    if DEFAULTS.use_chance_fail:
-        parser.add_argument("--no-chance-fail", action="store_true",
-                help=f"Disable using a {help_str}")
-    else:
-        parser.add_argument("--use-chance-fail", action="store_true",
-                help=f"Use a {help_str}")
-    parser.add_argument("--list-advancement-rewards", "-lar",
-            action="store_true", help="List attacker rewards choices")
-    parser.add_argument("--list-detection-costs", action="store_true",
-            help="List defender costs choices")
+
+    std_args.add_std_args(DEFAULTS, parser)
+
     parser.add_argument("-d", "--dump-dir",
             default=DEFAULTS.dump_dir,
             help=f"Directory in which to dump game states over iterations of the game. ({DEFAULTS.dump_dir})")
@@ -299,41 +261,20 @@ if __name__ == "__main__":
         sys.exit()
     if args.no_dump:
         args.dump_dir = None
-    def_policy = def_action_picker = None
-    def_pol_parts = args.defender_policy.split('-')
-    if len(def_pol_parts) > 1:
-        def_policy, def_action_picker = def_pol_parts
-    else:
-        def_policy = def_pol_parts[0]
-    atk_policy = atk_action_picker = None
-    atk_pol_parts = args.attacker_policy.split('-')
-    if len(atk_pol_parts) > 1:
-        atk_policy, atk_action_picker = atk_pol_parts
-    else:
-        atk_policy = atk_pol_parts[0]
-    try:
-        use_waits = args.use_waits
-    except AttributeError:
-        use_waits = not args.no_waits
-    try:
-        use_timewaits = args.use_timewaits
-    except AttributeError:
-        use_timewaits = not args.no_timewaits
-    try:
-        use_chance_fail = args.use_chance_fail
-    except AttributeError:
-        use_chance_fail = not args.no_chance_fail
+
+    param_values = std_args.handle_std_args(args)
+
     main(
         game_name=DEFAULTS.game,
         iterations=args.iterations,
-        detection_costs=args.detection_costs,
-        advancement_rewards=args.advancement_rewards,
-        defender_policy=def_policy,
-        defender_action_picker=def_action_picker,
-        attacker_policy=atk_policy,
-        attacker_action_picker=atk_action_picker,
-        use_waits=use_waits,
-        use_timewaits=use_timewaits,
-        use_chance_fail=use_chance_fail,
+        detection_costs=param_values["detection_costs"],
+        advancement_rewards=param_values["advancement_rewards"],
+        defender_policy=param_values["defender_policy"],
+        defender_action_picker=param_values["defender_action_picker"],
+        attacker_policy=param_values["attacker_policy"],
+        attacker_action_picker=param_values["attacker_action_picker"],
+        use_waits=param_values["use_waits"],
+        use_timewaits=param_values["use_timewaits"],
+        use_chance_fail=param_values["use_chance_fail"],
         dump_dir = args.dump_dir,
     )

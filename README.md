@@ -96,7 +96,10 @@ For NVIDIA GPU support:
   * [TensorRT](https://docs.nvidia.com/deeplearning/tensorrt/api/python_api/index.html)
   * [PyCUDA](https://wiki.tiker.net/PyCuda/Installation/Linux/)
 
-  $ # see the above link for installing NVIDA CUDA Toolkit
+  # search for the latest cuda-tools package
+  $ dnf search cuda
+  # in this case it was 12.2
+  $ sudo dnf install cuda-tools-12-2
   $ pip install pyCUDA
   $ pip install tensorRT
 
@@ -161,3 +164,5 @@ package names:
   * readline: readline-devel
   * sqlite3: sqlite-devel
   * lzma: xz-devvel
+  * tmux: tmux -- detatched terminal for long-running RL training of
+    models

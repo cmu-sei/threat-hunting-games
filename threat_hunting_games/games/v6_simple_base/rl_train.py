@@ -22,6 +22,10 @@
 This can be used to try to find exploits in policies or bots, as described in
 Timbers et al. '20 (https://arxiv.org/abs/2004.09677), but only using RL
 directly rather than RL+Search.
+
+NOTE: the portions of this code based on the OpenSpiel
+      examples/rl_response.py have retained the two spaced indentation
+      for easier comparison with that original code.
 """
 
 import os, sys, json
@@ -44,7 +48,8 @@ from open_spiel.python.bots.policy import PolicyBot
 
 from threat_hunting_games.games import game_name
 import arena
-import policies, util
+import policies, util, std_args
+from arena import debug
 from bot_agent import BotAgent
 
 def_defender_policy = "simple_random"
@@ -52,7 +57,7 @@ def_dp_class = policies.get_policy_class(def_defender_policy)
 if hasattr(def_dp_class, "default_action_picker"):
     def_defender_action_picker = def_dp_class.default_action_picker()
 else:
-      def_defender_action_picker = None
+    def_defender_action_picker = None
 def_attacker_policy = "uniform_random"
 def_ap_class = policies.get_policy_class(def_attacker_policy)
 if hasattr(def_ap_class, "default_action_picker"):
@@ -66,15 +71,15 @@ def_dat_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dat")
 @dataclass
 class Defaults:
 
-    game: str ="chain_game_v4_lb_seq_zsum"
+    game: str ="chain_game_v6_seq"
     dat_dir: str = def_dat_dir
 
     # Player policies
-    detection_costs: str = "flat"
-    advancement_rewards: str = "flat"
-    defender_policy: str = "uniform_random"
+    detection_costs: str = arena.Default_Detection_Costs
+    advancement_rewards: str = arena.Default_Advancement_Rewards
+    defender_policy: str = def_defender_policy
     defender_action_picker: str|None = def_defender_action_picker
-    attacker_policy: str = "simple_random"
+    attacker_policy: str = def_attacker_policy
     attacker_action_picker: str|None = def_attacker_action_picker
     use_waits: bool = arena.USE_WAITS
     use_timewaits: bool = arena.USE_TIMEWAITS
@@ -109,7 +114,9 @@ def eval_against_fixed_bots(env, trained_agents, fixed_agents, num_episodes):
   for player_pos in range(num_players):
     cur_agents = fixed_agents[:]
     cur_agents[player_pos] = trained_agents[player_pos]
-    for _ in range(num_episodes):
+    for ep in range(num_episodes):
+      if (ep + 1) % 100 == 0:
+          print(f"  eval episode {arena.p2s(player_pos)}: {ep + 1}/{num_episodes}")
       time_step = env.reset()
       episode_rewards = 0
       turn_num = 0
@@ -207,31 +214,48 @@ def train(
   if not no_checkpoint_dir:
       cp_pm = util.PathManager(base_dir=checkpoint_base_dir,
               game_name=game_name, model="dqn")
-  kwargs_file = None
+  kwargs_file = train_log_file = None
   if cp_pm:
     for d in cp_pm.checkpoint_dirs:
       if not os.path.exists(d):
         os.makedirs(d)
     kwargs_file = os.path.join(cp_pm.path(), "params.json")
-  if os.path.exists(kwargs_file):
+    train_log_file = os.path.join(cp_pm.path(), "train_log.txt")
+    if os.path.exists(kwargs_file):
       os.remove(kwargs_file)
+    if os.path.exists(train_log_file):
+      os.remove(train_log_file)
   if isinstance(hidden_layers_sizes, str):
       hidden_layers_sizes = [int(x) for x in hidden_layers_sizes.split(',')]
   assert len(hidden_layers_sizes) == 3
-  print("GAME PARAMS:", {
+  execution_params = {
+      "save_every": save_every,
+      "num_train_episodes": num_train_episodes,
+      "eval_every": eval_every,
+      "eval_episodes": eval_episodes,
+      "hidden_layers_sizes": hidden_layers_sizes,
+      "replay_buffer_capacity": replay_buffer_capacity,
+      "batch_size": batch_size,
+      "seed": seed,
+      "window_size": window_size,
+  }
+  game_params = {
         "advancement_rewards": advancement_rewards,
         "detection_costs": detection_costs,
         "use_waits": int(use_waits),
         "use_timewaits": int(use_timewaits),
         "use_chance_fail": int(use_chance_fail),
-    })
-  game = pyspiel.load_game(game_name, {
-      "advancement_rewards": advancement_rewards,
-      "detection_costs": detection_costs,
-      "use_waits": int(use_waits),
-      "use_timewaits": int(use_timewaits),
-      "use_chance_fail": int(use_chance_fail),
-  })
+  }
+  policy_params = {
+        "defender_policy": defender_policy,
+        "defender_action_picker": defender_action_picker or "n/a",
+        "attacker_policy": attacker_policy,
+        "attacker_action_picker": attacker_action_picker or "n/a",
+  }
+  print("GAME PARAMS:\n", json.dumps(game_params, indent=2))
+  print("POLICY PARAMS:\n", json.dumps(policy_params, indent=2))
+  print("EXECUTION PARAMS:\n", json.dumps(execution_params, indent=2))
+  game = pyspiel.load_game(game_name, game_params)
   def_bot = util.get_player_bot(game,
           arena.Players.DEFENDER, defender_policy)
   atk_bot = util.get_player_bot(game,
@@ -272,7 +296,6 @@ def train(
     sess.run(tf.global_variables_initializer())
 
     def _save_checkpoints():
-        print("Saving checkpoints...")
         for i, agent in enumerate(learning_agents):
             agent.save(cp_pm.checkpoint_dirs[i])
         if not os.path.exists(kwargs_file):
@@ -295,8 +318,13 @@ def train(
 
     print("Starting...")
 
+    train_log_fh = open(train_log_file, 'w') if train_log_file else None
+
     for ep in range(num_train_episodes):
+      if (ep + 1) % 100 == 0:
+          print(f"training episodes: {ep + 1}/{num_train_episodes}")
       if (ep + 1) % eval_every == 0:
+        print("evaluating against fixed agents: episode", ep + 1)
         r_mean = eval_against_fixed_bots(env, learning_agents,
                 exploitee_agents, eval_episodes)
         value = r_mean[0] + r_mean[1]
@@ -309,10 +337,11 @@ def train(
         total_value += value
         total_value_n += 1
         avg_value = total_value / total_value_n
-        print(("[{}] Mean episode rewards {}, value: {}, " +
-               "rval: {} (p0/p1: {} / {}), aval: {}").format(
-                   ep + 1, r_mean, value, rolling_value, rolling_value_p0,
-                   rolling_value_p1, avg_value))
+        status_str = f"[{ep + 1}] Mean episode rewards {r_mean}, value: {value}, rval: {rolling_value} (p0/p1: {rolling_value_p0} / {rolling_value_p1}), aval: {avg_value}"
+        print(status_str)
+        if train_log_fh:
+          print(status_str, file=train_log_fh)
+          train_log_fh.flush()
 
       # in each round a learning agent goes against a fixed agent for
       # the other player
@@ -320,6 +349,7 @@ def train(
       agents_round2 = [exploitee_agents[0], learning_agents[1]]
 
       if cp_pm and (ep + 1) % save_every == 0:
+          print("saving checkpoints: episode", ep + 1)
           _save_checkpoints()
 
       for agents in [agents_round1, agents_round2]:
@@ -340,12 +370,13 @@ def train(
         for agent in agents:
           agent.step(time_step)
 
-      if (ep + 1) % eval_every != 0:
-         # only if we ended after some leftover iterations
-         _save_checkpoints()
+    if (ep + 1) % eval_every != 0:
+       # only if we ended after some leftover iterations
+       print("saving remaining checkpoints: episode", ep + 1)
+       _save_checkpoints()
 
     if cp_pm:
-      print(f"Checkpoints saved  into: {cp_pm.path}")
+      print(f"checkpoints saved  into: {cp_pm.path}")
 
 
 def main():
@@ -354,38 +385,8 @@ def main():
         description=f"Train DQN models against fixed policies")
     #parser.add_argument("-g", "--game", default=default_game,
     #        description="Name of game to play"
-    parser.add_argument("--detection-costs", "--dc",
-            default=DEFAULTS.detection_costs,
-            help=f"Defender detect action cost structure ({DEFAULTS.detection_costs})")
-    parser.add_argument("--advancement-rewards", "--ar",
-            default=DEFAULTS.advancement_rewards,
-            help=f"Attacker advance action rewards structure ({DEFAULTS.advancement_rewards})")
-    def_def_policy = DEFAULTS.defender_policy
-    if DEFAULTS.defender_action_picker:
-        def_def_policy = '-'.join([def_def_policy,
-            DEFAULTS.defender_action_picker])
-    parser.add_argument("--defender_policy", "--dp", default=def_def_policy,
-            help=f"Defender policy ({DEFAULTS.defender_policy})")
-    def_atk_policy = DEFAULTS.attacker_policy
-    if DEFAULTS.attacker_action_picker:
-        def_atk_policy = '-'.join([def_atk_policy,
-                DEFAULTS.attacker_action_picker])
-    parser.add_argument("--attacker_policy", "--ap", default=def_atk_policy,
-            help=f"Attacker policy ({DEFAULTS.attacker_policy})")
-    parser.add_argument("--use-waits", "--uw", default=DEFAULTS.use_waits,
-            help=f"Include WAIT as a possible action choice for both players ({DEFAULTS.use_waits})")
-    #parser.add_argument("--use-timewaits", "--utw",
-    #        default=DEFAULTS.use_timewaits, help=f"Include IN_PROGRESS actions to potentially delay turns before fufillment of an action for both players ({DEFAULTS.use_timewaits})")
-    #parser.add_argument("--use-chance-fail", "--ucf",
-    #        default=DEFAULTS.use_chance_fail, help=f"Include a general chance of failure for an action as well as chance of failure for action opposed to action for both players ({DEFAULTS.use_chance_fail})")
-    #parser.add_argument("--use-waits", "--uw", default=DEFAULTS.use_waits,
-    #        help=f"Include WAIT as a possible action choice for both players ({DEFAULTS.use_waits}))
-    parser.add_argument("-l", "--list_policies", action="store_true",
-            help="List available policies")
-    parser.add_argument("--list-advancement-rewards", "-lar",
-            action="store_true", help="List attacker rewards choices")
-    parser.add_argument("--list-detection-costs", action="store_true",
-            help="List defender costs choices")
+
+    std_args.add_std_args(DEFAULTS, parser)
 
     # Training parameters
     parser.add_argument("--checkpoint_base_dir",
@@ -420,44 +421,24 @@ def main():
     parser.add_argument("--window_size", default=DEFAULTS.window_size, type=int,
             help=f"Size of window for rolling average. ({DEFAULTS.window_size})")
     args = parser.parse_args()
-    if args.list_policies:
-        for policy_name in policies.list_policies_with_pickers_strs():
-            print("  ", policy_name)
-        sys.exit()
-    if args.list_detection_costs:
-        for dc in arena.list_detection_utilities():
-            print("  ", dc)
-        sys.exit()
-    if args.list_advancement_rewards:
-        for au in arena.list_advancement_utilities():
-            print("  ", au)
-        sys.exit()
+
+    param_values = std_args.handle_std_args(args)
 
     hidden_layers_sizes = \
             [int(x) for x in args.hidden_layers_sizes.split(',')]
     assert len(hidden_layers_sizes) == 3
 
-    def_policy = def_action_picker = None
-    def_pol_parts = args.defender_policy.split('-')
-    if len(def_pol_parts) > 1:
-        def_policy, def_action_picker = def_pol_parts
-    else:
-        def_policy = def_pol_parts[0]
-    atk_policy = atk_action_picker = None
-    atk_pol_parts = args.attacker_policy.split('-')
-    if len(atk_pol_parts) > 1:
-        atk_policy, atk_action_picker = atk_pol_parts
-    else:
-        atk_policy = atk_pol_parts[0]
-
     train(
         game_name=DEFAULTS.game,
-        detection_costs=args.detection_costs,
-        advancement_rewards=args.advancement_rewards,
-        defender_policy=def_policy,
-        defender_action_picker=def_action_picker,
-        attacker_policy=atk_policy,
-        attacker_action_picker=atk_action_picker,
+        detection_costs=param_values["detection_costs"],
+        advancement_rewards=param_values["advancement_rewards"],
+        defender_policy=param_values["defender_policy"],
+        defender_action_picker=param_values["defender_action_picker"],
+        attacker_policy=param_values["attacker_policy"],
+        attacker_action_picker=param_values["attacker_action_picker"],
+        use_waits=param_values["use_waits"],
+        use_timewaits=param_values["use_timewaits"],
+        use_chance_fail=param_values["use_chance_fail"],
         checkpoint_base_dir=args.checkpoint_base_dir,
         no_checkpoint_dir=args.no_checkpoint_dir,
         save_every=args.save_every,

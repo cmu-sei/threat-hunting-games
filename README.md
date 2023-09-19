@@ -74,24 +74,43 @@ Some of the examples and algorithms use the following python modules:
 
   * [TensorFlow](https://www.tensorflow.org/install/pip)
   * [PyTorch](https://pytorch.org/)
+  * [matplotlib](https://matplotlib.org/)
   * [JAX](https://github.com/google/jax)
   * [pandas](https://pandas.pydata.org/)
   * [CVXOPT](https://cvxopt.org/)
 
   $ pip install tensorflow
   $ pip install torch
+  $ pip install matplotlib
   $ pip install jax
   $ pip install pandas
   $ pip install cvxopt
 
 note: pytorch should have CUDA libraries included;  enabling Nvidia support for tensor flow might involve [more steps](https://www.nvidia.com/en-sg/data-center/gpu-accelerated-applications/tensorflow/)
 
+note: matplotlib is included because tensorflow will segfault without it being imported first on some systems
+
+For NVIDIA GPU support:
+
+  * [NVIDIA CUDA Toolkit](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
+  * [TensorRT](https://docs.nvidia.com/deeplearning/tensorrt/api/python_api/index.html)
+  * [PyCUDA](https://wiki.tiker.net/PyCuda/Installation/Linux/)
+
+  # search for the latest cuda-tools package
+  $ dnf search cuda
+  # in this case it was 12.2
+  $ sudo dnf install cuda-tools-12-2
+  $ pip install pyCUDA
+  $ pip install tensorRT
+
+note: the NVIDA related libraries take up substantial disk space.
+
 Some of the examples involving Nash-equilibria require the following
 system packages:
 
   * [lrsnash](https://manpages.ubuntu.com/manpages/jammy/man1/lrsnash.1.html) (`apt install lrsnash`)
 
-### Additional build dependencies
+### Additional Build Dependencies
 
 To keep code quality high and catch mistakes early, this project uses
 several code analysis tools. Links are to the PyPI page unless noted;
@@ -130,3 +149,20 @@ The --local flag is used if you are running the tests on a local system rather t
 threat-hunting-games container. \
 The --test flag is used if you are running test cases thus the simulation files are not saved.
 #### As a note currently the final 3 tests fail due to being unable to successfully remove machines from GHOSTS. Working on a fix for this issue actively*
+
+### Useful System Libraries (technically optional)
+
+In order to maximize the happiness of the pyenv python installs, there
+are some useful development libraries that can be installed on the
+system. Whereas they aren't strictly required for this project, they can
+be useful in a more general since. These are listed with their RHEL
+package names:
+
+  * bzip2: bzip2-devel
+  * ncurses: ncurses-devel
+  * libffi: libffi-devel
+  * readline: readline-devel
+  * sqlite3: sqlite-devel
+  * lzma: xz-devvel
+  * tmux: tmux -- detatched terminal for long-running RL training of
+    models

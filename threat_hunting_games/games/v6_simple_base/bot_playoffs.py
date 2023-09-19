@@ -26,7 +26,7 @@ class Defaults:
     use_chance_fail: bool = arena.USE_CHANCE_FAIL
 
     dump_dir: str = os.path.join(os.path.dirname(
-        os.path.abspath(__file__)), "dump")
+        os.path.abspath(__file__)), "dump_playoffs")
 
 DEFAULTS = Defaults()
 
@@ -52,12 +52,10 @@ def play_game(game, bots):
     debug("Returns:", " ".join(map(str, returns)))
     return state.turns_played(), returns, state.victor(), history
 
-def permutations():
+def permutations(attacker_all=False):
     for def_policy, def_ap in policies.list_policies_with_pickers():
         for atk_policy, atk_ap in policies.list_policies_with_pickers():
-            if "first_action" in (def_policy, atk_policy):
-                # this particular policy is probably not of much
-                # interest
+            if not attacker_all and atk_policy != "uniform_random":
                 continue
             for detection_costs in arena.list_detection_utilities():
                 for advancement_rewards in arena.list_advancement_utilities():
@@ -66,6 +64,7 @@ def permutations():
 
 def main(game_name=DEFAULTS.game,
         iterations=DEFAULTS.iterations,
+        attacker_all=False,
         use_waits=DEFAULTS.use_waits,
         use_timewaits=DEFAULTS.use_timewaits,
         use_chance_fail=DEFAULTS.use_chance_fail,
@@ -85,7 +84,7 @@ def main(game_name=DEFAULTS.game,
         timestamp = dump_pm.timestamp
     perm_cnt = 0
     for def_policy, def_ap, atk_policy, atk_ap, det_costs, adv_rewards \
-            in permutations():
+            in permutations(attacker_all=attacker_all):
         key = (def_policy, def_ap, atk_policy, atk_ap, det_costs, adv_rewards)
         if key in perms_seen:
             continue
@@ -163,39 +162,41 @@ def main(game_name=DEFAULTS.game,
                 df = os.path.join(games_dir, iter_fmt % game_num)
                 with open(df, 'w') as dfh:
                     json.dump(dump, dfh, indent=2)
+        def_policy_str = def_policy
         if not def_ap:
             cls = policies.get_policy_class(def_policy)
             if hasattr(cls, "default_action_picker"):
                 def_ap = cls.default_action_picker()
-            else:
-                def_ap = "n/a"
+        if def_ap:
+            def_policy_str += f"/{def_ap}"
+        atk_policy_str = atk_policy
         if not atk_ap:
             cls = policies.get_policy_class(atk_policy)
             if hasattr(cls, "default_action_picker"):
                 atk_ap = cls.default_action_picker()
-            else:
-                atk_ap = "n/a"
-        print(f"\nPermutation {perm_cnt}:")
-        print(f"Defender policy: {def_policy}, {def_ap}, {det_costs}")
-        print(f"Attacker policy: {atk_policy}, {atk_ap}, {adv_rewards}")
+        if atk_ap:
+            atk_policy_str += f"/{atk_ap}"
+        print(f"\nPermutation {perm_cnt}/{iterations}:")
+        print(f"Defender policy: {def_policy_str}, {det_costs}")
+        print(f"Attacker policy: {atk_policy_str}, {adv_rewards}")
         print("Number of games played:", game_num)
         print("Number of distinct games played:", len(histories))
         if perm_dir:
-            p_means = [x / game_num for x in sum_returns]
+            r_means = [x / game_num for x in sum_returns]
             max_atk_util = utilities.max_atk_utility()
             scale_factor = 100 / max_atk_util
             sum_normalized_returns = [x * scale_factor for x in sum_returns]
-            p_means_normalized = \
+            r_means_normalized = \
                     [x / game_num for x in sum_normalized_returns]
             dump = {
                 "episodes": game_num,
                 "sum_returns": sum_returns,
                 "sum_victories": sum_victories,
                 "sum_inconclusive": sum_inconclusive,
-                "p_means": p_means,
+                "r_means": r_means,
                 "max_atk_util": max_atk_util,
                 "sum_normalized_returns": sum_normalized_returns,
-                "p_means_normalized": p_means_normalized,
+                "r_means_normalized": r_means_normalized,
                 "max_turns": game.get_parameters()["num_turns"],
             }
             dump["defender policy"] = def_policy,
@@ -237,21 +238,59 @@ if __name__ == "__main__":
     #        description="Name of game to play"
     parser.add_argument("-i", "--iterations", default=DEFAULTS.iterations,
             type=int,
-            help=f"Number of games per policy permutation to play ({DEFAULTS.iterations})")
-    parser.add_argument("-d", "--dump-dir",
-            default=DEFAULTS.dump_dir,
+            help=f"Number of games per policy permutation to play. ({DEFAULTS.iterations})")
+    parser.add_argument("--attacker-all-policies", "--aap", action="store_true",
+            help="Permute using all available policies (and action pickers) for attacker rather than just uniform_random.")
+    help_str = "WAIT as a possible action for both players."
+    if DEFAULTS.use_waits:
+        parser.add_argument("--no-waits", action="store_true",
+                help=f"Exclude {help_str}")
+    else:
+        parser.add_argument("--use-waits", action="store_true",
+            help=f"Include {help_str}")
+    help_str = "IN_PROGRESS actions (random within a range hard   coded in arena.py per action) prior to finalizing an action."
+    if DEFAULTS.use_timewaits:
+        parser.add_argument("--no-timewaits", action="store_true",
+                help=f"Exclude {help_str}")
+    else:
+        parser.add_argument("--use-timewaits", action="store_true",
+                help=f"Include {help_str}")
+    help_str = "general percent failure for actions as well as a p  ercent failure for actions applied to their corresponding action of the other   player (percentages hard coded in arena.py)."
+    if DEFAULTS.use_chance_fail:
+        parser.add_argument("--no-chance-fail", action="store_true",
+                help=f"Disable using a {help_str}")
+    else:
+        parser.add_argument("--use-chance-fail", action="store_true",
+                help=f"Use a {help_str}")
+    parser.add_argument("-d", "--dump-dir", default=DEFAULTS.dump_dir,
             help=f"Directory in which to dump game states over iterations of the game. ({DEFAULTS.dump_dir})")
     parser.add_argument("-g", "--dump-games", action="store_true",
             help="If dumping, also dump individual game runs along with the summaries for each perumutation of cost/reward models and policy variations.")
     parser.add_argument("-n", "--no-dump", action="store_true",
-            help="Disable logging of game playthroughs")
+            help="Disable logging of game playthroughs. (primarily for debugging)")
     args = parser.parse_args()
     if args.no_dump:
         args.dump_dir = None
         args.dump_games = None
+    try:
+        use_waits = args.use_waits
+    except AttributeError:
+        use_waits = not args.no_waits
+    try:
+        use_timewaits = args.use_timewaits
+    except AttributeError:
+        use_timewaits = not args.no_timewaits
+    try:
+        use_chance_fail = args.use_chance_fail
+    except AttributeError:
+        use_chance_fail = not args.no_chance_fail
     main(
         game_name=DEFAULTS.game,
         iterations=args.iterations,
+        attacker_all=args.attacker_all_policies,
+        use_waits=use_waits,
+        use_timewaits=use_timewaits,
+        use_chance_fail=use_chance_fail,
         dump_dir = args.dump_dir,
         dump_games = args.dump_games,
     )

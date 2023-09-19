@@ -273,12 +273,23 @@ class BasePlayerState:
         return self.last_completed_state
 
     @property
+    def last_cost(self) -> int|None:
+        return self.costs[-1] if self.costs else 0
+
+    @property
     def last_reward(self) -> int|None:
         return self.rewards[-1] if self.rewards else 0
 
     @property
     def last_damage(self) -> int|None:
         return self.damages[-1] if self.damages else 0
+
+    @property
+    def last_result(self) -> int|None:
+        if self.utilities:
+            return self.last_reward - self.last_cost - self.last_damage
+        else:
+            return 0
 
     def append_util_histories(self):
         # this has to get called during attack actions for defender
@@ -832,7 +843,7 @@ class GameState(pyspiel.State):
     def rewards(self):
         """Total reward for each player for current turn"""
         # this does not get called by openspiel...?
-        return [self._attacker.last_reward, self._defender.last_reward]
+        return [self._attacker.last_result, self._defender.last_result]
 
     def returns(self):
         """Total reward for each player over the course of the game so

@@ -73,7 +73,7 @@ def main(game_name=DEFAULTS.game,
         iterations = DEFAULTS.iterations
     perms_seen = set()
     perm_total = 0
-    perm_total = len(list(permutations()))
+    perm_total = len(list(permutations(attacker_all=attacker_all)))
     perm_fmt = f"permutation.%0{len(str(perm_total))}d"
     dump_pm = timestamp = None
     if dump_dir:
@@ -176,7 +176,7 @@ def main(game_name=DEFAULTS.game,
                 atk_ap = cls.default_action_picker()
         if atk_ap:
             atk_policy_str += f"/{atk_ap}"
-        print(f"\nPermutation {perm_cnt}/{iterations}:")
+        print(f"\nPermutation {perm_cnt}/{perm_total}:")
         print(f"Defender policy: {def_policy_str}, {det_costs}")
         print(f"Attacker policy: {atk_policy_str}, {adv_rewards}")
         print("Number of games played:", game_num)
@@ -199,10 +199,10 @@ def main(game_name=DEFAULTS.game,
                 "r_means_normalized": r_means_normalized,
                 "max_turns": game.get_parameters()["num_turns"],
             }
-            dump["defender policy"] = def_policy,
-            dump["defender action picker"] = def_ap or "n/a"
-            dump["attacker policy"] = atk_policy,
-            dump["attacker action picker"] = atk_ap or "n/a"
+            dump["defender_policy"] = def_policy,
+            dump["defender_action_picker"] = def_ap or "n/a"
+            dump["attacker_policy"] = atk_policy,
+            dump["attacker_action_picker"] = atk_ap or "n/a"
             dump["advancement_rewards"] = adv_rewards
             dump["detection_costs"] = det_costs
             dump["use_waits"] = use_waits

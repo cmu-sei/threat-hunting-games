@@ -198,19 +198,19 @@ def main(game_name=DEFAULTS.game,
                 "sum_normalized_returns": sum_normalized_returns,
                 "r_means_normalized": r_means_normalized,
                 "max_turns": game.get_parameters()["num_turns"],
+                "defender_policy": def_policy,
+                "defender_action_picker": def_ap or "n/a",
+                "attacker_policy": atk_policy,
+                "attacker_action_picker": atk_ap or "n/a",
+                "advancement_rewards": adv_rewards,
+                "detection_costs": det_costs,
+                "use_waits": use_waits,
+                "use_timewaits": use_timewaits,
+                "use_chance_fail": use_chance_fail,
+                "player_map": arena.player_map(),
+                "action_map": arena.action_map(),
+                "utilities": utilities.tupleize(),
             }
-            dump["defender_policy"] = def_policy,
-            dump["defender_action_picker"] = def_ap or "n/a"
-            dump["attacker_policy"] = atk_policy,
-            dump["attacker_action_picker"] = atk_ap or "n/a"
-            dump["advancement_rewards"] = adv_rewards
-            dump["detection_costs"] = det_costs
-            dump["use_waits"] = use_waits
-            dump["use_timewaits"] = use_timewaits
-            dump["use_chance_fail"] = use_chance_fail
-            dump["player_map"] = arena.player_map()
-            dump["action_map"] = arena.action_map()
-            dump["utilities"] = utilities.tupleize()
             histories = list(reversed(sorted((y, x)
                 for x, y in histories.items())))
             dump["history_tallies"] = histories

@@ -5,11 +5,13 @@ from . import arena
 from .simple_random import SimpleRandomPolicy
 from .independent_intervals import IndependentIntervalsPolicy
 from .aggregate_history_random import AggregateHistoryPolicy
+from .last_action import LastActionPolicy
 
 _policies = {
     # from open_spiel
     "uniform_random": UniformRandomPolicy,
     "first_action": FirstActionPolicy,
+    "last_action": LastActionPolicy,
     # our policies
     "independent_intervals": IndependentIntervalsPolicy,
     "simple_random": SimpleRandomPolicy,

@@ -1,19 +1,20 @@
 #!/bin/env python3
 
-import os, sys, json
+import os, sys, json, csv
 import argparse
 import collections
+import openpyxl
 import numpy as np
 from datetime import datetime
 from dataclasses import dataclass
 
 import pyspiel
 from open_spiel.python.bots.policy import PolicyBot
-#from policy import PolicyBot
 
 import arena, policies, util
 from threat_hunting_games import games
 from arena import debug
+from sheets import Sheet
 
 
 @dataclass
@@ -25,11 +26,21 @@ class Defaults:
     use_timewaits: bool = arena.USE_TIMEWAITS
     use_chance_fail: bool = arena.USE_CHANCE_FAIL
 
+    attacker_policies: tuple = (
+        "first_action",
+        "uniform_random",
+        "last_action",
+    )
+
     dump_dir: str = os.path.join(os.path.dirname(
         os.path.abspath(__file__)), "dump_playoffs")
 
 DEFAULTS = Defaults()
 
+
+def _relpath(path):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.relpath(path, base_dir)
 
 def play_game(game, bots):
     # play one game
@@ -52,18 +63,28 @@ def play_game(game, bots):
     debug("Returns:", " ".join(map(str, returns)))
     return state.turns_played(), returns, state.victor(), history
 
-def permutations(attacker_all=False):
-    for def_policy, def_ap in policies.list_policies_with_pickers():
-        for atk_policy, atk_ap in policies.list_policies_with_pickers():
-            if not attacker_all and atk_policy != "uniform_random":
-                continue
-            for detection_costs in arena.list_detection_utilities():
-                for advancement_rewards in arena.list_advancement_utilities():
-                    yield (def_policy, def_ap, atk_policy, atk_ap,
-                            detection_costs, advancement_rewards)
+def permutations(attacker_policies=None, attacker_all=False):
+    """
+    It's important to interate over advancement rewards and detection
+    costs first since these are the keys for a matrix (i.e. a csv file
+    or a sheet in excel.
+    """
+    if not attacker_all and not attacker_policies:
+        attacker_policies = DEFAULTS.attacker_policies
+    for advancement_rewards in arena.list_advancement_utilities():
+        for detection_costs in arena.list_detection_utilities():
+            for def_policy, def_ap in policies.list_policies_with_pickers():
+                for atk_policy, atk_ap \
+                        in policies.list_policies_with_pickers():
+                    if not attacker_all and \
+                            atk_policy not in attacker_policies:
+                        continue
+                    yield (advancement_rewards, detection_costs,
+                            def_policy, def_ap, atk_policy, atk_ap)
 
 def main(game_name=DEFAULTS.game,
         iterations=DEFAULTS.iterations,
+        attacker_policies=None,
         attacker_all=False,
         use_waits=DEFAULTS.use_waits,
         use_timewaits=DEFAULTS.use_timewaits,
@@ -71,41 +92,121 @@ def main(game_name=DEFAULTS.game,
         dump_dir=None, dump_games=None):
     if not iterations:
         iterations = DEFAULTS.iterations
+    if not attacker_all and not attacker_policies:
+        attacker_policies = DEFAULTS.attacker_policies
     perms_seen = set()
     perm_total = 0
-    perm_total = len(list(permutations(attacker_all=attacker_all)))
+    perm_total = len(list(permutations(
+        attacker_policies=attacker_policies, attacker_all=attacker_all)))
     perm_fmt = f"permutation.%0{len(str(perm_total))}d"
-    dump_pm = timestamp = None
+    timestamp = None
+    dump_pm = json_dump_dir = csv_dump_dir = None
+    xls_file = xls_workbook = None
+    sheet_key = row_key = col_key = None
+    csv_file = None
+    sheet = None
+    xls_sheet = None
     if dump_dir:
         dump_pm = util.PathManager(base_dir=dump_dir,
                 game_name=game_name)
+        timestamp = dump_pm.timestamp
         if not os.path.exists(dump_pm.path()):
             os.makedirs(dump_pm.path())
-        timestamp = dump_pm.timestamp
-    perm_cnt = 0
-    for def_policy, def_ap, atk_policy, atk_ap, det_costs, adv_rewards \
-            in permutations(attacker_all=attacker_all):
-        key = (def_policy, def_ap, atk_policy, atk_ap, det_costs, adv_rewards)
-        if key in perms_seen:
-            continue
-        perms_seen.add(key)
+        json_dump_dir = dump_pm.path(suffix="json")
+        if not os.path.exists(json_dump_dir):
+            os.makedirs(json_dump_dir)
+        csv_dump_dir = dump_pm.path(suffix="csv")
+        if not os.path.exists(csv_dump_dir):
+            os.makedirs(csv_dump_dir)
+        xls_file = f"{game_name}-{timestamp}.xlsx"
+        xls_file = os.path.join(dump_pm.path(), xls_file)
+        xls_workbook = openpyxl.Workbook()
+        del xls_workbook["Sheet"]
+    perm_cnt = sheet_cnt = 0
+    for adv_rewards, det_costs, def_policy, def_ap, atk_policy, atk_ap  \
+            in permutations(attacker_policies=attacker_policies,
+                    attacker_all=attacker_all):
+        def _preamble():
+            rows = []
+            a_policy = '-'.join([atk_policy, atk_ap])
+            d_policy = '-'.join([def_policy, def_ap])
+            rows.append(["Episodes:", iterations])
+            rows.append(["Use Waits:", "yes" if use_waits else "no"])
+            rows.append(["Use Timewaits:", "yes" if use_timewaits else "no"])
+            rows.append(["Use Chance Fail:",
+                "yes" if use_chance_fail else "no"])
+            rows.append([])
+            rows.append(["Advancement Rewards:", adv_rewards,
+                "Detection Costs:", det_costs])
+            rows.append(["attacker policy:", a_policy,
+                "defender policy:", d_policy])
+            rows.append([])
+            rows.append(["attacker", "defender"])
+            utilities = arena.Utilities(advancement_rewards=adv_rewards,
+                    detection_costs=det_costs)
+            max_util_len = max([len(utilities.attacker_utilities),
+                len(utilities.defender_utilities)])
+            util_rows = []
+            for i in range(max_util_len):
+                util_rows.append([])
+            for i, action in enumerate(sorted(utilities.attacker_utilities)):
+                utils = utilities.attacker_utilities[action]
+                utils = ','.join(str(x) for x in utils)
+                util_rows[i].extend([arena.a2s(action), utils])
+            for i, action in enumerate(sorted(utilities.defender_utilities)):
+                utils = utilities.defender_utilities[action]
+                utils = ','.join(str(x) for x in utils)
+                util_rows[i].extend([arena.a2s(action), utils])
+            rows.extend(util_rows)
+            return rows
+        key = (adv_rewards, det_costs, def_policy,
+                def_ap, atk_policy, atk_ap,)
+        if xls_file and not sheet_key:
+            # first iteration, initialize
+            sheet_key = (adv_rewards, det_costs)
+            sheet = Sheet(sheet_key, preamble=_preamble())
+        if xls_file and sheet_key != (adv_rewards, det_costs):
+            # when sheet_key expires, dump csv, create new xls_sheet
+            sheet_cnt += 1
+
+            csv_file = f"{csv_dump_dir}/{'-'.join(sheet_key)}.csv"
+            print(f"\nDumped {sheet_key} CSV to:", _relpath(csv_file))
+            with open(csv_file, 'w', newline='') as fh:
+                writer = csv.writer(fh)
+                sheet.dump_csv(writer)
+
+            xls_sheet = xls_workbook.create_sheet(sheet.name)
+            sheet.dump_xlsx(xls_sheet)
+            xls_workbook.save(xls_file)
+            print(f"Saved excel sheet {sheet_key} in:",
+                    _relpath(xls_file), "\n")
+
+            sheet_key = (adv_rewards, det_costs)
+            sheet = Sheet(sheet_key, preamble=_preamble())
+        if sheet:
+            row_key = def_policy
+            row_key = (def_policy, def_ap)
+            col_key = (atk_policy, atk_ap)
         perm_cnt += 1
-        perm_dir = games_dir = dd = None
+        dd_pm = json_perm_dir = games_dir = None
         if dump_dir:
-            dd = util.PathManager(base_dir=dump_dir,
-                    game_name=game_name,
+            if not dd_pm:
+                json_dump_pm = util.PathManager(
+                    base_dir=json_dump_dir,
                     detection_costs=f"det_costs_{det_costs}",
                     advancement_rewards=f"adv_rewards_{adv_rewards}",
                     timestamp=timestamp)
             if dump_games:
-                perm_dir = os.path.join(dd.path(), perm_fmt % perm_cnt)
-                games_dir = os.path.join(perm_dir, "games")
+                json_perm_dir = os.path.join(json_dump_pm.path(),
+                        perm_fmt % perm_cnt)
+                games_dir = os.path.join(json_perm_dir, "games")
                 if not os.path.exists(games_dir):
                     os.makedirs(games_dir)
             else:
-                perm_dir = dd.path()
-            if not os.path.exists(perm_dir):
-                os.makedirs(perm_dir)
+                json_perm_dir = json_dump_pm.path()
+            if not os.path.exists(json_perm_dir):
+                os.makedirs(json_perm_dir)
+
         # load_game does not accept bools
         game = pyspiel.load_game(game_name, {
             "advancement_rewards": adv_rewards,
@@ -127,7 +228,6 @@ def main(game_name=DEFAULTS.game,
             arena.Players.DEFENDER: def_bot,
             arena.Players.ATTACKER: atk_bot,
         }
-        max_atk_util = utilities.max_atk_utility()
         histories = collections.defaultdict(int)
         sum_returns = [0, 0]
         sum_normalized_returns = [0, 0]
@@ -151,7 +251,7 @@ def main(game_name=DEFAULTS.game,
                 sum_victories[1] += 1
             else:
                 sum_inconclusive += 1
-            if dd and dump_games:
+            if dump_games and games_dir:
                 dump = {
                     "returns": returns,
                     "victor": victor,
@@ -162,6 +262,15 @@ def main(game_name=DEFAULTS.game,
                 df = os.path.join(games_dir, iter_fmt % game_num)
                 with open(df, 'w') as dfh:
                     json.dump(dump, dfh, indent=2)
+        if sheet:
+            # make sure row/col exist
+            sheet.atk_matrix.row(row_key)
+            sheet.atk_matrix.col(col_key)
+            sheet.def_matrix.row(row_key)
+            sheet.def_matrix.col(col_key)
+            # accumulate returns
+            sheet.atk_matrix[row_key][col_key] += sum_returns[0]/iterations
+            sheet.def_matrix[row_key][col_key] += sum_returns[1]/iterations
         def_policy_str = def_policy
         if not def_ap:
             cls = policies.get_policy_class(def_policy)
@@ -177,11 +286,13 @@ def main(game_name=DEFAULTS.game,
         if atk_ap:
             atk_policy_str += f"/{atk_ap}"
         print(f"\nPermutation {perm_cnt}/{perm_total}:")
-        print(f"Defender policy: {def_policy_str}, {det_costs}")
-        print(f"Attacker policy: {atk_policy_str}, {adv_rewards}")
+        print(f"Advancement rewards: {adv_rewards}")
+        print(f"Detection costs: {det_costs}")
+        print(f"Defender policy: {def_policy_str}")
+        print(f"Attacker policy: {atk_policy_str}")
         print("Number of games played:", game_num)
         print("Number of distinct games played:", len(histories))
-        if perm_dir:
+        if json_perm_dir:
             r_means = [x / game_num for x in sum_returns]
             max_atk_util = utilities.max_atk_utility()
             scale_factor = 100 / max_atk_util
@@ -215,16 +326,20 @@ def main(game_name=DEFAULTS.game,
                 for x, y in histories.items())))
             dump["history_tallies"] = histories
             if dump_games:
-                summary_file = os.path.join(perm_dir, "summary.json")
+                summary_file = os.path.join(json_perm_dir, "summary.json")
             else:
                 summary_file = f"{perm_fmt % perm_cnt}.json"
-                summary_file = os.path.join(dd.path(), summary_file)
+                summary_file = os.path.join(json_dump_pm.path(), summary_file)
             with open(summary_file, 'w') as dfh:
                 json.dump(dump, dfh, indent=2)
             if dump_games:
-                print(f"Dumped {game_num} game playthroughs into: {perm_dir}")
+                print(f"Dumped {game_num} game playthroughs into: {_relpath(json_perm_dir)}")
             else:
-                print(f"Dumped summary of {game_num} game playthroughs into: {summary_file}")
+                print(f"Dumped summary of {game_num} game playthroughs into: {_relpath(summary_file)}")
+    if dump_dir:
+        print()
+        print(f"\nSaved {sheet_cnt} CSV matrices in {_relpath(csv_dump_dir)}")
+        print(f"Saved {sheet_cnt} excel matrices in {_relpath(xls_file)}\n")
 
 
 if __name__ == "__main__":

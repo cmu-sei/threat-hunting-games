@@ -9,7 +9,6 @@ from dataclasses import dataclass
 
 import pyspiel
 from open_spiel.python.bots.policy import PolicyBot
-#from policy import PolicyBot
 
 import arena, policies, util, std_args
 from threat_hunting_games import games

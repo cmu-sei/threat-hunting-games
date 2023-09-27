@@ -449,6 +449,20 @@ class Utilities:
     def utilities(self):
         return self._utilities
 
+    @property
+    def attacker_utilities(self):
+        utilities = {}
+        for action in Attack_Actions:
+            utilities[action] = self._utilities[action]
+        return utilities
+
+    @property
+    def defender_utilities(self):
+        utilities = {}
+        for action in Defend_Actions:
+            utilities[action] = self._utilities[action]
+        return utilities
+
     def _resolve_zsums(self, utilities):
         resolved = dict(utilities)
         for i, atk_actions in enumerate(Atk_Actions_By_Pos):

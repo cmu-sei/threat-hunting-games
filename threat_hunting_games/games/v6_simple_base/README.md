@@ -25,7 +25,8 @@ RL trained agents.
 Game Parameters
 ---------------
 
-During runtime when OpenSpiel loads a particular game, our games have five parameters:
+During runtime when OpenSpiel loads a particular game, our games have
+five parameters:
 
   1. advancement_rewards
   2. detection_costs
@@ -61,7 +62,10 @@ Within each policy module there are several *action pickers* which
 represent variations on the overall policy as described in the writeup
 available in the _Kill-chain Games_ document on Overleaf. Within each
 policy module are symbolic string indicies for each action picker --
-these also end up getting used in command line parameters.
+these also end up getting used in command line parameters. In generated
+data, directory names, etc, the combination of the general policy and
+the specific action picker is typically represented as a single
+policy string.
 
 All scripts have a `--help` parameter that list more detailed
 information about each one.
@@ -111,10 +115,13 @@ summary file is generated for that particular permutation. Optionally a
 record of each individule episode can also be stored. Results are stored
 in an output directory (`./dump_playoffs` by default).
 
-The summary files are similar to the `bot_playthrough.py` output. Each
-summary file has a listing of the game settings (policies and action
-pickers for each player, advancement rewards, detection costs, use
-waits, use timewaits, use chance fail).
+The JSON summary files are similar to the `bot_playthrough.py` output.
+Each summary file has a listing of the game settings (policies and
+action pickers for each player, advancement rewards, detection costs,
+use waits, use timewaits, use chance fail). In addition to the json
+output, matrix representations for each combination of
+(advancement_rewards, detection_costs) are created as both CSV files as
+well as an Excel spreadsheet.
 
 This may or may not be useful, but the maximum attack rewards is
 calculated and this is used to scale the sums of returns and the r_means

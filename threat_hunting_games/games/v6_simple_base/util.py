@@ -13,7 +13,7 @@ def get_player_policy(game, player, policy_name, action_picker=None):
     """
     policy_class = policies.get_policy_class(policy_name)
     if policy_class in (policies.UniformRandomPolicy,
-            policies.FirstActionPolicy):
+            policies.FirstActionPolicy, policies.LastActionPolicy):
         return policy_class(game)
     else:
         return policy_class(game, action_picker=action_picker)

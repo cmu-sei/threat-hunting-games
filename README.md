@@ -86,7 +86,7 @@ Some of the examples and algorithms use the following python modules:
   $ pip install pandas
   $ pip install cvxopt
 
-note: pytorch should have CUDA libraries included;  enabling Nvidia support for tensor flow might involve [more steps](https://www.nvidia.com/en-sg/data-center/gpu-accelerated-applications/tensorflow/)
+Note: pytorch should have CUDA libraries included;  enabling Nvidia support for tensor flow might involve [more steps](https://www.nvidia.com/en-sg/data-center/gpu-accelerated-applications/tensorflow/)
 
 note: matplotlib is included because tensorflow will segfault without it being imported first on some systems
 
@@ -105,10 +105,18 @@ For NVIDIA GPU support:
 
 note: the NVIDA related libraries take up substantial disk space.
 
-Some of the examples involving Nash-equilibria require the following
-system packages:
+Some of the examples involving Nash-equilibria and solving matrix games
+require the following packages:
 
-  * [lrsnash](https://manpages.ubuntu.com/manpages/jammy/man1/lrsnash.1.html) (`apt install lrsnash`)
+  * [lrsnash](https://manpages.ubuntu.com/manpages/jammy/man1/lrsnash.1.html)
+
+      # for Ubuntu
+     `$ sudo apt install lrslib`
+
+      # also see: https://src.fedoraproject.org/rpms/lrslib
+
+  * [Nashpy](https://nashpy.readthedocs.io/en/stable)
+     `$ pip install nashpy`
 
 ### Additional Build Dependencies
 

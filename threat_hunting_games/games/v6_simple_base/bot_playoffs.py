@@ -15,6 +15,7 @@ import arena, policies, util
 from threat_hunting_games import games
 from arena import debug
 from sheets import Sheet
+from solver import Solver
 
 
 @dataclass
@@ -31,6 +32,8 @@ class Defaults:
         "uniform_random",
         "last_action",
     )
+
+    solvers: tuple = Solver.solvers
 
     dump_dir: str = os.path.join(os.path.dirname(
         os.path.abspath(__file__)), "dump_playoffs")
@@ -89,23 +92,20 @@ def main(game_name=DEFAULTS.game,
         use_waits=DEFAULTS.use_waits,
         use_timewaits=DEFAULTS.use_timewaits,
         use_chance_fail=DEFAULTS.use_chance_fail,
+        solvers=DEFAULTS.solvers,
         dump_dir=None, dump_games=None):
     if not iterations:
         iterations = DEFAULTS.iterations
     if not attacker_all and not attacker_policies:
         attacker_policies = DEFAULTS.attacker_policies
-    perms_seen = set()
     perm_total = 0
     perm_total = len(list(permutations(
         attacker_policies=attacker_policies, attacker_all=attacker_all)))
     perm_fmt = f"permutation.%0{len(str(perm_total))}d"
     timestamp = None
-    dump_pm = json_dump_dir = csv_dump_dir = None
-    xls_file = xls_workbook = None
-    sheet_key = row_key = col_key = None
+    dump_pm = json_dump_dir = matrix_csv_dir = matrix_json_file = None
+    matrix_xls_file = xls_workbook = None
     csv_file = None
-    sheet = None
-    xls_sheet = None
     if dump_dir:
         dump_pm = util.PathManager(base_dir=dump_dir,
                 game_name=game_name)
@@ -115,61 +115,125 @@ def main(game_name=DEFAULTS.game,
         json_dump_dir = dump_pm.path(suffix="json")
         if not os.path.exists(json_dump_dir):
             os.makedirs(json_dump_dir)
-        csv_dump_dir = dump_pm.path(suffix="csv")
-        if not os.path.exists(csv_dump_dir):
-            os.makedirs(csv_dump_dir)
-        xls_file = f"{game_name}-{timestamp}.xlsx"
-        xls_file = os.path.join(dump_pm.path(), xls_file)
+        matrix_csv_dir = dump_pm.path(suffix="matrix/csv")
+        if not os.path.exists(matrix_csv_dir):
+            os.makedirs(matrix_csv_dir)
+        matrix_json_dir = dump_pm.path(suffix="matrix/json")
+        if not os.path.exists(matrix_json_dir):
+            os.makedirs(matrix_json_dir)
+        matrix_solver_dir = dump_pm.path(suffix="matrix/solver")
+        if not os.path.exists(matrix_solver_dir):
+            os.makedirs(matrix_solver_dir)
+        matrix_xls_file = f"{game_name}-{timestamp}.xlsx"
+        matrix_xls_file = os.path.join(
+                dump_pm.path(suffix="matrix"), matrix_xls_file)
         xls_workbook = openpyxl.Workbook()
         del xls_workbook["Sheet"]
     perm_cnt = sheet_cnt = 0
+
+    def _json_preamble():
+        data = {}
+        data["attacker_policy"] = atk_policy
+        data["attacker_action_picker"] = atk_ap
+        data["defender_policy"] = def_policy
+        data["defender_action_picker"] = def_ap
+        data["episodes"] = iterations
+        data["use_waits"] = use_waits
+        data["use_timewaits"] = use_timewaits
+        data["use_chance_fail"] = use_chance_fail
+        data["advancement_rewards"] = adv_rewards
+        data["detection_costs"] = det_costs
+        utilities = arena.Utilities(advancement_rewards=adv_rewards,
+                detection_costs=det_costs)
+        data["attacker_utilities"] = utilities.attacker_utilities
+        data["defender_utilities"] = utilities.defender_utilities
+        return data
+
+    def _csv_preamble():
+        rows = []
+        a_policy = '-'.join([atk_policy, atk_ap])
+        d_policy = '-'.join([def_policy, def_ap])
+        rows.append(["Episodes:", iterations])
+        rows.append(["Use Waits:", "yes" if use_waits else "no"])
+        rows.append(["Use Timewaits:", "yes" if use_timewaits else "no"])
+        rows.append(["Use Chance Fail:",
+            "yes" if use_chance_fail else "no"])
+        rows.append([])
+        rows.append(["Advancement Rewards:", adv_rewards,
+            "Detection Costs:", det_costs])
+        rows.append(["attacker policy:", a_policy,
+            "defender policy:", d_policy])
+        rows.append([])
+        rows.append(["attacker", "defender"])
+        utilities = arena.Utilities(advancement_rewards=adv_rewards,
+                detection_costs=det_costs)
+        max_util_len = max([len(utilities.attacker_utilities),
+            len(utilities.defender_utilities)])
+        util_rows = []
+        for i in range(max_util_len):
+            util_rows.append([])
+        for i, action in enumerate(sorted(utilities.attacker_utilities)):
+            utils = utilities.attacker_utilities[action]
+            utils = ','.join(str(x) for x in utils)
+            util_rows[i].extend([arena.a2s(action), utils])
+        for i, action in enumerate(sorted(utilities.defender_utilities)):
+            utils = utilities.defender_utilities[action]
+            utils = ','.join(str(x) for x in utils)
+            util_rows[i].extend([arena.a2s(action), utils])
+        rows.extend(util_rows)
+        return rows
+
+    solver_kwargs = {}
+    if solvers:
+        solver_kwargs = {}
+        for s in Solver.solvers:
+            solver_kwargs[s] = s in solvers
+
+    sheet_key = row_key = col_key = None
+    sheet = None
+    xls_sheet = None
     for adv_rewards, det_costs, def_policy, def_ap, atk_policy, atk_ap  \
             in permutations(attacker_policies=attacker_policies,
                     attacker_all=attacker_all):
-        def _preamble():
-            rows = []
-            a_policy = '-'.join([atk_policy, atk_ap])
-            d_policy = '-'.join([def_policy, def_ap])
-            rows.append(["Episodes:", iterations])
-            rows.append(["Use Waits:", "yes" if use_waits else "no"])
-            rows.append(["Use Timewaits:", "yes" if use_timewaits else "no"])
-            rows.append(["Use Chance Fail:",
-                "yes" if use_chance_fail else "no"])
-            rows.append([])
-            rows.append(["Advancement Rewards:", adv_rewards,
-                "Detection Costs:", det_costs])
-            rows.append(["attacker policy:", a_policy,
-                "defender policy:", d_policy])
-            rows.append([])
-            rows.append(["attacker", "defender"])
-            utilities = arena.Utilities(advancement_rewards=adv_rewards,
-                    detection_costs=det_costs)
-            max_util_len = max([len(utilities.attacker_utilities),
-                len(utilities.defender_utilities)])
-            util_rows = []
-            for i in range(max_util_len):
-                util_rows.append([])
-            for i, action in enumerate(sorted(utilities.attacker_utilities)):
-                utils = utilities.attacker_utilities[action]
-                utils = ','.join(str(x) for x in utils)
-                util_rows[i].extend([arena.a2s(action), utils])
-            for i, action in enumerate(sorted(utilities.defender_utilities)):
-                utils = utilities.defender_utilities[action]
-                utils = ','.join(str(x) for x in utils)
-                util_rows[i].extend([arena.a2s(action), utils])
-            rows.extend(util_rows)
-            return rows
         key = (adv_rewards, det_costs, def_policy,
                 def_ap, atk_policy, atk_ap,)
-        if xls_file and not sheet_key:
+        row_key = (def_policy, def_ap)
+        col_key = (atk_policy, atk_ap)
+        if not sheet_key and matrix_xls_file:
             # first iteration, initialize
             sheet_key = (adv_rewards, det_costs)
-            sheet = Sheet(sheet_key, preamble=_preamble())
-        if xls_file and sheet_key != (adv_rewards, det_costs):
+            sheet = Sheet(sheet_key, json_preamble=_json_preamble(),
+                    csv_preamble=_csv_preamble())
+        if matrix_xls_file and sheet_key != (adv_rewards, det_costs):
             # when sheet_key expires, dump csv, create new xls_sheet
             sheet_cnt += 1
 
-            csv_file = f"{csv_dump_dir}/{'-'.join(sheet_key)}.csv"
+            if solvers:
+                print("calling Solver with:", sheet)
+                solver = Solver(sheet)
+                solutions, labels = solver.solve(**solver_kwargs)
+                #for key in sorted(solutions):
+                #    print("\n", key)
+                #    print("\n", solutions[key])
+                sdir = os.path.join(matrix_solver_dir, sheet.name)
+                if not os.path.exists(sdir):
+                    os.makedirs(sdir)
+                print()
+                for sname, data in solutions.items():
+                    npy_file = os.path.join(sdir, f"{sname}.npy")
+                    np.save(npy_file, solutions)
+                    print(f"Saved {sname} solutions in {npy_file}")
+                json_file = os.path.join(sdir, "labels.json")
+                fh = open(json_file, 'w')
+                json.dump(labels, fh)
+                print(f"\nSaved {sheet.name} ro/col labels in {json_file}")
+
+            json_file = f"{matrix_json_dir}/{'-'.join(sheet_key)}.json"
+            print(f"\nDumped {sheet_key} JSON to:", _relpath(json_file))
+            with open(json_file, 'w') as fh:
+                sheet.dump_json(fh)
+
+            csv_file = f"{matrix_csv_dir}/{'-'.join(sheet_key)}.csv"
             print(f"\nDumped {sheet_key} CSV to:", _relpath(csv_file))
             with open(csv_file, 'w', newline='') as fh:
                 writer = csv.writer(fh)
@@ -177,16 +241,13 @@ def main(game_name=DEFAULTS.game,
 
             xls_sheet = xls_workbook.create_sheet(sheet.name)
             sheet.dump_xlsx(xls_sheet)
-            xls_workbook.save(xls_file)
+            xls_workbook.save(matrix_xls_file)
             print(f"Saved excel sheet {sheet_key} in:",
-                    _relpath(xls_file), "\n")
+                    _relpath(matrix_xls_file), "\n")
 
             sheet_key = (adv_rewards, det_costs)
-            sheet = Sheet(sheet_key, preamble=_preamble())
-        if sheet:
-            row_key = def_policy
-            row_key = (def_policy, def_ap)
-            col_key = (atk_policy, atk_ap)
+            sheet = Sheet(sheet_key, json_preamble=_json_preamble(),
+                    csv_preamble=_csv_preamble())
         perm_cnt += 1
         dd_pm = json_perm_dir = games_dir = None
         if dump_dir:
@@ -338,8 +399,16 @@ def main(game_name=DEFAULTS.game,
                 print(f"Dumped summary of {game_num} game playthroughs into: {_relpath(summary_file)}")
     if dump_dir:
         print()
-        print(f"\nSaved {sheet_cnt} CSV matrices in {_relpath(csv_dump_dir)}")
-        print(f"Saved {sheet_cnt} excel matrices in {_relpath(xls_file)}\n")
+        print(f"\nSaved {sheet_cnt} JSON matrices in "
+              f"{_relpath(matrix_json_dir)}")
+        print(f"\nSaved {sheet_cnt} CSV matrices in "
+               "{_relpath(matrix_csv_dir)}")
+        print(f"Saved {sheet_cnt} excel matrices in "
+              f"{_relpath(matrix_xls_file)}")
+        if solvers:
+            print(f"Saved solutions from {len(solvers)} solvers in "
+                  f"{_relpath(matrix_solver_dir)}")
+        print()
 
 
 if __name__ == "__main__":

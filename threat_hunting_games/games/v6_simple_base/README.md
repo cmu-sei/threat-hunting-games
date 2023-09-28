@@ -119,9 +119,11 @@ The JSON summary files are similar to the `bot_playthrough.py` output.
 Each summary file has a listing of the game settings (policies and
 action pickers for each player, advancement rewards, detection costs,
 use waits, use timewaits, use chance fail). In addition to the json
-output, matrix representations for each combination of
+output above, matrix representations for each combination of
 (advancement_rewards, detection_costs) are created as both CSV files as
-well as an Excel spreadsheet.
+well as an Excel spreadsheet. For each rewards/costs pair a number of
+OpenSpiel solvers for nash equilibria are run on the matrices and
+results saved as numpy .mpy files.
 
 This may or may not be useful, but the maximum attack rewards is
 calculated and this is used to scale the sums of returns and the r_means

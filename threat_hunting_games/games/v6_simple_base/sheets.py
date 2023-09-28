@@ -1,4 +1,5 @@
-import string
+import string, json
+import numpy as np
 
 class Matrix:
 
@@ -23,18 +24,59 @@ class Matrix:
             col[row_key] = val
         return col
 
+    def row_keys(self):
+        return sorted(self._rows)
+
+    def col_keys(self):
+        return sorted(self._col_keys)
+
+    def row_labels(self):
+        labels = []
+        for policy, action_picker in self.row_keys():
+            label = policy
+            if action_picker:
+                label = '-'.join([label, action_picker])
+        return tuple(labels)
+
+    def col_labels(self):
+        labels = []
+        for policy, action_picker in self.col_keys():
+            label = policy
+            if action_picker:
+                label = '-'.join([label, action_picker])
+        return tuple(labels)
+
+    def num_rows(self):
+        return len(self._rows)
+
+    def num_cols(self):
+        return len(self._col_keys)
+
     def as_matrix(self):
         rows = []
         col_keys = sorted(self._col_keys)
         col_names = ['']
         col_names.extend(self.col_name(x) for x in col_keys)
         rows.append(col_names)
-        for row_key in sorted(self._rows):
+        for row_key in self.row_keys():
             row = [self.row_name(row_key)]
-            for col_key in col_keys:
+            for col_key in self.col_keys():
                 row.append(self._rows[row_key][col_key])
             rows.append(row)
         return rows
+
+    def as_unlabeled_matrix(self):
+        rows = []
+        col_keys = sorted(self._col_keys)
+        for row_key in self.row_keys():
+            row = []
+            for col_key in self.col_keys():
+                row.append(self._rows[row_key][col_key])
+            rows.append(row)
+        return rows
+
+    def as_tensor(self):
+        return np.array(self.as_unlabeled_matrix())
 
     def cols(self):
         cols = {}
@@ -88,17 +130,22 @@ class Matrix:
 
 class Sheet:
 
-    def __init__(self, key, preamble=None):
+    def __init__(self, key, json_preamble=None, csv_preamble=None):
         self._key = key
-        self._preamble = preamble
+        self._json_preamble = json_preamble
+        self._csv_preamble = csv_preamble
         self._atk_matrix = Matrix()
         self._def_matrix = Matrix()
         self._rows = {}
         self._col_keys = set()
 
     @property
-    def preamble(self):
-        return self._preamble
+    def json_preamble(self):
+        return self._json_preamble
+
+    @property
+    def csv_preamble(self):
+        return self._csv_preamble
 
     @property
     def atk_matrix(self):
@@ -107,6 +154,22 @@ class Sheet:
     @property
     def def_matrix(self):
         return self._def_matrix
+
+    @property
+    def def_policies(self):
+        return self.def_matrix.row_keys()
+
+    @property
+    def atk_policies(self):
+        return self.atk_matrix.col_keys()
+
+    @property
+    def num_rows(self):
+        return len(self.def_policies)
+
+    @property
+    def num_cols(self):
+        return len(self.atk_policies)
 
     @property
     def key(self):
@@ -119,10 +182,28 @@ class Sheet:
             name = '-'.join(name)
         return name
 
+    def as_tensor(self):
+        print("as_tensor:")
+        t = np.stack([
+            self.atk_matrix.as_tensor(),
+            self.def_matrix.as_tensor()])
+        print(t)
+        return t
+
+    def dump_json(self, fh):
+        data = {}
+        if self._json_preamble:
+            data.update(self._json_preamble)
+        data["attacker_rows"] = self.atk_matrix.col_labels()
+        data["defender_rows"] = self.def_matrix.row_labels()
+        data["attacker_matrix"] = self.atk_matrix.as_unlabeled_matrix()
+        data["defender_matrix"] = self.def_matrix.as_unlabeled_matrix()
+        json.dump(data, fh, indent=2)
+
     def dump_csv(self, writer):
         # note: does not save the csv file
-        if self._preamble:
-            for row in self._preamble:
+        if self._csv_preamble:
+            for row in self._csv_preamble:
                 writer.writerow(row)
             # blank row
             writer.writerow([])
@@ -146,8 +227,8 @@ class Sheet:
             cell_name = f"{col_letter}{row_idx}"
             return cell_name
         row_idx = 1
-        if self._preamble:
-            for row in self._preamble:
+        if self._csv_preamble:
+            for row in self._csv_preamble:
                 for i, val in enumerate(row):
                     cell_name = _cell_name(row_idx, i)
                     xls_sheet[cell_name] = val

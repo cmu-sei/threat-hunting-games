@@ -31,10 +31,15 @@ parser.add_argument("--output-dir", "--od", default=default_tmp_dir,
         help=f"Directory in which to store filtered results. ({default_tmp_dir})")
 args = parser.parse_args()
 dat_dir = args.playoff_dir
-if dat_dir:
-    summaries = glob.glob(f"{dat_dir}/*/*.json")
-else:
-    summaries = []
+if not dat_dir.endswith("json"):
+    dat_dir = os.path.join(dat_dir, "json")
+summaries = set()
+for dirpath, _, filenames in os.walk(dat_dir):
+    for file in filenames:
+        if file.endswith(".json"):
+            summaries.add(os.path.join(dirpath, file))
+summaries = sorted(summaries)
+
 print(f"\ndat dir: {dat_dir}")
 print(f"{len(summaries)} summaries found\n")
 if not summaries:

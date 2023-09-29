@@ -116,14 +116,13 @@ record of each individule episode can also be stored. Results are stored
 in an output directory (`./dump_playoffs` by default).
 
 The JSON summary files are similar to the `bot_playthrough.py` output.
+They are stored in:
+
+  dump_playoffs/{game_name}-{timestamp}/json
+
 Each summary file has a listing of the game settings (policies and
 action pickers for each player, advancement rewards, detection costs,
-use waits, use timewaits, use chance fail). In addition to the json
-output above, matrix representations for each combination of
-(advancement_rewards, detection_costs) are created as both CSV files as
-well as an Excel spreadsheet. For each rewards/costs pair a number of
-OpenSpiel solvers for nash equilibria are run on the matrices and
-results saved as numpy .mpy files.
+use waits, use timewaits, use chance fail).
 
 This may or may not be useful, but the maximum attack rewards is
 calculated and this is used to scale the sums of returns and the r_means
@@ -133,6 +132,23 @@ as though the maximum rewards is 100. (`sum_normalized_returns`,
 As with `bot_playthrough.py`, each permutation summary has action and
 player maps to their symbolic names as well as a history tally histogram
 detailing how often identical gameplays occurred.
+
+In addition to the json output above, matrix representations for each
+combination of `(advancement_rewards, detection_costs)` are created as
+both CSV files as well as an Excel spreadsheet. These are stored in:
+
+    dump_playoffs/{game_name}-{timestamp}/matrix/{game_name}-{timestamp}.xlsx
+    dump_playoffs/{game_name}-{timestamp}/matrix/json
+    dump_playoffs/{game_name}-{timestamp}/matrix/csv
+
+For each rewards/costs pair a number of OpenSpiel solvers for nash
+equilibria are run on the matrices and results saved in both JSON and
+CSV formats. The row/col labels for each JSON file are saved in the
+`labels.json` file. These are stored in:
+
+    dump_playoffs/{game_name}-{timestamp}/matrix/solver/{cost/reward}/labels.json
+    dump_playoffs/{game_name}-{timestamp}/matrix/solver/{cost/reward}/json
+    dump_playoffs/{game_name}-{timestamp}/matrix/solver/{cost/reward}/csv
 
 ### rl_train.py
 

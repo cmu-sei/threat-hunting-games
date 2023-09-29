@@ -110,9 +110,9 @@ def main(game_name=DEFAULTS.game,
         dump_pm = util.PathManager(base_dir=dump_dir,
                 game_name=game_name)
         timestamp = dump_pm.timestamp
-        if not os.path.exists(dump_pm.path()):
-            os.makedirs(dump_pm.path())
-        json_dump_dir = dump_pm.path(suffix="json")
+        json_dump_dir = os.path.join(dump_pm.path(), "json")
+        if not os.path.exists(json_dump_dir):
+            os.makedirs(json_dump_dir)
         if not os.path.exists(json_dump_dir):
             os.makedirs(json_dump_dir)
         matrix_csv_dir = dump_pm.path(suffix="matrix/csv")
@@ -183,6 +183,28 @@ def main(game_name=DEFAULTS.game,
         rows.extend(util_rows)
         return rows
 
+    def _npy_solution_to_json(name, solutions, json_file):
+        with open(json_file, 'w') as fh:
+            solves = []
+            for solved in solutions:
+                converted = [solved[0], solved[1]]
+                for array_1d in solved[2:]:
+                    converted.append(list(array_1d))
+                solves.append(converted)
+            json.dump(solves, fh, indent=2)
+
+    def _npy_solution_to_csv(name, solution, csv_file):
+        with open(csv_file, 'w', newline='') as fh:
+            writer = csv.writer(fh)
+            writer.writerow([name])
+            writer.writerow([])
+            for solves in solution:
+                writer.writerow([solves[0]])
+                writer.writerow([solves[1]])
+                for array_1d in solves[2:]:
+                    writer.writerow(array_1d)
+                writer.writerow([])
+
     solver_kwargs = {}
     if solvers:
         solver_kwargs = {}
@@ -209,24 +231,48 @@ def main(game_name=DEFAULTS.game,
             sheet_cnt += 1
 
             if solvers:
-                print("calling Solver with:", sheet)
+                print("\ncalling Solver with:", sheet.name)
                 solver = Solver(sheet)
                 solutions, labels = solver.solve(**solver_kwargs)
-                #for key in sorted(solutions):
-                #    print("\n", key)
-                #    print("\n", solutions[key])
+                for key in sorted(solutions):
+                    solution = solutions[key]
+                    print(f"\n{key} type: {type(solution)}")
+                    if not solution:
+                        print("no solutions:", solution)
+                        continue
+                    #if type(solution) in (list, tuple):
+                    #    for i, item in enumerate(solution):
+                    #        print(f"{i}: {type(item)}")
+                    #        if type(item) in (tuple, list):
+                    #            for j, o in enumerate(item):
+                    #                if hasattr(o, "shape"):
+                    #                    print(f"  type: {type(o)} shape: {o.shape}")
+                    #                else:
+                    #                    print(f"  type: {type(o)}")
+                    #else:
+                    #    print("  solution shape:", solutions[key].shape)
+                    print()
                 sdir = os.path.join(matrix_solver_dir, sheet.name)
-                if not os.path.exists(sdir):
-                    os.makedirs(sdir)
+                jsondir = os.path.join(sdir, "json")
+                if not os.path.exists(jsondir):
+                    os.makedirs(jsondir)
+                csvdir = os.path.join(sdir, "csv")
+                if not os.path.exists(csvdir):
+                    os.makedirs(csvdir)
                 print()
-                for sname, data in solutions.items():
-                    npy_file = os.path.join(sdir, f"{sname}.npy")
-                    np.save(npy_file, solutions)
-                    print(f"Saved {sname} solutions in {npy_file}")
-                json_file = os.path.join(sdir, "labels.json")
-                fh = open(json_file, 'w')
-                json.dump(labels, fh)
-                print(f"\nSaved {sheet.name} ro/col labels in {json_file}")
+                for sname, solution in solutions.items():
+                    if not solution:
+                        continue
+                    s_json_file = os.path.join(jsondir, f"{sname}.json")
+                    _npy_solution_to_json(sname, solution, s_json_file)
+                    print(f"  Saved {sname} solution in JSON:{_relpath(s_json_file)}")
+                    s_csv_file = os.path.join(csvdir, f"{sname}.csv")
+                    _npy_solution_to_csv(sname, solution, s_csv_file)
+                    print(f"  Saved {sname} solution in CSV: {_relpath(s_csv_file)}")
+                l_json_file = os.path.join(sdir, "labels.json")
+                fh = open(l_json_file, 'w')
+                json.dump(labels, fh, indent=2)
+                print(f"Saved {sheet.name} ro/col labels in {l_json_file}")
 
             json_file = f"{matrix_json_dir}/{'-'.join(sheet_key)}.json"
             print(f"\nDumped {sheet_key} JSON to:", _relpath(json_file))
@@ -249,22 +295,25 @@ def main(game_name=DEFAULTS.game,
             sheet = Sheet(sheet_key, json_preamble=_json_preamble(),
                     csv_preamble=_csv_preamble())
         perm_cnt += 1
-        dd_pm = json_perm_dir = games_dir = None
+        json_summary_file = json_perm_dir = games_dir = None
         if dump_dir:
-            if not dd_pm:
-                json_dump_pm = util.PathManager(
-                    base_dir=json_dump_dir,
-                    detection_costs=f"det_costs_{det_costs}",
-                    advancement_rewards=f"adv_rewards_{adv_rewards}",
-                    timestamp=timestamp)
+            json_dump_pm = util.PathManager(
+                base_dir=json_dump_dir,
+                detection_costs=f"det_costs_{det_costs}",
+                advancement_rewards=f"adv_rewards_{adv_rewards}",
+                no_timestamp=True)
             if dump_games:
                 json_perm_dir = os.path.join(json_dump_pm.path(),
                         perm_fmt % perm_cnt)
+                json_summary_file = \
+                        os.path.join(json_perm_dir, "summary.json")
                 games_dir = os.path.join(json_perm_dir, "games")
                 if not os.path.exists(games_dir):
                     os.makedirs(games_dir)
             else:
                 json_perm_dir = json_dump_pm.path()
+                json_summary_file = os.path.join(json_perm_dir,
+                        f"{perm_fmt % perm_cnt}.json")
             if not os.path.exists(json_perm_dir):
                 os.makedirs(json_perm_dir)
 
@@ -386,23 +435,18 @@ def main(game_name=DEFAULTS.game,
             histories = list(reversed(sorted((y, x)
                 for x, y in histories.items())))
             dump["history_tallies"] = histories
-            if dump_games:
-                summary_file = os.path.join(json_perm_dir, "summary.json")
-            else:
-                summary_file = f"{perm_fmt % perm_cnt}.json"
-                summary_file = os.path.join(json_dump_pm.path(), summary_file)
-            with open(summary_file, 'w') as dfh:
+            with open(json_summary_file, 'w') as dfh:
                 json.dump(dump, dfh, indent=2)
             if dump_games:
                 print(f"Dumped {game_num} game playthroughs into: {_relpath(json_perm_dir)}")
             else:
-                print(f"Dumped summary of {game_num} game playthroughs into: {_relpath(summary_file)}")
+                print(f"Dumped summary of {game_num} game playthroughs into: {_relpath(json_summary_file)}")
     if dump_dir:
         print()
         print(f"\nSaved {sheet_cnt} JSON matrices in "
               f"{_relpath(matrix_json_dir)}")
         print(f"\nSaved {sheet_cnt} CSV matrices in "
-               "{_relpath(matrix_csv_dir)}")
+               f"{_relpath(matrix_csv_dir)}")
         print(f"Saved {sheet_cnt} excel matrices in "
               f"{_relpath(matrix_xls_file)}")
         if solvers:

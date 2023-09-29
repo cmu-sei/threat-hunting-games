@@ -183,11 +183,9 @@ class Sheet:
         return name
 
     def as_tensor(self):
-        print("as_tensor:")
         t = np.stack([
             self.atk_matrix.as_tensor(),
             self.def_matrix.as_tensor()])
-        print(t)
         return t
 
     def dump_json(self, fh):

@@ -274,12 +274,14 @@ def main(game_name=DEFAULTS.game,
                 json.dump(labels, fh, indent=2)
                 print(f"Saved {sheet.name} ro/col labels in {l_json_file}")
 
-            json_file = f"{matrix_json_dir}/{'-'.join(sheet_key)}.json"
+            json_file = os.path.join(matrix_json_dir,
+                f"{'-'.join(sheet_key)}.json")
             print(f"\nDumped {sheet_key} JSON to:", _relpath(json_file))
             with open(json_file, 'w') as fh:
                 sheet.dump_json(fh)
 
-            csv_file = f"{matrix_csv_dir}/{'-'.join(sheet_key)}.csv"
+            csv_file = os.path.join(matrix_csv_dir,
+                f"{'-'.join(sheet_key)}.csv")
             print(f"\nDumped {sheet_key} CSV to:", _relpath(csv_file))
             with open(csv_file, 'w', newline='') as fh:
                 writer = csv.writer(fh)
